@@ -3,13 +3,7 @@ venv/
 __pycache__/
 *.pyc
 
-# SUMO generated outputs (regenerable from generate_corridor.py)
-sim/networks/generated/
-
-# Training checkpoints (large binary files, regenerate via training/train.py)
-training/checkpoints/
-
-# Node modules (once frontend phase starts)
+# Node modules (once frontend phase starts) — regenerated via npm install
 node_modules/
 
 # OS/editor junk
@@ -17,3 +11,10 @@ node_modules/
 Thumbs.db
 .vscode/
 *.swp
+
+# Training checkpoints — only the FINAL model that powers the demo should
+# be tracked, not every intermediate save. Ignore the folder by default...
+training/checkpoints/*
+# ...then explicitly un-ignore the specific final checkpoint file(s) once
+# training completes, e.g.:
+# !training/checkpoints/final_model.zip
