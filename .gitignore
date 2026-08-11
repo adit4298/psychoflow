@@ -1,0 +1,19 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# SUMO generated outputs (regenerable from generate_corridor.py)
+sim/networks/generated/
+
+# Training checkpoints (large binary files, regenerate via training/train.py)
+training/checkpoints/
+
+# Node modules (once frontend phase starts)
+node_modules/
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp

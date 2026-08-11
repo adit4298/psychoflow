@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal hand-built route file, for §18 Phase 2 verification ONLY.
+
+  Its single job is to put enough traffic on the Phase 1 corridor that the
+  perception layer has non-zero state to sense (queues at reds, mixed
+  vehicle types per lane, vehicles for V2X to report). It is NOT
+  sim/scenario_generator.py (§6) — randomized scenario generation is
+  later scope and is deliberately not being built here.
+
+  vTypes are defined in sim/networks/vehicle_types.add.xml; pass that as
+  an additional-file when launching SUMO.
+-->
+<routes>
+    <!-- Draws the four everyday types; ambulance is spawned explicitly
+         below so its arrival time is deterministic rather than random. -->
+    <vTypeDistribution id="mixed" vTypes="bike auto car truck" probabilities="0.15 0.25 0.50 0.10"/>
+
+    <!-- Corridor through-routes, both directions -->
+    <route id="r_we" edges="W1_J1 J1_J2 J2_J3 J3_E3"/>
+    <route id="r_ew" edges="E3_J3 J3_J2 J2_J1 J1_W1"/>
+
+    <!-- Cross-street routes at each junction -->
+    <route id="r_ns1" edges="N1_J1 J1_S1"/>
+    <route id="r_sn1" edges="S1_J1 J1_N1"/>
+    <route id="r_ns2" edges="N2_J2 J2_S2"/>
+    <route id="r_sn2" edges="S2_J2 J2_N2"/>
+    <route id="r_ns3" edges="N3_J3 J3_S3"/>
+    <route id="r_sn3" edges="S3_J3 J3_N3"/>
+
+    <flow id="f_we"  type="mixed" route="r_we"  begin="0" end="3600" vehsPerHour="1000" departLane="random" departSpeed="max"/>
+    <flow id="f_ew"  type="mixed" route="r_ew"  begin="0" end="3600" vehsPerHour="1000" departLane="random" departSpeed="max"/>
+    <flow id="f_ns1" type="mixed" route="r_ns1" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+    <flow id="f_sn1" type="mixed" route="r_sn1" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+    <flow id="f_ns2" type="mixed" route="r_ns2" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+    <flow id="f_sn2" type="mixed" route="r_sn2" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+    <flow id="f_ns3" type="mixed" route="r_ns3" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+    <flow id="f_sn3" type="mixed" route="r_sn3" begin="0" end="3600" vehsPerHour="600"  departLane="random" departSpeed="max"/>
+
+    <!-- Exercises §7.1's type_composition ambulance slot; the emergency
+         override itself is §10, built in Phase 4. -->
+    <vehicle id="amb_1" type="ambulance" route="r_we" depart="280" departLane="best" departSpeed="max"/>
+</routes>
