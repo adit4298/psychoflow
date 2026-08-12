@@ -546,6 +546,24 @@ Evaluate the trained agent on scenarios never seen during training (different de
 | After Stage 4 | Near-100% emergency priority in test episodes | Agent sometimes ignores emergencies |
 | After Stage 5 (MARL checkpoint) | Graph-attention reward trending up cleanly | Flat/unstable → flip the config flag to shared-policy (§9.5), don't debug further under time pressure |
 
+**Measured random-action baseline (recorded 2026-08-12, §18 Phase 3, corridor 4/3/2, seed 7).** Checkpoints 1 and 2 compare against this — these are actual numbers from `python sim/run_env_smoke.py --full-episode`, not estimates:
+
+| Metric | Random masked actions |
+|---|---|
+| Episode length | 718 decision steps, 3600s, `truncated` (never cleared early) |
+| Mean reward / step | **−224.8** |
+| Vehicles arrived | 4604 |
+| Worst single-vehicle wait | 793s |
+| Steps with a starved lane | 624 / 718 (87%) |
+
+**If Checkpoint 1's reward curve comes back flat or unstable, try this FIRST** (recorded 2026-08-12, §18 Phase 3 — before touching anything structural):
+
+The §9.4 starvation term is **unbounded**. Per-lane penalty is `p = r² + 4·max(0, r−1)²` with `r = wait / 90`, so a lane at 793s scores `p = 8.81² + 4·7.81² = 321.6` — and per-step reward reaches −765 late in a bad episode. The value function therefore has to span roughly `[−800, +3]`, and early-training advantage estimates get dominated by a handful of catastrophic steps rather than by the ordinary decisions the policy needs to learn.
+
+**The fix to try first:** clamp `r` in `env/reward.py`'s `lane_starvation_penalty()` — e.g. `r = min(r, 5.0)`, capping the per-lane penalty at ~89 instead of letting it run to 300+. This preserves everything §9.4 requires (a 2× wait still costs far more than 2× penalty across the whole operating range; balanced still beats starved; the emergency term still dominates) while pulling the reward into a range PPO's value head can fit. Re-run `python -m env.reward` afterwards — its assertions encode the hand-scored scenarios that were verified before Phase 3 was signed off, so they will catch it if a cap breaks the ordering.
+
+This was deliberately **not** applied during Phase 3: the uncapped formula was hand-verified and signed off, and whether the tail actually hurts learning is a training-dynamics question only this checkpoint can answer. Don't pre-emptively cap it before seeing a curve.
+
 ---
 
 ## 17. Honest Scope Boundaries
@@ -555,6 +573,7 @@ Evaluate the trained agent on scenarios never seen during training (different de
 - Coordinator/responder messaging is decision-support output, not an actual dispatch system.
 - Everything is validated inside a traffic simulator, not on real roads — metrics are simulation-derived, not field-measured.
 - The vision/CCTV input is a simulated mock producing realistic per-lane data, not a live camera pipeline.
+- Coordination is achieved through one shared policy attending across all three junctions in a single forward pass (centralized execution), not three independently-executing agents. The corridor is modeled as three junction agents whose phase decisions come from a single neighbor-aware network (§9.5) and a single corridor-wide reward — not three separate processes negotiating at runtime. This is what makes the graph-attention/shared-policy config flag a one-line swap rather than a rewrite, and it is the claim to make on demo day.
 
 State these explicitly to judges and keep them in code comments — this is what keeps the team from accidentally overstating what's built vs. modeled.
 
