@@ -502,6 +502,18 @@ Pause and ask the user rather than proceeding when:
 &#x20; emits a `UserWarning` when this happens, as a free tripwire; the actual
 &#x20; enforcement for training is the Phase 6 prerequisite recorded under §3 above.
 
+\- \*\*WATCH-ITEM (Phase 6, added Stage 1): re-check the deterministic-vs-stochastic
+&#x20; reward gap at every future stage checkpoint (Stage 2/3/4).\*\* Stage 1's final
+&#x20; checkpoint scores +1.03 mean reward/step deterministic vs. 1.297 stochastic
+&#x20; (10-episode average, seed-independent, bit-for-bit reproducible — see
+&#x20; BUILD_LOG.md's Phase 6 entry) — likely `ent_coef=0.0` plus independent-per-head
+&#x20; argmax over the `MultiDiscrete([3,3,3])` action space not yet coinciding with the
+&#x20; jointly-best combination, but this is an unconfirmed hypothesis. If the gap does
+&#x20; NOT narrow as training progresses and entropy naturally decays, escalate before
+&#x20; the Stage 5 MARL checkpoint — §9.5's graph-attention and shared-policy extractors
+&#x20; both sit on this same per-junction action-head structure, so an unresolved gap
+&#x20; here is not a Stage-1-only quirk.
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops

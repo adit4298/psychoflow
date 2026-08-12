@@ -330,20 +330,53 @@ One object updated every simulation step, merging all of §7.1-7.5 into a single
 
 ## 8. Prediction
 
-### 8.1 Spillover forecasting
-Input: digital twin state + `corridor_adjacency` (§7.6: `J1→J2`, `J2→J3`). Output: per downstream-junction, a predicted queue-length delta over the next N seconds (start N=60s).
+### 8.1 Spillover forecasting (implemented, Phase 5 — `prediction/spillover.py`)
+Input: digital twin state only + `corridor_adjacency` (§7.6: `J1→J2`, `J2→J3`) — `PsychoFlowEnv._spillover()` calls `predictor.forecast(self._snapshot)`, no runtime/route data. Output: per downstream-junction, a predicted queue-length delta over the next N seconds (N=60s, `DEFAULT_HORIZON_S`).
 ```json
 { "from_junction": "J1", "to_junction": "J2", "horizon_s": 60, "predicted_queue_delta": 4.2, "confidence": 0.78 }
 { "from_junction": "J2", "to_junction": "J3", "horizon_s": 60, "predicted_queue_delta": 1.9, "confidence": 0.81 }
 ```
-Start with a heuristic (e.g. current outflow rate from J1 vs. current capacity headroom at J2) before reaching for a learned model — this is a lightweight addition on the existing stack, not a new ML project.
+**Implemented heuristic:** net growth rate of the downstream junction's own corridor-facing queue (`halted_count` summed over lanes tagged `approach == "west"` — on this locked linear W→E corridor, always the lane group fed by the upstream neighbor, hardcoded as `LINK_APPROACH = "west"`), extrapolated forward over the horizon:
+```
+queue_now  = sum(halted_count for lanes at downstream junction where approach == "west")
+rate       = (queue_now - queue_prev) / dt        # dt = sim_time - prev_sim_time
+predicted_queue_delta = rate * horizon_s
+```
+This proxies "current outflow rate from J1" as the connecting lane group's own net growth rather than an unmeasurable per-vehicle turn-routed outflow (no route/destination data exists in the twin snapshot to isolate "vehicles at J1 headed for J2"). Net growth already nets J1's discharge against J2's own service of it.
 
-### 8.2 Incident impact prediction
+Confidence is a fixed baseline, not a learned uncertainty estimate:
+```
+confidence = 0.5                          # cold start (no previous snapshot): delta forced to 0.0
+confidence = 0.85                         # otherwise (CONFIDENCE_BASE)
+confidence = max(0.5, confidence - 0.2)   # if an incident is active at the downstream junction
+```
+The predictor is stateful (keeps the previous snapshot to compute the rate) and is reset every episode by `PsychoFlowEnv.reset()`.
+
+**Obs-slot resolution:** each junction's §9.2 spillover slot (indices 10/11) reports the forecast where THAT junction is `to_junction` — i.e. "spillover about to arrive here from upstream." J1 has no upstream neighbor on this corridor and is never a `to_junction`, so its slot is always `(0.0, 0.0)` by omission. J2's own downstream impact on J3 is reported on J3's row, not duplicated on J2's.
+
+### 8.2 Incident impact prediction (implemented, Phase 5 — `prediction/incident_impact.py`)
 Input: an incident event (§7.3) + digital twin state. Output: estimated ripple.
 ```json
 { "incident_id": "inc_0007", "estimated_affected_junctions": ["J2", "J3"], "estimated_delay_increase_s": 85, "horizon_s": 300 }
 ```
 Feeds the intervention layer a head start on compensating before downstream congestion is actually observed.
+
+**Implemented formula:** `estimated_affected_junctions` is the incident's own junction (hop 0) plus every junction reachable downstream via `corridor_adjacency` (a forward walk — congestion propagates downstream on this linear corridor). `estimated_delay_increase_s` is the SUM (not max — max would always equal the hop-0 term regardless of ripple distance, making the decay term inert) of each affected junction's hop-decayed contribution:
+```
+contribution(hop) = BASE_DELAY_S(30.0) * SEVERITY_VALUE[severity] * len(affected_lanes) * DECAY_PER_HOP(0.5) ** hop
+estimated_delay_increase_s = sum(contribution(hop) for each affected junction, hop = 0, 1, 2, ...)
+horizon_s = min(MAX_HORIZON_S(300.0), incident["estimated_duration_s"])
+```
+`SEVERITY_VALUE = {"low": 0.33, "medium": 0.67, "high": 1.0}` (`perception/incident_intake.py`, §7.3's canonical home — also used by §9.2's `JS_INCIDENT_SEVERITY` feature).
+
+Worked example (incident at J1, severity=high, 2 affected lanes):
+```
+J1 (hop 0): 30.0 * 1.0 * 2 * 0.5^0 = 60.0
+J2 (hop 1): 30.0 * 1.0 * 2 * 0.5^1 = 30.0
+J3 (hop 2): 30.0 * 1.0 * 2 * 0.5^2 = 15.0
+sum = 105.0s
+```
+Reproduced exactly by `python -m prediction.incident_impact`.
 
 ---
 
@@ -563,12 +596,14 @@ Evaluate the trained agent on scenarios never seen during training (different de
 
 | Stage | Adds | Target timesteps (starting point) |
 |---|---|---|
-| 1 | Single topology (4-way, 4-lane), fixed moderate density | 50k-100k |
-| 2 | Lane-count variation (2/3/4-lane) | 50k-100k |
-| 3 | Density/traffic-mix randomization | 50k-100k |
-| 4 | Emergency-vehicle events | 50k-100k |
+| 1 | Single topology — the locked 4/3/2 corridor (§0.1), `randomize_lane_counts=False`, fixed moderate density | 50k-100k |
+| 2 | + lane-count variation (2/3/4-lane, `randomize_lane_counts=True`) | 50k-100k |
+| 3 | + density/traffic-mix randomization (`randomize_density=True`) | 50k-100k |
+| 4 | + emergency-vehicle events (`spawn_emergencies=True`) | 50k-100k |
 | 5 | MARL coordination (attention or fallback per §9.5's checkpoint rule) | 50k-100k+ |
 | 6 *(only with slack, §3)* | Y-merge topology | — |
+
+**Stage 1 fixed by `docs/BUILD_LOG.md`'s Phase 3 entry** ("`reset()` is curriculum-parameterized via a `ScenarioConfig` dataclass... defaulting to §16 Stage 1 (fixed 4/3/2, fixed density, no emergencies)") to mean the corridor's own locked 4/3/2 lane-count combination held fixed, not a uniform 4-lane topology — the original wording here ("4-way, 4-lane") predated that decision and was never updated to match it. Stages 2-4 are cumulative additions on top of Stage 1's `ScenarioConfig`, not independent configurations.
 
 **Verification checkpoints — stop and debug on any red flag, don't let a bad run continue unattended:**
 | Checkpoint | Check | Red flag |
