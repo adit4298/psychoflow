@@ -67,6 +67,7 @@ from __future__ import annotations
 import random
 import shutil
 import tempfile
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -74,6 +75,8 @@ import gymnasium as gym
 import numpy as np
 import sumolib
 import traci
+
+from prediction.spillover import as_junction_dict
 
 from env.obs_action_spec import (
     MAX_PHASES,
@@ -194,7 +197,19 @@ class PsychoFlowEnv(gym.Env):
         super().__init__()
         self.scenario = scenario_config or ScenarioConfig()
         self.reward_config = reward_config or RewardConfig()
-        self.spillover_predictor = spillover_predictor  # §8.1, None until Phase 5
+        self.spillover_predictor = spillover_predictor  # §8.1, Phase 5
+        if spillover_predictor is None:
+            # Legal — smoke tests, random-action rollouts and unit tests may
+            # construct the env without a predictor (CLAUDE.md §3). Not legal
+            # for a kept training run; that hard check lives in Phase 6's
+            # training/train.py, not here (see CLAUDE.md §3/§8). This warning
+            # is the cheap, breaks-nothing tripwire in between.
+            warnings.warn(
+                "PsychoFlowEnv constructed with spillover_predictor=None — "
+                "observation indices 10/11 (spillover) will be zero-filled. "
+                "Do not use this instance for a kept training run (CLAUDE.md §3).",
+                stacklevel=2,
+            )
         self.use_gui = use_gui
         self.strict_action_masking = strict_action_masking
 
@@ -384,8 +399,9 @@ class PsychoFlowEnv(gym.Env):
 
     def _spillover(self) -> dict[str, tuple[float, float]] | None:
         if self.spillover_predictor is None:
-            return None  # §8.1 not built — obs slots stay zero
-        return self.spillover_predictor.predict(self._snapshot)
+            return None  # obs slots stay zero — see the constructor warning
+        forecast = self.spillover_predictor.forecast(self._snapshot)
+        return as_junction_dict(forecast)
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -426,6 +442,12 @@ class PsychoFlowEnv(gym.Env):
         self.twin = DigitalTwin(net_path, seed=self._seed)
         self.twin.attach()  # must follow traci.start() — snapshots weather baselines
         self.twin.reset(0.0)
+        if self.spillover_predictor is not None:
+            # The predictor is stateful (keeps the previous snapshot to
+            # compute a rate, §8.1) — without this, episode 2's first
+            # forecast would compute a rate against episode 1's last
+            # snapshot, a huge and meaningless sim_time jump.
+            self.spillover_predictor.reset()
 
         self._read_phase_programs()
         for junction_id in CORRIDOR_JUNCTIONS:

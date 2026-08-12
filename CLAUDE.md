@@ -117,6 +117,11 @@ Follow `docs/PsychoFlow\_Master\_Plan.md` §18 phase by phase, in order.
 &#x20; `PsychoFlowEnv` is constructed with a non-None `spillover\_predictor`.
 
 &#x20; If either is false, stop and say so — do not start the run.
+&#x20; \*\*Phase 6 prerequisite (named explicitly, not just implied):\*\* `training/train.py` MUST assert
+&#x20; `env.spillover_predictor is not None` before calling `model.learn()`. psychoflow\_env.py
+&#x20; itself deliberately does NOT raise on a None predictor (smoke tests, random-action
+&#x20; rollouts and unit tests are legitimate with it absent) — it only warns (see §8's
+&#x20; SpilloverPredictor entry). The hard assert is Phase 6's job, not Phase 5's.
 
 
 
@@ -453,6 +458,49 @@ Pause and ask the user rather than proceeding when:
 &#x20; `phase\_served\_lanes()` is the STATIC per-episode map of which lanes slot `s`
 &#x20; WOULD green — what §9.1's phase scoring and §10's override target
 &#x20; resolution need. Unifying them silently breaks the reward.
+
+\- \*\*Prediction (Phase 5, §8) commands\*\*: `python -m prediction.spillover`
+&#x20; (8 hand-scored §8.1 assertions, no SUMO needed) and
+&#x20; `python -m prediction.incident_impact` (4 hand-scored §8.2 assertions, no SUMO
+&#x20; needed) — run after ANY change to either module. Live integration check:
+&#x20; `python sim/run_prediction_episode.py` (`--c1` spillover responds to a genuinely
+&#x20; growing/draining queue, read back through obs indices 10/11 via
+&#x20; `obs_action_spec.describe()`; `--c2` incident impact changes when an incident is
+&#x20; manually injected — the §18 Phase 5 done bar).
+
+\- \*\*`SEVERITY_VALUE` (severity —> numeric) lives in `perception/incident_intake.py`,
+&#x20; not `env/obs_action_spec.py`.\*\* Was duplicated there until Phase 5, when
+&#x20; `prediction/incident_impact.py` needed the same mapping; relocated to its §7.3
+&#x20; home and both modules import it from there. Import from
+&#x20; `perception.incident_intake`, don't redefine it a third time.
+
+\- \*\*`prediction/spillover.py`'s `SpilloverPredictor` is STATEFUL and MUST be reset
+&#x20; every episode.\*\* It keeps the previous twin snapshot to compute a queue growth
+&#x20; rate (§8.1's "current outflow rate" proxy). `PsychoFlowEnv.reset()` calls
+&#x20; `spillover_predictor.reset()` right after `twin.reset()` — if you ever construct
+&#x20; a `SpilloverPredictor` outside the env (a standalone script, a notebook), reset it
+&#x20; yourself at the start of every new episode or its first forecast will compute a
+&#x20; rate against a different episode's last snapshot.
+
+\- \*\*`LINK_APPROACH = "west"` in `prediction/spillover.py` is a hardcoded fact of the
+&#x20; locked linear W—>E corridor (§0.1), not a general direction inference.\*\* On
+&#x20; this corridor, the lane group fed by a junction's upstream neighbor is always
+&#x20; tagged `approach == "west"` at both J2 (from J1) and J3 (from J2) — verified
+&#x20; geometrically in Phase 2. If the corridor topology ever changes, this breaks
+&#x20; silently; same risk class as `CORRIDOR_ADJACENCY` itself.
+
+\- \*\*Observation indices 10/11 (§9.2's `JS_SPILLOVER_DELTA` / `JS_SPILLOVER_CONFIDENCE`)
+&#x20; hold exactly ONE forecast per junction row, keyed by that junction as
+&#x20; `to_junction`.\*\* J1 has no upstream neighbor on this corridor and is never a
+&#x20; `to_junction`, so its slot is always `(0.0, 0.0)` by omission — not a bug. J2's
+&#x20; own downstream impact on J3 is reported on J3's row, not duplicated on J2's. See
+&#x20; `prediction/spillover.py`'s module docstring for the full resolution.
+
+\- \*\*`PsychoFlowEnv(spillover_predictor=None)` is legal, not an error — it warns.\*\*
+&#x20; Smoke tests, random-action rollouts and unit tests may construct the env without
+&#x20; a predictor (§3's HARD GATE only restricts KEPT training runs). The constructor
+&#x20; emits a `UserWarning` when this happens, as a free tripwire; the actual
+&#x20; enforcement for training is the Phase 6 prerequisite recorded under §3 above.
 
 \- (Add training/test/run commands here as each phase is built — this
 

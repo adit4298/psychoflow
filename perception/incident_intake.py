@@ -17,6 +17,13 @@ from dataclasses import asdict, dataclass, field
 INCIDENT_TYPES = ("lane_blocked", "accident", "roadworks")
 SEVERITIES = ("low", "medium", "high")
 
+# Canonical severity->numeric mapping. Was duplicated in env/obs_action_spec.py
+# (§9.2's JS_INCIDENT_SEVERITY feature) until §18 Phase 5, when
+# prediction/incident_impact.py needed the same mapping and duplicating it a
+# second time was worse than relocating it next to the enum it maps.
+SEVERITY_VALUE = {"low": 0.33, "medium": 0.67, "high": 1.0}
+assert set(SEVERITY_VALUE) == set(SEVERITIES), "severity map drifted from §7.3's enum"
+
 
 @dataclass
 class Incident:

@@ -40,7 +40,7 @@ from __future__ import annotations
 import numpy as np
 from gymnasium import spaces
 
-from perception.incident_intake import SEVERITIES
+from perception.incident_intake import SEVERITIES, SEVERITY_VALUE
 from perception.lane_sensor import VEHICLE_TYPES
 from perception.weather import WEATHER_STATES
 from twin.digital_twin import CORRIDOR_JUNCTIONS
@@ -109,8 +109,9 @@ NORM_TYPE_COUNT = 10.0
 NORM_TIME_SINCE_SWITCH = 120.0
 NORM_SPILLOVER_DELTA = 10.0
 
-SEVERITY_VALUE = {"low": 0.33, "medium": 0.67, "high": 1.0}
-assert set(SEVERITY_VALUE) == set(SEVERITIES), "severity map drifted from §7.3's enum"
+# SEVERITY_VALUE lives in perception/incident_intake.py (§7.3's home) —
+# prediction/incident_impact.py (§8.2, Phase 5) needs the same mapping, so it
+# is defined once there rather than duplicated here.
 
 
 # --------------------------------------------------------------------------
