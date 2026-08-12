@@ -323,11 +323,31 @@ Pause and ask the user rather than proceeding when:
 
 \- \*\*Before acting on any §16 training checkpoint, read the notes under §16's
 &#x20; checkpoint table in the master plan\*\* — not just the table rows. It carries
-&#x20; the measured random-action baseline (mean reward/step −224.8, 4604 arrived,
-&#x20; worst wait 793s, starved on 624/718 steps) that Checkpoints 1 and 2 compare
-&#x20; against, and the first fix to try if Checkpoint 1's curve is flat (clamp `r`
-&#x20; in `env/reward.py`'s `lane\_starvation\_penalty()`). Do not pre-emptively apply
-&#x20; that cap before seeing an actual curve.
+&#x20; three measured baselines and the guidance for a flat Checkpoint 1 curve.
+
+\- \*\*Checkpoint 1's bar is −2.4, NOT −224.8.\*\* §16 records three baselines;
+&#x20; use the WITH-VALIDATOR row. Since Phase 4, §10's validator lives inside
+&#x20; `env.step()`, so a trained agent always runs in a shielded MDP — comparing
+&#x20; it against the Phase 3 unshielded number would flatter it by ~222
+&#x20; reward/step of pure shield effect and make the checkpoint meaningless.
+&#x20; Measured, corridor 4/3/2 seed 7:
+&#x20; | | random, no validator | random, validator ON | \*\*Tier 0\*\* |
+&#x20; |---|---|---|---|
+&#x20; | mean reward/step | −224.8 | \*\*−2.4\*\* | \*\*+1.2\*\* |
+&#x20; | worst wait | 793s | 141s | 41s |
+&#x20; | starved steps | 624/718 | 543/646 | 0/627 |
+&#x20; | episode | truncated | terminated | terminated |
+&#x20; Beating random is now a low bar. \*\*The claim worth making is beating Tier 0's
+&#x20; +1.2\*\* (§15.1) — and note both Phase 4 rows TERMINATE, i.e. clear the
+&#x20; corridor, where the unshielded run never did.
+
+\- \*\*The §9.4 reward-tail clamp is now a SECOND resort, not the first thing to
+&#x20; try.\*\* With the ceiling active the worst observed wait drops from 793s to
+&#x20; 141s, so the worst per-lane penalty falls from `p=321.6` to `p=3.74` and the
+&#x20; value range from ~`[−800,+3]` to ~`[−25,+3]` — which was the entire concern
+&#x20; motivating the clamp. Still do not pre-emptively cap `r` in
+&#x20; `env/reward.py`'s `lane\_starvation\_penalty()`; if Checkpoint 1 comes back
+&#x20; flat, start the diagnosis elsewhere.
 
 \- \*\*Standing rule — every SUMO launch must also pass `--time-to-teleport 600`.\*\*
 &#x20; SUMO's 300s default sits inside the starvation regime §9.4 measures, so a
@@ -357,6 +377,82 @@ Pause and ask the user rather than proceeding when:
 &#x20; `twin/digital\_twin.py`, exposed in the snapshot under the exact key
 &#x20; `corridor\_adjacency` as `[["J1","J2"],["J2","J3"]]`. §8.1 and §9.5
 &#x20; must import that constant, not re-declare the pairs.
+
+\- \*\*Standing rule — `enable\_safety\_validator=False` is TEST-HARNESS ONLY.\*\*
+&#x20; `PsychoFlowEnv(enable\_safety\_validator=False)` disables §10's gate
+&#x20; entirely: no starvation ceiling, no emergency override. It exists for
+&#x20; exactly two reasons — the same-seed A/B contrast in
+&#x20; `sim/run\_tier0\_episode.py` that PROVES the ceiling is what bounds the
+&#x20; wait, and reproducing Phase 3's pre-validator numbers. \*\*It must never
+&#x20; be reachable from any backend or control-API code path\*\* — not
+&#x20; `backend/main.py`, not `backend/sim\_runner.py`, not `control\_api.py`
+&#x20; (§13.1), not §14's voice intents, not a config file or env var those
+&#x20; read. There is no operator-facing reason to turn off the safety
+&#x20; validator, and §10's guarantee ("nothing reaches the road without
+&#x20; passing through here") is only true if the off-switch is unreachable
+&#x20; from anything that drives a real sim. Constructible from
+&#x20; `sim/run\_tier0\_episode.py` and unit tests, nowhere else. Add to the
+&#x20; §20 pre-event checklist: grep `enable\_safety\_validator` before the
+&#x20; demo and confirm every hit is test scaffolding.
+
+\- Tier 0 done-bar checks (Phase 4): `python -m safety.validator` (8 §10 unit
+&#x20; scenarios / 11 assertions, no SUMO process needed — run after ANY validator
+&#x20; change) and `python sim/run\_tier0\_episode.py` (B1 standalone episode, B2
+&#x20; emergency latency, B3 same-seed ceiling A/B, B4 re-measured random
+&#x20; baseline). Sub-runs are individually selectable: `--b1 --b2 --b3 --b4`.
+
+\- \*\*`Tier0Config.starvation\_bonus\_scale = 20.0` is calibrated against a
+&#x20; DISTRIBUTION, not a physical constant — re-measure it if `ScenarioConfig`'s
+&#x20; density defaults change.\*\* `python sim/run\_tier0\_episode.py --measure-scale`
+&#x20; reproduces it. Two traps that already bit once: sample only decision points
+&#x20; with 2+ valid slots (MIN\_GREEN\_S=10s against a 5s interval leaves ~2 of every
+&#x20; 3 steps locked to one slot, and those non-decisions drive the median to
+&#x20; 0.00), and calibrate against the MAX competing score per choice point — the
+&#x20; bar a starved lane's phase must actually clear — not the mean of all slots.
+
+\- \*\*A verification run that passes while proving nothing is the failure mode
+&#x20; to watch in this repo.\*\* Phase 4 hit it twice: B2's two variants silently
+&#x20; collapsed onto the same scenario (and then reported a NEGATIVE latency when
+&#x20; the controller happened to serve the ambulance on its own before the
+&#x20; override could fire), and the SCALE measurement returned a clean-looking
+&#x20; median of 0.00. Neither raised. When a test targets a specific mechanism,
+&#x20; drive it with a controller that REFUSES to produce the outcome by any other
+&#x20; route, and assert the mechanism actually fired — not just that the outcome
+&#x20; appeared.
+
+\- \*\*Three starvation constants, three distinct roles — do not collapse them.\*\*
+&#x20; `DEFAULT\_STARVATION\_THRESHOLD\_S` = 90 (`perception/lane\_sensor.py`) is the
+&#x20; SOFT line: sets `starvation\_flag`, and is the denominator `r` in both
+&#x20; §9.1's Tier 0 bonus and §9.4's reward penalty. `STARVATION\_CEILING\_S` = 120
+&#x20; (`safety/validator.py`) is the HARD line where §10 overrides regardless of
+&#x20; what was proposed. `MIN\_GREEN\_S` = 10 (`env/psychoflow\_env.py`) is
+&#x20; anti-flicker. The ceiling MUST stay above the threshold — if they were
+&#x20; equal the ceiling would fire constantly and Tier 0's soft bonus would never
+&#x20; get a band to act in, which is the whole "fairness-first" claim.
+
+\- \*\*§10 precedence is emergency FIRST, then starvation ceiling\*\* — this is the
+&#x20; OPPOSITE of the order in §10's pseudocode, which returns on starvation
+&#x20; before ever testing for an ambulance. §10's prose ("cannot be
+&#x20; delayed/blocked/deprioritized by anything else") and §9.4's weights
+&#x20; (`w\_emergency=20.0` vs a starvation term reaching ~20 only at a 250s wait)
+&#x20; both say emergency wins. Unit scenario 7 in `safety/validator.py` pins this
+&#x20; as an assertion — if it ever fails, someone has re-read the pseudocode
+&#x20; literally.
+
+\- \*\*The emergency override is STATELESS — never add a latch or hold timer.\*\*
+&#x20; `validate()` recomputes from the snapshot every step; when the ambulance
+&#x20; leaves the approach lane the branch simply stops firing and normal masking
+&#x20; resumes. A latch is a state machine that can jam holding a green forever if
+&#x20; its release condition is missed. §11.1's clearance animation (Phase 8) does
+&#x20; not change this.
+
+\- \*\*`_green\_lanes()` and `phase\_served\_lanes()` are NOT the same map — keep both.\*\*
+&#x20; `PsychoFlowEnv.\_green\_lanes()` reads the LIVE RYG state each step, so
+&#x20; mid-yellow it returns the yellow phase's greens — correct for §9.4's
+&#x20; emergency term, which asks "is the ambulance moving right now". 
+&#x20; `phase\_served\_lanes()` is the STATIC per-episode map of which lanes slot `s`
+&#x20; WOULD green — what §9.1's phase scoring and §10's override target
+&#x20; resolution need. Unifying them silently breaks the reward.
 
 \- (Add training/test/run commands here as each phase is built — this
 

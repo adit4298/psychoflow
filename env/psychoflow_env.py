@@ -9,7 +9,9 @@ Per-step flow — the single pull the whole architecture rests on:
 
     step(action)
       1. traci.switch(label)
-      2. apply action per junction (begin yellow transition, or hold)
+      2a. mask check on the PROPOSED action (§9.2)
+      2b. §10 SAFETY VALIDATOR — the mandatory gate
+      2c. apply the VALIDATED action per junction (yellow transition, or hold)
       3. run DECISION_INTERVAL_S SUMO sub-steps
            - drive the yellow -> green state machine
            - accumulate arrived counts
@@ -17,6 +19,25 @@ Per-step flow — the single pull the whole architecture rests on:
       5. obs    = build_observation(snapshot, runtime)
       6. reward = compute_reward(snapshot, interval_stats)
       7. masks  = make_action_masks(runtime)
+
+Step 2b sits INSIDE step(), immediately before the only code path that
+reaches traci.trafficlight.setPhase(), rather than in a Gymnasium wrapper
+or in the caller. That is what makes §10's claim ("nothing reaches the
+road without passing through here") a structural fact — a wrapper would
+leave step() directly callable and unshielded. It also means the policy
+TRAINS inside the same shield it deploys into; a shield bolted on only at
+deployment produces train/deploy mismatch. §9.4's w_emergency=20.0 was
+chosen so the reward agrees with the gate rather than fighting it, and
+that only pays off if the gate is present during training.
+
+Known and accepted: SB3 logs the PROPOSED action while the VALIDATED one
+executes. That is standard for shielded RL, and overrides should become
+rare as the policy improves.
+
+The validator reads self._snapshot — the snapshot from the END of the
+previous step, which is exactly the one build_observation() was called
+on. So it judges the action against the same reality the policy saw when
+it chose. That is §7.6's guarantee extended one module further.
 
 Steps 5-7 all read the SAME snapshot object, so observation, reward and
 mask can never disagree about what the corridor looked like. That is the
@@ -63,6 +84,7 @@ from env.obs_action_spec import (
 )
 from env.reward import IntervalStats, RewardConfig, compute_reward
 from perception.lane_sensor import WAITING_TIME_MEMORY_S
+from safety.validator import ValidatedAction, validate
 from sim.networks.generate_corridor import GENERATED_DIR, VALID_LANE_COUNTS, generate_corridor
 from sim.scenario_generator import write_route_file
 from twin.digital_twin import CORRIDOR_JUNCTIONS, DigitalTwin
@@ -144,6 +166,12 @@ class _PhaseState:
     green_slots: list[int] = field(default_factory=list)  # raw program indices
     yellow_after: dict[int, int] = field(default_factory=dict)  # slot -> raw yellow index
     yellow_duration_s: dict[int, float] = field(default_factory=dict)
+    # Which lanes each green slot WOULD green. Static for the episode, so
+    # computed once. NOT the same map as _green_lanes(), which reads the
+    # LIVE state and mid-yellow returns the yellow phase's greens — correct
+    # for §9.4's "is the ambulance moving right now", wrong for §9.1's phase
+    # scoring and §10's override targeting. Keep both.
+    served_lanes: dict[int, frozenset[str]] = field(default_factory=dict)
     cur_slot: int = 0
     time_since_switch_s: float = 0.0
     transition: dict | None = None  # {"target_slot": int, "remaining_s": float}
@@ -161,6 +189,7 @@ class PsychoFlowEnv(gym.Env):
         seed: int | None = None,
         label: str | None = None,
         strict_action_masking: bool = True,
+        enable_safety_validator: bool = True,
     ):
         super().__init__()
         self.scenario = scenario_config or ScenarioConfig()
@@ -168,6 +197,21 @@ class PsychoFlowEnv(gym.Env):
         self.spillover_predictor = spillover_predictor  # §8.1, None until Phase 5
         self.use_gui = use_gui
         self.strict_action_masking = strict_action_masking
+
+        # TEST-HARNESS ONLY — see CLAUDE.md §8's standing rule.
+        # False disables §10 entirely: no starvation ceiling, no emergency
+        # override. It exists for exactly two things — the same-seed A/B in
+        # sim/run_tier0_episode.py that PROVES the ceiling is what bounds the
+        # wait, and reproducing Phase 3's pre-validator numbers. It must never
+        # be reachable from backend/, control_api.py (§13.1) or §14's voice
+        # intents; there is no operator-facing reason to switch off the safety
+        # validator, and §10's guarantee only holds if the off-switch is
+        # unreachable from anything driving a real sim.
+        self.enable_safety_validator = enable_safety_validator
+
+        # §13.1's trigger_emergency(lane_id): an operator forcing the same
+        # override §10 raises automatically. Wired in Phase 9.
+        self.forced_emergency_lanes: frozenset[str] = frozenset()
 
         self.observation_space = observation_space()
         self.action_space = action_space()
@@ -272,10 +316,24 @@ class PsychoFlowEnv(gym.Env):
                     yellow_after[slot] = nxt
                     yellow_duration[slot] = float(phases[nxt].duration)
 
+            # Static phase -> served-lane map. getControlledLanes() is
+            # indexed by link, aligned with the phase state string, and may
+            # repeat a lane that carries several links — hence the set.
+            controlled = traci.trafficlight.getControlledLanes(junction_id)
+            served_lanes = {
+                slot: frozenset(
+                    lane
+                    for i, lane in enumerate(controlled)
+                    if i < len(phases[raw].state) and phases[raw].state[i] in ("g", "G")
+                )
+                for slot, raw in enumerate(green_slots)
+            }
+
             self._phase_state[junction_id] = _PhaseState(
                 green_slots=green_slots,
                 yellow_after=yellow_after,
                 yellow_duration_s=yellow_duration,
+                served_lanes=served_lanes,
             )
 
     def _set_green(self, junction_id: str, slot: int) -> None:
@@ -304,6 +362,14 @@ class PsychoFlowEnv(gym.Env):
     def action_masks(self) -> np.ndarray:
         """sb3-contrib MaskablePPO calls this by name."""
         return make_action_masks(self._runtime(), MIN_GREEN_S)
+
+    def phase_served_lanes(self) -> dict[str, dict[int, frozenset[str]]]:
+        """{junction: {green slot: lanes that slot would green}}.
+
+        Static for the episode. Consumed by §9.1's Tier 0 phase scoring and
+        §10's override targeting, neither of which may query TraCI (§7.6).
+        """
+        return {jid: dict(st.served_lanes) for jid, st in self._phase_state.items()}
 
     def _green_lanes(self) -> dict[str, set[str]]:
         green: dict[str, set[str]] = {}
@@ -387,8 +453,12 @@ class PsychoFlowEnv(gym.Env):
         action = np.asarray(action, dtype=int).reshape(-1)
         masks = self.action_masks()
 
-        # ---- 2. apply action -------------------------------------------
-        switched: list[str] = []
+        # ---- 2a. mask check, on the PROPOSAL ----------------------------
+        # Deliberately before the validator: a masked proposal is a caller
+        # bug (a hand-written controller, a §14 voice command, a later-phase
+        # mistake) and must fail loudly. The validator's own output is
+        # applied unchecked below — see 2b.
+        proposed: list[int] = []
         for j, junction_id in enumerate(CORRIDOR_JUNCTIONS):
             choice = int(action[j])
             if not masks[j * MAX_PHASES + choice]:
@@ -401,21 +471,61 @@ class PsychoFlowEnv(gym.Env):
                         f"time_since_switch={self._phase_state[junction_id].time_since_switch_s}s, "
                         f"min_green={MIN_GREEN_S}s"
                     )
-                continue  # non-strict: hold current phase
+                choice = self._phase_state[junction_id].cur_slot  # non-strict: hold
+            proposed.append(choice)
 
+        # ---- 2b. §10 SAFETY VALIDATOR — the mandatory gate --------------
+        # Judged against self._snapshot, the state the observation was built
+        # from, i.e. what the agent saw when it chose.
+        if self.enable_safety_validator:
+            validated = validate(
+                proposed,
+                self._snapshot,
+                self._runtime(),
+                self.phase_served_lanes(),
+                MIN_GREEN_S,
+                forced_emergency_lanes=self.forced_emergency_lanes,
+            )
+        else:
+            validated = ValidatedAction.passthrough(proposed)
+
+        # ---- 2c. apply the VALIDATED action ----------------------------
+        switched: list[str] = []
+        for j, junction_id in enumerate(CORRIDOR_JUNCTIONS):
+            choice = validated.action[j]
             st = self._phase_state[junction_id]
-            if choice != st.cur_slot and st.transition is None:
-                yellow_raw = st.yellow_after.get(st.cur_slot)
-                if yellow_raw is None:
-                    self._set_green(junction_id, choice)  # no yellow defined
-                else:
-                    traci.trafficlight.setPhase(junction_id, yellow_raw)
-                    traci.trafficlight.setPhaseDuration(junction_id, HOLD_PHASE_S)
-                    st.transition = {
-                        "target_slot": choice,
-                        "remaining_s": st.yellow_duration_s[st.cur_slot],
-                    }
-                switched.append(junction_id)
+
+            if st.transition is not None:
+                # Mid-yellow. The yellow is never broken or shortened —
+                # doing so releases conflicting movements before the
+                # previous ones have cleared. It can only be RE-AIMED.
+                if junction_id in validated.retarget_transition:
+                    st.transition["target_slot"] = choice
+                continue
+
+            if choice == st.cur_slot:
+                continue
+
+            # A validator emitting a slot this junction does not have is a
+            # bug, not a runtime condition — fail loudly rather than let
+            # §10's gate quietly corrupt the program.
+            if not 0 <= choice < len(st.green_slots):
+                raise InvalidActionError(
+                    f"{junction_id}: validated slot {choice} outside "
+                    f"0..{len(st.green_slots) - 1}"
+                )
+
+            yellow_raw = st.yellow_after.get(st.cur_slot)
+            if yellow_raw is None:
+                self._set_green(junction_id, choice)  # no yellow defined
+            else:
+                traci.trafficlight.setPhase(junction_id, yellow_raw)
+                traci.trafficlight.setPhaseDuration(junction_id, HOLD_PHASE_S)
+                st.transition = {
+                    "target_slot": choice,
+                    "remaining_s": st.yellow_duration_s[st.cur_slot],
+                }
+            switched.append(junction_id)
 
         # ---- 3. advance the simulation ---------------------------------
         arrived = 0
@@ -464,6 +574,12 @@ class PsychoFlowEnv(gym.Env):
             "lane_counts": self._lane_counts,
             "action_masks": self.action_masks(),
             "switched_junctions": switched,
+            # §10 / §12.1 — what was asked for, what actually ran, and why
+            # they differ. Phase 8's decision log reads these directly.
+            "proposed_action": validated.proposed,
+            "executed_action": validated.action,
+            "safety_overrides": [record.to_dict() for record in validated.overrides],
+            "safety_bypass_min_green": sorted(validated.bypass_min_green),
         }
         return obs, float(reward), bool(terminated), bool(truncated), info
 

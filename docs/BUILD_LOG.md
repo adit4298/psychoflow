@@ -157,3 +157,101 @@ Append-only. Newest entry at the bottom. Do not edit or delete past entries.
 **Verified:** §16 now carries both the guidance and a measured random-action baseline table for Checkpoints 1 and 2 to compare against — 718 steps / 3600s / truncated, mean reward per step −224.8, 4604 vehicles arrived, worst single-vehicle wait 793s, starved lane on 624 of 718 steps (87%). Those are the actual figures from `python sim/run_env_smoke.py --full-episode`, so "beats random-action baseline" is now a number rather than a judgement call.
 
 **§18 Phase 3 is complete.** Both done-bar clauses verified in the project venv: "random-action agent runs a full episode without crashing" (718 steps, terminated=False truncated=True) and "hand-scored test scenarios produce intuitively-correct rewards" (`python -m env.reward`, all assertions pass). Next phase is §18 Phase 4 — Tier 0 rule-based controller + safety validator (§9.1, §10) — which CLAUDE.md §4 marks as a "state your design plan and wait for confirmation before writing code" phase.
+
+## 2026-08-12 — §18 Phase 4 (Tier 0 controller + Safety Validator, §9.1 / §10)
+
+Design plan was stated and signed off before any code, per CLAUDE.md §4. Eleven decisions were put to the user; all eleven approved as recommended.
+
+**Decision:** §10's precedence is EMERGENCY FIRST, then starvation ceiling — the opposite of §10's own pseudocode.
+**Why:** §10's code block tests starvation first and returns, so a starved lane would deprioritize an ambulance. That directly contradicts §10's prose ("cannot be delayed/blocked/deprioritized by anything else") and §9.4's weights (`w_emergency=20.0` against a starvation term that only reaches ~20 at a 250s wait). Prose and reward agree with each other; the pseudocode ordering was incidental.
+**Deviates from plan?** Yes — master plan §10's pseudocode was edited in place, with a comment recording why. §20 of that document invites in-place updates.
+**Verified:** Unit scenario 7b — ambulance on east/west, 200s starved lane on north/south, proposal serving north/south → action rewritten to the ambulance's phase, `rule=emergency_override`, not `starvation_ceiling`.
+
+**Decision:** An ambulance CLAIMS its junction — the emergency branch suppresses the ceiling entirely, not just when the ambulance is unserved.
+**Why:** Found while writing the unit scenarios, and it is a hole in the design as originally signed off. The approved design said "if the resulting phase doesn't serve the ambulance, override to one that does". That is insufficient: with an ambulance on east/west and a 200s starved lane on north/south, a proposal *already* serving the ambulance passes the emergency check, falls through to the ceiling, and the ceiling drags the green off the ambulance mid-transit. The fix is that any ambulance present at a junction causes an early `continue`, suppressing the ceiling for that junction. This is the real content of §10's early-return structure.
+**Deviates from plan?** No — strengthens §10 in the direction its prose already required. Flagged to the user and confirmed before proceeding.
+**Verified:** Unit scenario 7a — same conflicting state, proposal already serving the ambulance → action unchanged, **zero** overrides. Under the originally-approved design this case would have produced a starvation override.
+
+**Decision:** `STARVATION_CEILING_S = 120.0` (`safety/validator.py`).
+**Why:** §10 requires a ceiling but never gives a value. It must sit above §0.1's 90s threshold — if the two were equal the ceiling would fire the instant a lane is flagged, §9.1's soft bonus would never get a band to act in, and "fairness-first rule-based controller" would reduce to "the validator drives". 120s leaves a 30s working band. A module-level `assert` pins the relationship so the two constants cannot silently converge.
+**Deviates from plan?** No — supplies a value §10 left unspecified.
+**Verified:** Unit scenario 4 — a lane at 110s (over the 90s threshold, under the 120s ceiling) produces no override, confirming the band belongs to Tier 0's bonus.
+
+**Decision:** The validator lives INSIDE `PsychoFlowEnv.step()`, between the mask check and actuation — not a Gymnasium wrapper, not a caller-side call.
+**Why:** §10 claims "nothing reaches the road without passing through here". A wrapper leaves `env.step()` directly callable and unshielded, making that a convention rather than a structural fact. Placing it immediately before the only code path reaching `traci.trafficlight.setPhase()` makes it literally true. Second reason, which matters more at Phase 6: this is a safety shield, and a shield inside the env means the policy trains in the same dynamics it deploys into. §9.4's `w_emergency=20.0` was chosen so the reward agrees with the gate rather than fighting it — that only pays off if the gate is present during training. Accepted consequence: SB3 will log the proposed action while the validated one executes (standard for shielded RL).
+**Deviates from plan?** No — §10 specifies the gate's position in the pipeline, not its host.
+**Verified:** `sim/run_env_smoke.py` still passes all three Phase 3 masking checks with the gate inserted, and B2/B3 show overrides genuinely changing what SUMO executed.
+
+**Decision:** The validator is a pure function importing no `traci`; the env passes it the snapshot, the runtime, and a static phase→served-lane map.
+**Why:** Honours §7.6's "no module outside perception queries TraCI", and makes the §10 rules unit-testable with no SUMO process — which is what turned an eight-scenario test suite into a sub-second check that can be re-run after every change.
+**Deviates from plan?** No.
+**Verified:** `python -m safety.validator` → all 11 scenarios pass, no SUMO started.
+
+**Decision:** The validator judges against `self._snapshot` — the snapshot from the END of the previous step.
+**Why:** That is exactly the snapshot `build_observation()` was called on, so the validator evaluates the action against the same reality the policy saw when it chose it. §7.6's single-pull guarantee extended one module further. Using a fresher snapshot would mean the gate and the policy reason about different instants.
+**Deviates from plan?** No.
+**Verified:** B2's measured latency from detection is 3.0s = exactly the yellow duration, i.e. the validator acts on the very next decision step after the ambulance appears in a snapshot. Zero decision latency is only possible because the snapshot it reads is the one the action was chosen against.
+
+**Decision:** The emergency override bypasses `MIN_GREEN_S`; the starvation ceiling does NOT.
+**Why:** §10 says the emergency cannot be delayed by anything. The ceiling is different: letting it break min-green reintroduces exactly the flicker §9.2's masking and §9.4's switch penalty exist to suppress — two mutually starved lanes would ping-pong every decision step. Deferring costs at most 10s against a wait already past 120s. Deferred overrides are still logged (`outcome="deferred_min_green"`) so §12.1 stays honest.
+**Deviates from plan?** No — resolves an interaction §10 and §9.2 leave implicit.
+**Verified:** Unit scenario 2b (ceiling wants a switch at green_age=4s → action unchanged, `outcome=deferred_min_green`, no bypass) and scenario 5 (ambulance at green_age=4s → override applied, `bypass_min_green={J1}`). Live in B2 variant (b): injected at green_age=2s, override fired, `bypass_min_green=['J2']`. B4 recorded 31 genuine deferrals across a full random episode.
+
+**Decision:** A mid-yellow transition is RE-AIMED, never broken or shortened.
+**Why:** Breaking a yellow releases conflicting movements before the previous ones have cleared — the exact hazard §10 exists to prevent. Rewriting `transition["target_slot"]` lets the yellow run to completion while changing what emerges from it, costing at most the yellow's remainder (~3s here). This is the fastest *safe* response.
+**Deviates from plan?** No.
+**Verified:** Unit scenario 8 — mid-yellow committed to slot 0, ambulance needs slot 1 → `outcome=retargeted_transition`, `retarget_transition={J1}`, yellow duration untouched. Applies to both rules, not just emergency: re-aiming an in-flight switch adds no flicker.
+
+**Decision:** The emergency override is STATELESS — no latch, no hold timer, no release bookkeeping.
+**Why:** `validate()` recomputes from the snapshot every step; when the ambulance leaves the approach lane the branch simply stops firing and normal masking resumes from the moment of the override switch (`_set_green` already zeroed `time_since_switch_s`). A latch is a state machine that can jam holding a green forever if its release condition is ever missed.
+**Deviates from plan?** No.
+**Verified:** B2 both variants — normal Tier 0/adversarial operation resumes immediately after the ambulance clears, with no explicit release step anywhere in the code.
+
+**Decision:** Phase scoring SUMS the §9.1 lane scores of the lanes a phase serves; argmax among mask-valid slots; ties to the lowest slot index.
+**Why:** Sum is total demand served. Mean would prefer one badly congested lane over four moderately congested ones, which is wrong for throughput. Known cost: sum favours phases serving more lanes, and the through-corridor phase serves more than a cross-street phase. Absorbed by the per-lane cubic bonus (one starved cross-street lane spikes above a broad-but-shallow corridor phase) and by §10's ceiling underneath.
+**Deviates from plan?** No — §9.1 gives the per-lane formula, not the aggregation.
+**Verified:** B1 — zero starved steps across a full 3145s episode and zero §10 overrides, so the feared cross-street starvation did not materialise on the 4/3/2 corridor. Revisit from data if it ever does; `mean` is a one-line change.
+
+**Decision:** §9.1's `wait_time_current` is used literally, as TraCI reports it.
+**Why:** `lane.getWaitingTime()` is a SUM over vehicles on the lane, so it runs O(0-1000) while `halted_count` runs O(0-20) — the 0.6/0.4 weights are nominal rather than a true blend, and the wait term dominates. Taken literally anyway: §9.1 is explicitly the SEED the RL agent deviates from (§9.3), not an optimum, and rewriting a stated formula for aesthetics is the scope creep CLAUDE.md §6 warns about. Flagged to the user with the normalized alternative; literal reading confirmed.
+**Deviates from plan?** No.
+**Verified:** B1's results are strong on the literal reading (worst wait 41s, zero starvation), so there is no evidence the blend needs correcting.
+
+**Decision:** `starvation_bonus = 20.0 * min(r, 2.0)**3`, deliberately a DIFFERENT shape from §9.4's reward penalty (`r² + 4·max(0, r−1)²`), sharing only the 90s threshold constant.
+**Why:** Different jobs. The bonus chooses among ≤3 phases now, so the range that matters is `[0, T)` — where starvation can still be prevented; above T, §10's ceiling has taken over. The reward scores an outcome after the fact, so its range is `[T, ∞)` and it must stay unbounded to keep discriminating among failures. Reusing the reward's shape as a bonus fails twice: its hinge is AT T so it is nearly flat below T (Tier 0 would react only once it was too late), and it is unbounded above so one catastrophic lane would swamp every other term and Tier 0 would tunnel-vision. Cubic so the bonus is negligible early and decisive late; capped at r=2 because past the ceiling the gate owns the decision.
+**Deviates from plan?** No — supplies the function §9.1 describes only qualitatively.
+**Verified:** Curve at the decision points that matter — 5.9 at 60s, 14.6 at 81s, 20.0 at the 90s flag, 47.4 at the 120s ceiling.
+
+**Decision:** `starvation_bonus_scale = 20.0`, MEASURED rather than guessed.
+**Why:** Same discipline as `MAX_PHASES`. `--measure-scale` runs Tier 0 with the bonus disabled and records per-phase base scores, so the bonus competes against a real distribution. **First attempt returned a degenerate median of 0.00** — the sample population was wrong: MIN_GREEN_S=10s against a 5s decision interval leaves two of every three steps locked to a single slot, and those non-decisions buried the distribution under zeros. Corrected to sample only decision points offering a real choice (2+ valid slots), and to record the statistic that actually matters — the highest competing base score at each choice point, i.e. the bar a starved lane's phase must clear.
+**Deviates from plan?** No.
+**Verified:** 1800s, corridor 4/3/2, seed 11 → 358 steps giving 367 real choice points and 707 min-green-locked. Bar to beat: min 0.00, p25 9.00, **median 13.00**, p75 17.60, p90 27.60, max 56.60. Calibration `scale = 13.00 / 0.9³ = 17.8 → 20`. Resulting ramp clears the median competitor at 81s (14.6), p75 at the 90s flag (20.0), and p90 nearly twice over at the 120s ceiling (47.4). Re-measure if `ScenarioConfig`'s density defaults change — this is calibrated against a distribution, not a physical constant.
+
+**Decision:** `phase_served_lanes()` (static, per-episode) is a SEPARATE map from the env's existing `_green_lanes()` (live, per-step). Both retained.
+**Why:** `_green_lanes()` reads the live RYG state, so mid-yellow it returns the yellow phase's greens — correct for §9.4's emergency term, which asks "is the ambulance moving right now". §9.1's phase scoring and §10's override targeting need "which lanes WOULD slot `s` green", which is static. Unifying them silently breaks the reward. Recorded as a standing rule in CLAUDE.md §8 because it looks like duplication.
+**Deviates from plan?** No.
+**Verified:** Both in use simultaneously across B1-B4 with the reward's emergency term and the validator's targeting agreeing (unit scenario 6: ambulance already green → validator emits no override, and §9.4 charges no penalty).
+
+**Decision:** `PsychoFlowEnv(enable_safety_validator=False)` exists, restricted to test scaffolding.
+**Why:** B3's A/B needs an unshielded run to prove the ceiling is what bounds the wait; without the contrast, "the ceiling works" is an assertion about code rather than a measurement. Restricted because it is a switch that turns off a §10 guarantee.
+**Deviates from plan?** Yes — §10 implies no such switch. Recorded as a standing rule in CLAUDE.md §8: never reachable from `backend/`, `control_api.py` (§13.1) or §14's voice intents, constructible only from `sim/run_tier0_episode.py` and unit tests, with a §20 pre-event grep to confirm.
+**Verified:** Only construction site outside unit tests is `b3()` in the harness.
+
+**Decision:** §16's random-action baseline was RE-MEASURED with the validator on, and both rows are now recorded.
+**Why:** The Phase 3 baseline predates the validator, but the trained agent runs inside the shield. Comparing a shielded agent against an unshielded baseline would flatter it by ~222 reward/step of pure shield effect and make Checkpoint 1 meaningless.
+**Deviates from plan?** No — §16 invites its own tuning, and the master plan invites in-place updates.
+**Verified:** B4, corridor 4/3/2 seed 7, validator on: 646 steps, 3240s, **terminated** (the unshielded run never cleared), mean reward/step **−2.4** (was −224.8), 4668 arrived, worst wait **141s** (was 793s), starved on 543/646 steps, 121 overrides (90 applied, 31 deferred). §16 now carries all three rows — no-validator, with-validator, and Tier 0 — with the with-validator row marked as the one Checkpoints 1 and 2 must use.
+
+**Decision:** §10's absolute-ceiling language replaced with a measured bound (new §10.1).
+**Why:** The section claimed no lane is ever allowed to wait past a safe maximum. That is false and falsifiable on a judge's screen — the ceiling bounds what the controller may DECIDE, not the observed wait. My own first draft of §10.1 then guessed "~140-160s"; the measurement disagrees at the low end.
+**Deviates from plan?** Yes — §10 rewritten, §10.1 added. Same treatment as §17's centralized-execution boundary in Phase 3.
+**Verified:** Measured overshoot is **124s (B3, adversarial) to 141s (B4, random)** against a 120s ceiling — tighter than the guess because the validator reads the snapshot the observation was built from and so acts on the very next step, leaving the 3s yellow plus discharge as the only real lag. §10.1 now quotes the range with both runs, and carries the genuine limit: a lane starved by DOWNSTREAM gridlock keeps climbing however green it is, so the ceiling guarantees the signal has stopped being the cause, not that the lane drains.
+
+**Decision:** Built `sim/run_tier0_episode.py` (harness). §15.1's Greedy baseline deliberately NOT built.
+**Why:** Harness is Phase 4's done-bar scaffolding, same category as `run_perception_episode.py` and `run_env_smoke.py`. Greedy sits in `agents/rule_based.py` per §6's file comment but §18 assigns it to Phase 12, and CLAUDE.md §3 forbids building ahead. The adversarial controller B3 needs is test scaffolding, not §15.1's baseline — kept separate and inside the harness.
+**Deviates from plan?** Partly — the harness is outside §6.
+**Verified:** `agents/rule_based.py` contains Tier0Controller and the calibration probe only; no Greedy.
+
+**Note (two measurement bugs found and fixed during verification, worth not repeating):** both were cases where a test *ran green while proving nothing*, which is more dangerous than a failing test. (1) B2 variant (a) was supposed to be the ordinary non-bypass path but its injection condition did not require an old green, so (a) and (b) landed on the identical scenario; after fixing the condition, (a) then produced a **negative** latency (−2.0s) because Tier 0 had switched to the ambulance's phase on its own before detection — the override never fired and the "latency" was meaningless. Fixed properly by driving B2 with a controller that REFUSES the ambulance's phase at J2, so any green there is attributable solely to §10, plus an explicit check that fails the variant if a green appears without an override. (2) The SCALE measurement's first pass reported a median of 0.00 (see above). Both were caught only because the numbers looked wrong rather than because anything raised.
+
+**§18 Phase 4 is complete.** Done bar: "rule-based controller runs live in SUMO, starvation ceiling and emergency override both verifiably trigger." Verified in the project venv (`sys.prefix` = `...\GitHub\Test\venv`): Tier 0 ran a full episode live in SUMO and cleared the corridor (B1, 627 steps, terminated); the emergency override fired with a measured 3.0s latency from detection in both the ordinary and min-green-bypass cases (B2); the starvation ceiling fired 13 times and cut the deliberately-starved lane's worst wait from 998s to 124s on an identical seed (B3). `python -m safety.validator` passes all 11 §10 scenarios, `python -m env.reward` still passes all §9.4 assertions, and `python sim/run_env_smoke.py` still passes all three Phase 3 masking checks with the gate inserted. Next phase is §18 Phase 5 — prediction (§8.1 spillover, §8.2 incident impact) — which is also the CLAUDE.md §3 hard gate on any real training run.

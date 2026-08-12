@@ -47,9 +47,9 @@ You have one Claude Pro seat, subscription runs to Sep 11, but the real deadline
 
 | Week | Dates | §18 phases | Model | Effort | Why |
 |---|---|---|---|---|---|
-| 1 | Aug 11–17 | 1 (corridor generator), 2 (perception), 3 (env + reward), 4 (Tier 0 + safety validator) | **Opus 4.8** for phases 2–4; Sonnet 5 for phase 1 | High/extended thinking on phases 2–4 | Corridor generator (phase 1) is boilerplate SUMO XML — Sonnet is fine. Reward function and safety validator (§9.4, §10) are the two places a subtle bug becomes invisible until hours into training — worth Opus's slower, more careful reasoning here, and cheap relative to the training time it saves. |
-| 2 | Aug 18–24 | 5 (prediction), 6 (PPO training Stages 1–4), 7 (MARL, both extractors + config flag) | **Sonnet 5** for phase 5 and routine training-script work; **Opus 4.8** for phase 7 (both MARL extractors) and any Stage 1–2 checkpoint failure | High thinking only for MARL extractor design and checkpoint debugging | This week is compute-heavy, not chat-heavy — most of your week is your CPU training in the background, not you spending credits. Reserve Opus specifically for the graph-attention/shared-policy extractor pair (§9.5), since a wrong design there is the single most expensive mistake to catch late. |
-| 3 | Aug 25–31 | 5 continued (MARL Stage 5 checkpoint decision), 8 (coordinator + explainability), 9 (backend), 10 (frontend) | **Sonnet 5** for 8–10; **Opus 4.8** only for the MARL checkpoint call itself (deciding attention vs. shared-policy fallback, §9.5/§16) | High thinking only for the checkpoint decision; default elsewhere | Coordinator, backend, and frontend are all precisely spec'd in §11–13 — high-volume, low-ambiguity work, exactly where Sonnet is both cheaper and fast enough to matter. |
+| 1 | Aug 11–17 | 1 (corridor generator), 2 (perception), 3 (env + reward), 4 (Tier 0 + safety validator) | **Opus 5** for phases 2–4; Sonnet 5 for phase 1 | High/extended thinking on phases 2–4 | Corridor generator (phase 1) is boilerplate SUMO XML — Sonnet is fine. Reward function and safety validator (§9.4, §10) are the two places a subtle bug becomes invisible until hours into training — worth Opus's slower, more careful reasoning here, and cheap relative to the training time it saves. |
+| 2 | Aug 18–24 | 5 (prediction), 6 (PPO training Stages 1–4), 7 (MARL, both extractors + config flag) | **Sonnet 5** for phase 5 and routine training-script work; **Opus 5** for phase 7 (both MARL extractors) and any Stage 1–2 checkpoint failure | High thinking only for MARL extractor design and checkpoint debugging | This week is compute-heavy, not chat-heavy — most of your week is your CPU training in the background, not you spending credits. Reserve Opus specifically for the graph-attention/shared-policy extractor pair (§9.5), since a wrong design there is the single most expensive mistake to catch late. |
+| 3 | Aug 25–31 | 5 continued (MARL Stage 5 checkpoint decision), 8 (coordinator + explainability), 9 (backend), 10 (frontend) | **Sonnet 5** for 8–10; **Opus 5** only for the MARL checkpoint call itself (deciding attention vs. shared-policy fallback, §9.5/§16) | High thinking only for the checkpoint decision; default elsewhere | Coordinator, backend, and frontend are all precisely spec'd in §11–13 — high-volume, low-ambiguity work, exactly where Sonnet is both cheaper and fast enough to matter. |
 | 4 | Sep 1–5 | 11 (voice), 12 (evaluation suite), rehearsal, bug fixes only | **Sonnet 5** for everything, no new Opus work planned | Default effort | No new architecture decisions should be happening this late — if one comes up, that's a sign scope crept past what §18 intended. Keep this week's usage light on purpose; you want headroom in the weekly cap for last-minute fixes, not none left when something breaks two days before the deadline. |
 
 **Credit conservation rules, in order of importance:**
@@ -405,15 +405,48 @@ Runs as a mandatory gate between §9 (intervention proposal) and the actual TraC
 
 ```python
 def validate(proposed_phase, digital_twin_state) -> ValidatedAction:
-    if any(lane.wait_time_max_single_vehicle > STARVATION_CEILING for lane in ...):
-        return override_to_fix_starvation(digital_twin_state)   # rule wins, independent of what RL proposed
+    # PRECEDENCE CORRECTED (2026-08-12, Phase 4): emergency is tested FIRST.
+    # The original draft of this block tested starvation first and returned,
+    # which meant a starved lane could deprioritize an ambulance — directly
+    # contradicting this section's own prose ("cannot be ... deprioritized by
+    # anything else") and §9.4's weights (w_emergency=20.0 vs a starvation term
+    # that only reaches ~20 at a 250s wait).
     if any(lane.type_composition.get("ambulance", 0) > 0 for lane in ...):
         return emergency_override(ambulance_lane)                # bypasses RL entirely, cannot be delayed
+    if any(lane.wait_time_max_single_vehicle > STARVATION_CEILING for lane in ...):
+        return override_to_fix_starvation(digital_twin_state)   # rule wins, independent of what RL proposed
     return proposed_phase   # only reached if both checks pass
 ```
-- **Hard starvation ceiling:** enforced as a rule, independent of the learned layer. If a proposed action would let a lane cross the safe max, it's overridden before reaching the road.
-- **Emergency override:** ambulance detected in any lane → that lane green immediately, all conflicting signals red, cannot be delayed/blocked/deprioritized by anything else, bypasses the learned decision-maker entirely.
+- **Starvation ceiling:** enforced as a rule, independent of the learned layer. `STARVATION_CEILING_S = 120.0` (`safety/validator.py`). When any lane's `wait_time_max_single_vehicle` crosses it, the validator overrides the proposed phase to one that actually serves that lane, before it reaches the road.
+- **Emergency override:** ambulance detected in any lane → that lane green, all conflicting signals red (automatic — netconvert's phases are conflict-free by construction), cannot be delayed/blocked/deprioritized by anything else, bypasses the learned decision-maker entirely.
 - **This is what makes "validates interventions under safety and policy constraints" literally true** — not a training-time hope, a structural gate every single decision passes through.
+
+### 10.1 What the ceiling actually guarantees (honest boundary — see §17)
+
+The ceiling is a bound on **what the signal controller is allowed to decide**, not a bound on observed wait time. Stating it as "no lane is ever allowed to wait past a defined safe maximum" would be false, and falsifiable on a judge's screen by reading the metrics panel. Three unavoidable lags sit between the ceiling triggering and the queue actually moving:
+
+| Source of lag | Size | Why it can't be removed |
+|---|---|---|
+| Detection granularity | ≤ 5s | The agent decides once per `DECISION_INTERVAL_S`; the twin snapshot is pulled once per decision |
+| Yellow clearance | ~3-4s | The override never breaks or shortens a running yellow — doing so releases conflicting movements before the previous ones have cleared, which is the exact hazard this validator exists to prevent |
+| Physical discharge | variable | Green is permission to move, not motion. The vehicle at the head of a long queue still has to accelerate away |
+
+The ceiling also defers to `MIN_GREEN_S` (10s): unlike the emergency override, the starvation ceiling does **not** bypass min-green, because letting it do so reintroduces exactly the flicker §9.4's switch penalty and §9.2's masking exist to suppress — two mutually starved lanes would ping-pong every decision step. Such an override is logged with `outcome="deferred_min_green"` and applies on the next eligible step.
+
+**So the honest claim: the ceiling triggers at 120s; the measured worst-case wait is 124-141s.**
+
+Measured 2026-08-12 (corridor 4/3/2), not estimated — an earlier draft of this section guessed ~140-160s, and the real overshoot is tighter than that guess at the low end:
+
+| Run | Controller | Worst wait, ceiling OFF | Worst wait, ceiling ON | Overshoot |
+|---|---|---|---|---|
+| B3 | adversarial (deliberately starves J2 north) | **998s** | **124s** | +4s |
+| B4 | random masked actions | 793s | **141s** | +21s |
+
+The overshoot is small because detection costs nothing on average — the validator reads the snapshot the observation was built from, so it acts on the very next decision step — leaving the yellow (3s here) plus discharge as the only real lag. B4 overshoots more than B3 because random actions leave more of the corridor congested, so a lane takes longer to drain once it finally goes green.
+
+Quote **the range, not a single number**: the overshoot is scenario-dependent and will grow under heavier load. B3's 87.6% reduction (998s → 124s) is the demo-day figure — it isolates the ceiling as the cause, since both runs use an identical seed, scenario and controller and differ only in `enable_safety_validator`.
+
+**One genuine limit, state it rather than hide it:** if a lane is starved because of *downstream* gridlock rather than its own signal, giving it green does not discharge it and the wait keeps climbing. The ceiling guarantees the signal has stopped being the cause of that lane's starvation. It does not guarantee the lane drains. Spillover-driven starvation is §8.1's problem, not §10's.
 
 ---
 
@@ -546,15 +579,25 @@ Evaluate the trained agent on scenarios never seen during training (different de
 | After Stage 4 | Near-100% emergency priority in test episodes | Agent sometimes ignores emergencies |
 | After Stage 5 (MARL checkpoint) | Graph-attention reward trending up cleanly | Flat/unstable → flip the config flag to shared-policy (§9.5), don't debug further under time pressure |
 
-**Measured random-action baseline (recorded 2026-08-12, §18 Phase 3, corridor 4/3/2, seed 7).** Checkpoints 1 and 2 compare against this — these are actual numbers from `python sim/run_env_smoke.py --full-episode`, not estimates:
+**Measured baselines (corridor 4/3/2, seed 7).** All actual numbers, not estimates.
 
-| Metric | Random masked actions |
-|---|---|
-| Episode length | 718 decision steps, 3600s, `truncated` (never cleared early) |
-| Mean reward / step | **−224.8** |
-| Vehicles arrived | 4604 |
-| Worst single-vehicle wait | 793s |
-| Steps with a starved lane | 624 / 718 (87%) |
+⚠️ **Use the WITH-VALIDATOR row for Checkpoints 1 and 2.** §10's validator lives inside `env.step()` (Phase 4), so the trained agent runs in a shielded MDP. Comparing a shielded agent against the unshielded Phase 3 baseline would flatter it by ~222 reward/step of pure shield effect. The no-validator row is retained only because Phase 3's evidence was recorded against it.
+
+| Metric | Random, **no validator** (Phase 3) | Random, **validator ON** (Phase 4) | **Tier 0** (Phase 4) |
+|---|---|---|---|
+| Source | `run_env_smoke.py --full-episode` | `run_tier0_episode.py --b4` | `run_tier0_episode.py --b1` |
+| Episode | 718 steps, 3600s, `truncated` | 646 steps, 3240s, **`terminated`** | 627 steps, 3145s, **`terminated`** |
+| Mean reward / step | −224.8 | **−2.4** | **+1.2** |
+| Vehicles arrived | 4604 | 4668 | 4668 |
+| Worst single-vehicle wait | 793s | 141s | **41s** |
+| Steps with a starved lane | 624 / 718 (87%) | 543 / 646 (84%) | **0 / 627 (0%)** |
+| §10 overrides | — | 121 (90 applied, 31 deferred) | **0** |
+
+Three things to read off this table:
+
+- **Checkpoint 1's bar is −2.4, not −224.8**, and Checkpoint 2's real target is Tier 0's **+1.2**. Beating random is now a low bar; beating the rule-based floor is the claim worth making (§15.1).
+- **The shield alone clears the corridor.** Both Phase 4 rows `terminate` (every vehicle arrived, nothing pending) where the unshielded run never did. The starvation ceiling is what converts a gridlocked corridor into one that drains.
+- **Tier 0 never triggers a single override.** That is the intended result, not a gap in coverage: the §9.1 bonus keeps every lane under the 120s ceiling, so the hard gate never has to fire. It also means B1 alone does **not** verify §10 — which is exactly why B2 (emergency) and B3 (ceiling, adversarial A/B) exist.
 
 **If Checkpoint 1's reward curve comes back flat or unstable, try this FIRST** (recorded 2026-08-12, §18 Phase 3 — before touching anything structural):
 
@@ -563,6 +606,10 @@ The §9.4 starvation term is **unbounded**. Per-lane penalty is `p = r² + 4·ma
 **The fix to try first:** clamp `r` in `env/reward.py`'s `lane_starvation_penalty()` — e.g. `r = min(r, 5.0)`, capping the per-lane penalty at ~89 instead of letting it run to 300+. This preserves everything §9.4 requires (a 2× wait still costs far more than 2× penalty across the whole operating range; balanced still beats starved; the emergency term still dominates) while pulling the reward into a range PPO's value head can fit. Re-run `python -m env.reward` afterwards — its assertions encode the hand-scored scenarios that were verified before Phase 3 was signed off, so they will catch it if a cap breaks the ordering.
 
 This was deliberately **not** applied during Phase 3: the uncapped formula was hand-verified and signed off, and whether the tail actually hurts learning is a training-dynamics question only this checkpoint can answer. Don't pre-emptively cap it before seeing a curve.
+
+**Update (2026-08-12, Phase 4) — the tail is largely gone, and the clamp is probably now unnecessary.** The numbers above (793s, per-step −765, a `[−800, +3]` value range) were measured *without* §10's validator. With the ceiling in place the worst observed wait falls to **141s** under random actions, so the worst per-lane penalty falls from `p(793s) = 321.6` to `p(141s) = 3.74`, and mean reward/step goes from −224.8 to **−2.4** — a value range of roughly `[−25, +3]`. That is comfortably inside what PPO's value head fits, which was the entire concern.
+
+So: still don't pre-emptively cap. But if Checkpoint 1 *does* come back flat, the clamp is now much less likely to be the cause, and the diagnosis should start elsewhere. Keep the clamp as a second resort rather than the first thing to try.
 
 ---
 
