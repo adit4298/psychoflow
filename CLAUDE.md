@@ -514,6 +514,30 @@ Pause and ask the user rather than proceeding when:
 &#x20; both sit on this same per-junction action-head structure, so an unresolved gap
 &#x20; here is not a Stage-1-only quirk.
 
+\- \*\*Current status (2026-08-12): Stage 2 design plan fully approved, not yet
+&#x20; started.\*\* Plan: pre-generate all 27 lane-count combos in
+&#x20; `sim/networks/generated/` before Burst A (currently only `corridor_432` is
+&#x20; cached — every Phase 2-6 script through Stage 1 used the fixed 4/3/2
+&#x20; corridor exclusively), then Burst A (10k timesteps) with the same
+&#x20; stop-and-review discipline as Stage 1. The consistency sweep (§16's "Stage
+&#x20; 2: consistent across all 3 lane-counts" checkpoint) uses 3 seeds
+&#x20; `{1, 7, 42}` across 5 representative combos — `(4,3,2)`, `(2,2,2)`,
+&#x20; `(4,4,4)`, `(2,4,2)`, `(4,2,4)` — not a single seed, per the seed-spread
+&#x20; finding from Stage 1 (seeds 1/3/7/42 on the SAME 4/3/2 topology already
+&#x20; showed a 93-124s worst-wait range, so a single-seed-per-combo sweep could
+&#x20; not distinguish a real topology effect from ordinary seed noise). No
+&#x20; per-combo random/Tier 0 baselines exist yet outside 4/3/2 — the sweep is
+&#x20; self-referential (comparing the trained policy's own numbers across
+&#x20; combos), not baseline-relative.
+
+\- \*\*`sim/networks/generated/` is git-tracked, not gitignored\*\* (confirmed via
+&#x20; `git check-ignore` — no match). Stage 2's pre-generation step will add up
+&#x20; to 26 new `corridor_{j1}{j2}{j3}.{net,edg,nod}.xml` file sets to that
+&#x20; directory; they need `git add`/commit like any other source file once
+&#x20; generated, not left sitting untracked. Contrast with
+&#x20; `training/checkpoints/*`, which IS gitignored by design (only a
+&#x20; deliberately un-ignored final model should ever be tracked there).
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops

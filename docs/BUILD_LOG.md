@@ -310,3 +310,17 @@ Design plan was stated and signed off before any code, per CLAUDE.md §4. Three 
 **Verified:** See the numbers above. Methodology note worth recording: an earlier attempt to gather the 10 stochastic episodes by launching separate `evaluate_stage.py --stochastic` processes in parallel produced corrupted data (7 of 10 output files missing, the 3 that existed byte-for-byte identical) — traced NOT to a TraCI port race but to `MaskablePPO.load()`'s `_setup_model()` calling `self.set_random_seed(self.seed)`, where `self.seed` is restored from the checkpoint's saved training-time seed (7). Every fresh `.load()` of this checkpoint reseeds torch's global RNG to the same value, so a `deterministic=False` sample immediately after a fresh load is reproducible across separate process launches — the "stochastic" runs were silently deterministic. Fixed by loading the model once and drawing all 10 episodes from that single running instance, letting the RNG genuinely advance between episodes. Worth remembering for any future SB3 evaluation script in this project that wants independent stochastic samples across process launches.
 
 **§18 Phase 6, Stage 1 is complete** by §16's own checkpoint bars: "~10k steps: reward trending up" (confirmed) and "beats random-action baseline on wait time" (confirmed, worst wait 122.0s vs. 141.0s, seed-independent). Does not yet beat Tier 0 — not a red flag per §16's stated criteria. CLAUDE.md updated with a standing watch-item to re-check the deterministic-vs-stochastic gap at every future stage checkpoint. Stage 2 (`+ randomize_lane_counts=True`) not yet started — awaiting go-ahead.
+
+**Stage 1 checkpoint-comparison table** (same numbers as the `Verified:` field above, tabulated for reference — `psychoflow_stage1_50960_steps_final.zip`, deterministic policy, corridor 4/3/2, seed 7, validator ON):
+
+| Metric | This checkpoint | Shielded-random baseline | Tier 0 |
+|---|---|---|---|
+| Mean reward / step | +1.0 | −2.4 | +1.2 |
+| Vehicles arrived | 4668 | 4668 | 4668 |
+| Worst single-vehicle wait | 122.0s | 141.0s | 41.0s |
+| Steps with a starved lane | 7/631 (1%) | 543/646 (84%) | 0/627 (0%) |
+| §10 overrides | 1 (starvation_ceiling, applied) | — | 0 |
+
+Seed-independence check (deterministic, same checkpoint, corridor 4/3/2): seeds 1/3/42 all land in the same band (worst wait 93.0-124.0s, mean reward +1.0 to displayed precision) — confirms seed 7 above is not a hard draw.
+
+Deterministic-vs-stochastic reproducibility (bit-for-bit check, requested before Stage 2 review): two fully independent process runs of the deterministic seed-7 episode produced identical results to 9 decimal places (`mean_reward=1.028847596` both runs) and an identical 631-step proposed/executed action trace (`diff` exit code 0) — confirms the gap logged above is genuine, reproducible policy behavior, not unseeded randomness sneaking in from elsewhere in the pipeline (V2X noise §7.5, vision mock §7.2, etc.).
