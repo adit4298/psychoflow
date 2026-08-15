@@ -581,7 +581,29 @@ Pause and ask the user rather than proceeding when:
 &#x20; likely the same class of issue as the original Stage 2 diagnosis (fixed
 &#x20; serving ratio not adapting to skewed demand), narrowed to specific
 &#x20; topology/seed pairs rather than one combo or a whole category.
-&#x20; Re-check `(3,2,3)`/`(3,2,4)` specifically at the Stage 5 MARL checkpoint —
+&#x20; \*\*RESOLVED-IN-PART (Stage 5, 2026-08-16) — measurably improved under
+&#x20; `graph_attention`, but NOT fully closed.\*\* The Stage 5 A/B re-check settles
+&#x20; what this item was flagged to test. Measured on the 12 paired combo+seed
+&#x20; runs (`(3,2,3)`/`(3,2,4)` × seeds `{1,3,7,42}` + `j1=4` controls):
+&#x20; `graph_attention` mean `starved_pct` \*\*1.64%\*\* (range 1.11-3.54%) vs
+&#x20; `shared_policy` \*\*86.60%\*\* (range 81.23-89.86%) — attention better on
+&#x20; \*\*12/12\*\* runs, a ~53x difference, with `shared_policy` holding a 3.1%
+&#x20; budget advantage. So neighbour-aware attention DOES address the
+&#x20; cross-junction demand-skew failure this item describes, which is the
+&#x20; §9.5 claim it was meant to test. NOT fully closed, for two honest
+&#x20; reasons: (1) `worst_wait` is still elevated on these combos (123.1s mean,
+&#x20; above Stage 4's 56-120s range) — though note §10's ceiling caps
+&#x20; `worst_wait` regardless of policy quality, which is exactly why it
+&#x20; separated the modes by only ~4s while `starved_pct` separated them by
+&#x20; 53x; \*\*use `starved_pct`, not `worst_wait`, for this comparison\*\*;
+&#x20; (2) Stage 5 has only ~1/3 of Stage 4's budget, so the absolute numbers
+&#x20; are not yet a fair test against the single-agent baseline. Re-measure if
+&#x20; Stage 5 is ever trained to Stage 4's budget. \*\*Correction on record:\*\* an
+&#x20; earlier read called `graph_attention`'s j1-recheck a "uniform regression";
+&#x20; that was an artifact of comparing against Stage 4's mismatched budget AND
+&#x20; architecture simultaneously, not a real finding.
+&#x20; Original follow-up note, superseded by the above:
+&#x20; re-check `(3,2,3)`/`(3,2,4)` specifically at the Stage 5 MARL checkpoint —
 &#x20; this is exactly the kind of localized, demand-skew-sensitive gap
 &#x20; graph-attention (§9.5, neighbor-aware) should plausibly help with over
 &#x20; the shared-policy fallback, making it a real test of whether attention
@@ -671,6 +693,59 @@ Pause and ask the user rather than proceeding when:
 &#x20; (`evaluate_stage.py --j1-recheck` / `--emergency-recheck`, which take only
 &#x20; a checkpoint path), so the budget is the one axis that has to be
 &#x20; controlled by hand.
+&#x20; \*\*INTERIM MEASUREMENTS on `graph_attention` @ 51,624 — these are readings
+&#x20; from an UNDERTRAINED checkpoint (1/3 of Stage 4's 153,600 budget, trained
+&#x20; from scratch), NOT new watch-items and NOT verdicts on attention.\*\*
+&#x20; (a) \*\*`--j1-recheck`: uniform regression; the gap is currently
+&#x20; UNMEASURABLE.\*\* All four combos now land in a narrow 121-125s band —
+&#x20; `(3,2,3)` 4/4 seeds spiking (was 2/8 at Stage 4), `(3,2,4)` 4/4 (was 1/8),
+&#x20; and critically the `j1=4` CONTROLS `(4,2,3)`/`(4,2,4)` 4/4 as well (were
+&#x20; 0/4, clean at 56-61s). `starved_pct` is 1.1-3.5% everywhere vs 0.0% on the
+&#x20; Stage 4 controls. The `j1=3`-vs-`j1=4` distinction has vanished, but NOT
+&#x20; because `j1=3` improved — because `j1=4` degraded and everything converged
+&#x20; to one bad band. Nothing can be concluded about the original gap from this;
+&#x20; re-test once `shared_policy` provides a budget-matched comparator.
+&#x20; UNVERIFIED side-note worth checking later: Stage 4's spikes sat at 119-120s,
+&#x20; just BELOW `STARVATION_CEILING_S = 120` (and were confirmed then to fire
+&#x20; zero overrides), whereas these sit at 121-125s, just ABOVE it — consistent
+&#x20; with the ceiling now actually engaging, but the `--j1-recheck` harness does
+&#x20; not capture override counts so this has not been confirmed.
+&#x20; (b) \*\*`--emergency-recheck`: first non-zero proactive handling ever
+&#x20; recorded.\*\* 11/15 override-firing, against Stage 4's 15/15 baseline.
+&#x20; Of the 4 non-firing runs, \*\*2 are confirmed clean\*\* (`(4,3,2)` seed 42,
+&#x20; `(4,2,4)` seed 42: no override, zero penalty, zero blocked events) and 2
+&#x20; are AMBIGUOUS (`(4,4,4)` seed 7, `(4,2,4)` seed 7: no override fired yet
+&#x20; `penalty=20.00` with 1 blocked event). The ambiguous pair is most likely
+&#x20; the documented `_green_lanes()` vs `phase_served_lanes()` asymmetry — mid-
+&#x20; yellow, §9.4's reward reads the LIVE RYG state and counts the ambulance
+&#x20; blocked while §10 sees the target slot already serving it and correctly
+&#x20; declines to override — which would make it good behaviour caught at an
+&#x20; awkward instant, but this is NOT verified. Honest range: \*\*2/15 confirmed,
+&#x20; up to 4/15\*\*, vs 0/15 at Stage 4. Also notable: `(2,4,2)`'s mean summed
+&#x20; `emergency_penalty` dropped 46.667 -> 13.333.
+&#x20; \*\*FINAL (2026-08-16), both modes measured — emergency handling is
+&#x20; measurably improved vs single-agent Stage 4, though not fully closed.\*\*
+&#x20; Override-firing (lower = fewer forced §10 interventions = more proactive):
+&#x20; Stage 4 single-agent \*\*15/15\*\* -> `graph_attention` \*\*11/15\*\* ->
+&#x20; `shared_policy` 13/15. Confirmed-clean runs (no override, zero penalty,
+&#x20; zero blocked events): 0 -> \*\*2\*\* -> 1. Attention leads on this metric too,
+&#x20; and it is the metric §9.5 predicts it should help with (an ambulance
+&#x20; approaching along a corridor route IS cross-junction state). NOT closed:
+&#x20; 11/15 still means the safety validator is doing most of the work, and
+&#x20; §16's Stage 4 bar ("near-100% emergency priority") remains FAILED and
+&#x20; unremediated — see the Stage 4 BUILD_LOG entry. The sparse-signal
+&#x20; hypothesis (one ambulance per episode against hundreds of ordinary
+&#x20; decision steps) is still untested.
+&#x20; \*\*The `--j1-recheck` interim reading above ("uniform regression, gap
+&#x20; unmeasurable") is SUPERSEDED and was WRONG\*\* — see the Stage 2 watch-item's
+&#x20; RESOLVED-IN-PART note; it compared against a mismatched budget and
+&#x20; architecture at once. Attention wins that comparison 12/12 against its
+&#x20; budget-matched peer.
+&#x20; \*\*Not re-measured at Stage 5:\*\* the Stage 1 determinism/per-head
+&#x20; watch-item and the Stage 3 `(2,4,2)` density watch-item were NOT
+&#x20; specifically re-tested against either Stage 5 checkpoint. Both remain
+&#x20; open with their status unchanged; do not read Stage 5's results as
+&#x20; bearing on either.
 
 \- \*\*`sim/networks/generated/` is git-tracked, not gitignored\*\* (confirmed via
 &#x20; `git check-ignore` — no match). Stage 2's pre-generation step will add up

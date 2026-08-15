@@ -503,3 +503,64 @@ All assertions passed for both modes. The attention layer in the trained checkpo
 **Deviates from plan?** No — §9.5's flip rule is judged on "a clean upward reward trend", which is present; it is not judged against Stage 4's absolute number.
 
 **Checkpoint tracking:** `psychoflow_stage5_51624_steps_final.zip` is currently gitignored (`.gitignore:17`, `training/checkpoints/*`), consistent with every other checkpoint in the repo — zero are tracked, including Stage 4's. Deliberately NOT un-ignored yet: `.gitignore`'s own comment scopes tracking to "the FINAL model that powers the demo", and this is a candidate whose mode may still lose the §9.5 comparison. Revisit once the attention-vs-shared-policy decision is made.
+
+## 2026-08-16 — §18 Phase 7 (MARL, §9.5) — Stage 5 COMPLETE, `graph_attention` KEPT
+
+**DECISION: `COORDINATION_MODE` stays `"graph_attention"`. §9.5's flip trigger is NOT met and no flip is made.** §9.5's stated trigger is *"if graph-attention hasn't shown a clean upward reward trend by that checkpoint, flip to `shared_policy`"* — attention showed exactly that trend on every check run. The decision is additionally supported, decisively, by the two targeted cross-junction metrics below. `agents/config.py`'s checked-in default already reads `"graph_attention"`; no code change was required.
+**Why the decision rests on targeted metrics, not aggregate reward:** aggregate reward made the two modes look **tied** — last-20-episode means of **1.0949** (`graph_attention`) vs **1.0862** (`shared_policy`), 0.009 apart, far inside noise. Had the call been made on reward alone it would have been a coin flip. The metrics §9.5 actually cares about — cross-junction demand skew and cross-junction emergency awareness — separate the two modes cleanly, which is precisely why item 8 of the approved Stage 5 design plan specified testing them directly rather than trusting reward.
+
+**Training histories (both modes, fresh models, Stage 4's full `ScenarioConfig`, seed 7):**
+
+| | `graph_attention` | `shared_policy` |
+|---|---|---|
+| Burst A | 10,240 | 10,240 |
+| Burst B | interrupted at ~38,912 by battery power-cut; last checkpoint 35,240; resumed +15,000 | single run, `--timesteps 41000` |
+| **Final `num_timesteps`** | **51,624** | **53,248** |
+| Policy params | 66,890 | 50,122 |
+| Extractor verified in final ckpt | `GraphAttentionExtractor`, attn_mask intact | `SharedPolicyExtractor`, `has_attention=False` |
+
+**Budget-target arithmetic error, recorded rather than buried.** `shared_policy` was meant to land on 51,200 for near-parity. It landed on **53,248**. Cause: PPO rounds *up* to a whole rollout, and `ceil(41000/2048) = 21` rollouts = 43,008, so 10,240 + 43,008 = 53,248. Hitting 51,200 required 20 rollouts = 40,960, i.e. `--timesteps 40000`; the requested 41,000 was **40 steps past the boundary** and bought an entire extra rollout. Net effect: **`shared_policy` received +1,624 steps (+3.1%) MORE training than `graph_attention`** — the opposite direction from the −0.8% intended. This is the exact trap the CLAUDE.md mode-comparison note warns about, walked into while the warning was already written. It does not weaken the conclusion: `shared_policy` lost on both decisive metrics *despite* the budget advantage.
+
+**Paired-comparison methodology (worth reusing).** Both modes' Burst A and Burst B construct a fresh env with seed 7, so episode *k* draws an identical scenario in both runs — verified, not assumed (`lane_counts` sequences compared element-wise, matched exactly over the full overlap). This makes the comparison paired rather than merely budget-matched, removing scenario-draw variance entirely. Over the 46-episode overlapping Burst-B window `graph_attention` led by **+0.404** mean reward/step (winning 31/46 episodes, ≈2.3 standard errors) — but that lead had vanished by end-state, which is consistent with attention's larger parameter count buying faster early gains while the smaller constrained architecture converges to a similar place given enough steps. That pattern is informative but is NOT itself a flip trigger.
+
+**SELF-CORRECTION — an earlier read of `graph_attention`'s `--j1-recheck` was wrong.** It was reported as showing "uniform regression, gap currently unmeasurable". That conclusion was an artifact of the only available comparator at the time being **Stage 4** — a checkpoint with ~3× the training budget AND a different architecture (`FlattenExtractor`, 82,442 params). Against its actual budget-matched peer, `graph_attention` is not regressed at all; it is dramatically better. Two lessons recorded:
+  1. **Comparing across both a budget gap and an architecture change simultaneously produces conclusions that cannot be attributed to either.** A budget-matched peer was required before any read was justified.
+  2. **`worst_wait` is a poor discriminator for this comparison because §10's starvation ceiling caps it regardless of underlying policy quality.** The two modes differ by only ~4s on mean `worst_wait` (123.1s vs 127.1s) while differing by **53×** on `starved_pct`. The ceiling was masking an enormous behavioural difference underneath. `starved_pct` is the metric that actually separates them, and should be the primary axis in any future comparison of this kind.
+
+**DECISIVE FINDING 1 — starvation, `--j1-recheck`, 12 paired combo+seed runs, `graph_attention` wins 12/12:**
+
+| combo | seed | GA worst_wait | GA starved% | SP worst_wait | SP starved% |
+|---|---|---|---|---|---|
+| (3,2,3) | 1 | 125.0s | 1.26% | 128.0s | 89.86% |
+| (3,2,3) | 3 | 124.0s | 1.57% | 126.0s | 88.89% |
+| (3,2,3) | 7 | 125.0s | 3.54% | 127.0s | 89.35% |
+| (3,2,3) | 42 | 122.0s | 1.11% | 126.0s | 84.00% |
+| (3,2,4) | 1 | 121.0s | 1.43% | 129.0s | 85.10% |
+| (3,2,4) | 3 | 123.0s | 2.20% | 129.0s | 87.92% |
+| (3,2,4) | 7 | 121.0s | 1.11% | 125.0s | 88.84% |
+| (3,2,4) | 42 | 125.0s | 1.75% | 128.0s | 88.69% |
+| (4,2,3) | 1 | 121.0s | 1.11% | 127.0s | 85.80% |
+| (4,2,3) | 3 | 123.0s | 1.57% | 126.0s | 86.76% |
+| (4,2,4) | 1 | 123.0s | 1.89% | 127.0s | 82.73% |
+| (4,2,4) | 3 | 124.0s | 1.11% | 127.0s | 81.23% |
+| **mean** | | **123.1s** | **1.64%** | **127.1s** | **86.60%** |
+
+`shared_policy` holds a lane above the 90s starvation threshold for ~87% of every episode on narrow-middle topologies; `graph_attention` holds it to ~2%. That is the §9.3 fairness claim, and it is the single clearest result of the whole comparison.
+
+**DECISIVE FINDING 2 — emergency handling, `--emergency-recheck`, 5 combos × 3 seeds:** `graph_attention` **11/15** override-firing vs `shared_policy` **13/15** (lower is better — fewer forced §10 interventions), against Stage 4's 15/15. Confirmed-clean runs (no override, zero penalty, zero blocked events): `graph_attention` **2**, `shared_policy` **1**.
+
+**Three-way summary:**
+
+| Metric | Stage 4 single-agent (153,600) | `graph_attention` (51,624) | `shared_policy` (53,248) |
+|---|---|---|---|
+| mean worst_wait, 12 runs | 56–120s (varied) | 123.1s | 127.1s |
+| **mean starved_pct, 12 runs** | 0.0% on controls | **1.64%** | 86.60% |
+| **override-firing** | 15/15 | **11/15** | 13/15 |
+| last-20 mean reward | 1.2771 | 1.0949 | 1.0862 |
+
+Caveats stated rather than smoothed: Stage 4's spike-rate figures came from a different, larger seed set and are not directly comparable per-cell; both Stage 5 modes remain ~0.19 below Stage 4's reward at ~1/3 its budget; and `shared_policy` carried a 3.1% budget advantage into a comparison it lost on both decisive metrics.
+
+**Deviates from plan?** No. §9.5 required both extractors built in parallel (done), attention attempted first (done), and the flag set to whichever path converges (done — attention). §18 Phase 7's done bar — *"Stage 5 checkpoint evaluated, flag set to whichever path is actually converging"* — is met.
+**Verified:** Both final checkpoints re-loaded and architecture-confirmed. All sweep outputs pasted raw. Paired scenario alignment verified element-wise. Sweep results persisted to `training/checkpoints/_sweeps/j1_recheck_stage5.json` after the earlier `/tmp` outputs proved transient.
+
+**§18 Phase 7 (MARL, §9.5) is COMPLETE.** Next per §18's build order is **Phase 8 — Coordinator + Explainability (§11, §12)**: clearance behaviour, responder messaging, decision log, narration templates, query interface. Its done bar is *"full decision log renders correctly for a rule-based test run before the RL agent is even wired in"* — note it is explicitly gated on Tier 0, not on any trained checkpoint.
