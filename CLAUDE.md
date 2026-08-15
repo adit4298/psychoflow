@@ -601,6 +601,15 @@ Pause and ask the user rather than proceeding when:
 &#x20; way `(4,2,4)` got in Stage 2. Re-check at Stage 4/5 checkpoints alongside
 &#x20; the other two watch-items; escalate before Stage 5 MARL if it persists
 &#x20; or if further combos show the same high-density-only pattern.
+&#x20; \*\*Observed again (Stage 5, graph_attention cold-start Burst A, episode 8):\*\*
+&#x20; the worst episode of that burst (mean_reward −3.6081) drew `(2,4,2)` at the
+&#x20; HIGHEST corridor density of the run (`density_mult_corridor=1.1653` vs a
+&#x20; 0.9298 rest-of-burst mean) — same combo, same high-density direction as the
+&#x20; original Stage 3 finding, and NOT explained by the other candidates (not a
+&#x20; flagged `j1=3` combo, not a narrow-middle bottleneck, not the earliest
+&#x20; ambulance — that was episode 11, which scored +0.7337). Independent
+&#x20; corroboration, but n=1 and confounded with cold-start noise, so it does not
+&#x20; upgrade the item's status on its own. Logged, not investigated further.
 
 \- \*\*STANDING GOTCHA: `mean_reward` is NOT a valid axis for cross-density
 &#x20; comparison — always use `worst_wait`/`starved_pct` instead.\*\* `env/reward.py`'s

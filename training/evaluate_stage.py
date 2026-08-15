@@ -276,6 +276,169 @@ def run_density_sweep(checkpoint_path: Path) -> dict:
     return {"rows": rows, "df": df}
 
 
+# ---------------------------------------------------------------------------
+# WATCH-ITEM RE-CHECKS (CLAUDE.md §8). Both take a checkpoint path only, so
+# they run unchanged against a Stage 1-4 MlpPolicy checkpoint or either
+# Stage 5 coordination mode — MaskablePPO.load() restores whichever
+# extractor the checkpoint was trained with, and ppo_picker only needs
+# model.predict(). Nothing here is mode-aware by design: the point is to
+# compare modes on identical measurements.
+# ---------------------------------------------------------------------------
+
+# CLAUDE.md's j1=3 watch-item: (3,2,3) spikes on seeds 1 and 3 (2/8 seeds,
+# ~119s), (3,2,4) on seed 1 only (1/8). j1=4 combos are demonstrably immune
+# on those same seeds. Seeds 1/3 are the known-hard pair; 7/42 are the
+# known-normal controls, kept so a regression in the normal case is visible
+# too. Reference numbers below are the MEASURED Stage 4 values
+# (psychoflow_stage4_153600_steps_final.zip) — see BUILD_LOG's Stage 4 entry.
+J1_RECHECK_COMBOS: list[tuple[int, int, int]] = [(3, 2, 3), (3, 2, 4)]
+J1_RECHECK_SEEDS: list[int] = [1, 3, 7, 42]
+J1_CONTROL_COMBOS: list[tuple[int, int, int]] = [(4, 2, 3), (4, 2, 4)]
+J1_CONTROL_SEEDS: list[int] = [1, 3]
+
+STAGE4_J1_REFERENCE = {
+    ((3, 2, 3), 1): 119.0, ((3, 2, 3), 3): 119.0, ((3, 2, 3), 7): 47.0, ((3, 2, 3), 42): 62.0,
+    ((3, 2, 4), 1): 120.0, ((3, 2, 4), 3): 68.0, ((3, 2, 4), 7): 68.0, ((3, 2, 4), 42): 65.0,
+    ((4, 2, 3), 1): 56.0, ((4, 2, 3), 3): 59.0,
+    ((4, 2, 4), 1): 58.0, ((4, 2, 4), 3): 61.0,
+}
+
+
+def _run_plain_episode(model, combo, seed):
+    """One deterministic episode, no emergency, density pinned at nominal."""
+    env = PsychoFlowEnv(
+        scenario_config=ScenarioConfig(
+            lane_counts=combo, randomize_lane_counts=False,
+            randomize_density=False, spawn_emergencies=False,
+        ),
+        spillover_predictor=SpilloverPredictor(),
+        seed=seed,
+    )
+    stats = run_episode(env, ppo_picker(env, model, deterministic=True))
+    env.close()
+    return stats
+
+
+def run_j1_recheck(checkpoint_path: Path) -> dict:
+    """j1=3 bottleneck watch-item re-check. 12 deterministic episodes.
+
+    No emergency spawn and density pinned at nominal, matching exactly how
+    the Stage 4 reference numbers were measured — otherwise the comparison
+    would confound the watch-item with the other two randomisation axes.
+    """
+    print(RULE)
+    print(f"J1=3 WATCH-ITEM RE-CHECK — {checkpoint_path.name}")
+    print(f"  flagged: {J1_RECHECK_COMBOS} x seeds {J1_RECHECK_SEEDS}")
+    print(f"  controls (j1=4): {J1_CONTROL_COMBOS} x seeds {J1_CONTROL_SEEDS}")
+    print("  deterministic, validator ON, no emergency, density pinned at 1.0x")
+    print("  (reference column = measured Stage 4 worst_wait, BUILD_LOG Stage 4 entry)")
+    print(RULE)
+
+    model = MaskablePPO.load(str(checkpoint_path))
+    rows = []
+    plan = ([(c, s, "flagged") for c in J1_RECHECK_COMBOS for s in J1_RECHECK_SEEDS]
+            + [(c, s, "control") for c in J1_CONTROL_COMBOS for s in J1_CONTROL_SEEDS])
+
+    for combo, seed, kind in plan:
+        stats = _run_plain_episode(model, combo, seed)
+        starved_pct = 100 * stats["starved_steps"] / max(1, stats["steps"])
+        ref = STAGE4_J1_REFERENCE.get((combo, seed))
+        delta = None if ref is None else stats["worst_wait"] - ref
+        rows.append({"combo": combo, "seed": seed, "kind": kind,
+                     "worst_wait": stats["worst_wait"], "starved_pct": starved_pct,
+                     "mean_reward": stats["mean_reward"], "stage4_ref": ref, "delta": delta})
+        d = "n/a" if delta is None else f"{delta:+.1f}s"
+        r = "n/a" if ref is None else f"{ref:.1f}s"
+        print(f"  {kind:>7} combo={combo} seed={seed:>2}  "
+              f"worst_wait={stats['worst_wait']:>6.1f}s  starved={starved_pct:>5.2f}%  "
+              f"stage4_ref={r:>7}  delta={d:>8}")
+
+    df = pd.DataFrame(rows)
+    print(f"\n  SPIKE COUNT (worst_wait > 90s, the Stage 4 spike band was 119-120s):")
+    for combo in J1_RECHECK_COMBOS + J1_CONTROL_COMBOS:
+        g = df[df["combo"].apply(lambda c: c == combo)]
+        n_spike = (g["worst_wait"] > 90).sum()
+        print(f"    {str(combo):>10}: {n_spike}/{len(g)} spiked   "
+              f"worst_wait mean={g['worst_wait'].mean():>6.1f}s "
+              f"max={g['worst_wait'].max():>6.1f}s")
+    return {"rows": rows, "df": df}
+
+
+def run_emergency_recheck(checkpoint_path: Path) -> dict:
+    """§16 Stage 4's emergency-priority bar, re-measured. 15 episodes.
+
+    METRIC: how often §10's emergency_override has to fire. "Was the
+    ambulance served?" is structurally guaranteed to read 100% for ANY
+    policy (the validator makes leaving one unserved impossible), so it
+    cannot distinguish policy quality — see BUILD_LOG's Stage 4 entry.
+    Stage 4 measured 15/15 override-firing = 0% proactive handling, against
+    Tier 0's zero overrides.
+
+    Detection-to-green LATENCY is deliberately NOT reported here. The Stage
+    4 harness's latency figures were wrong (several negative) because it
+    tracked green-onset at the first junction the ambulance was seen at
+    while the override could fire at a later one on corridor routes. That
+    bug is unfixed, so emitting the number would propagate a known-bad
+    metric rather than leave a visible gap.
+    """
+    print(RULE)
+    print(f"EMERGENCY-PRIORITY RE-CHECK — {checkpoint_path.name}")
+    print(f"  combos: {SWEEP_COMBOS} x seeds {SWEEP_SEEDS} "
+          f"({len(SWEEP_COMBOS) * len(SWEEP_SEEDS)} runs, spawn_emergencies=True)")
+    print("  Stage 4 reference: 15/15 override-firing (0% proactive handling)")
+    print("  latency intentionally omitted — see this function's docstring")
+    print(RULE)
+
+    model = MaskablePPO.load(str(checkpoint_path))
+    rows = []
+    for combo in SWEEP_COMBOS:
+        for seed in SWEEP_SEEDS:
+            env = PsychoFlowEnv(
+                scenario_config=ScenarioConfig(
+                    lane_counts=combo, randomize_lane_counts=False,
+                    randomize_density=False, spawn_emergencies=True,
+                ),
+                spillover_predictor=SpilloverPredictor(),
+                seed=seed,
+            )
+            state = {"penalty_sum": 0.0, "blocked_events": 0, "override": False}
+
+            def on_step(env, info, state=state):
+                bd = info["reward_breakdown"]
+                state["penalty_sum"] += bd["emergency_penalty"]
+                if bd["emergency_blocked_junctions"]:
+                    state["blocked_events"] += 1
+                if any(r["rule"] == "emergency_override" for r in info["safety_overrides"]):
+                    state["override"] = True
+
+            stats = run_episode(env, ppo_picker(env, model, deterministic=True),
+                                on_step=on_step)
+            route_type, depart_s = env._emergency_route_type, env._emergency_depart_s
+            env.close()
+
+            rows.append({"combo": combo, "seed": seed,
+                         "override_fired": state["override"],
+                         "emergency_penalty_sum": round(state["penalty_sum"], 4),
+                         "blocked_events": state["blocked_events"],
+                         "route_type": route_type, "depart_s": round(depart_s, 1)})
+            print(f"  combo={combo} seed={seed:>2}  override_fired={state['override']!s:>5}  "
+                  f"penalty_sum={state['penalty_sum']:>7.2f}  "
+                  f"blocked_events={state['blocked_events']:>3}  "
+                  f"route={route_type:>8}  depart={depart_s:>7.1f}s")
+
+    df = pd.DataFrame(rows)
+    print(f"\n{'combo':>14} {'overrides_fired':>17} {'mean_penalty':>13} {'mean_blocked_ev':>17}")
+    for combo in SWEEP_COMBOS:
+        g = df[df["combo"].apply(lambda c: c == combo)]
+        fired = f"{g['override_fired'].sum()}/{len(g)}"
+        print(f"{str(combo):>14} {fired:>17} "
+              f"{g['emergency_penalty_sum'].mean():>13.3f} {g['blocked_events'].mean():>17.2f}")
+    total = df["override_fired"].sum()
+    print(f"\n  TOTAL override-firing runs: {total}/{len(df)}   "
+          f"(Stage 4 was 15/15 — lower is better, 0/15 would mean fully proactive)")
+    return {"rows": rows, "df": df}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoint", type=Path)
@@ -288,8 +451,18 @@ def main() -> None:
     parser.add_argument("--density-sweep", action="store_true",
                          help="Run the §16 Stage 3 density-consistency sweep "
                               "(5 combos x 3 seeds x 3 density levels = 45 runs).")
+    parser.add_argument("--j1-recheck", action="store_true",
+                         help="Re-check CLAUDE.md's j1=3 bottleneck watch-item "
+                              "((3,2,3)/(3,2,4) vs j1=4 controls, 12 runs).")
+    parser.add_argument("--emergency-recheck", action="store_true",
+                         help="Re-check §16's Stage 4 emergency-priority bar "
+                              "(override-firing rate, 5 combos x 3 seeds = 15 runs).")
     args = parser.parse_args()
-    if args.density_sweep:
+    if args.j1_recheck:
+        run_j1_recheck(args.checkpoint)
+    elif args.emergency_recheck:
+        run_emergency_recheck(args.checkpoint)
+    elif args.density_sweep:
         run_density_sweep(args.checkpoint)
     elif args.sweep:
         run_consistency_sweep(args.checkpoint)
