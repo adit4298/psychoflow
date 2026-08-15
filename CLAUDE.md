@@ -513,6 +513,27 @@ Pause and ask the user rather than proceeding when:
 &#x20; the Stage 5 MARL checkpoint — §9.5's graph-attention and shared-policy extractors
 &#x20; both sit on this same per-junction action-head structure, so an unresolved gap
 &#x20; here is not a Stage-1-only quirk.
+&#x20; \*\*MEASURED at Stage 5 (2026-08-16) — the gap has INVERTED.\*\* Same
+&#x20; methodology as Stage 1's original test (corridor 4/3/2, seed 7, model
+&#x20; loaded ONCE and looped — a fresh `.load()` reseeds torch's RNG and
+&#x20; silently makes "stochastic" runs identical), against
+&#x20; `graph_attention`'s final checkpoint:
+&#x20; deterministic \*\*1.285947\*\* vs stochastic n=10 mean \*\*1.027080\*\*
+&#x20; (stdev 0.061626, range 0.946280-1.130255) — \*\*gap −0.258867\*\*, against
+&#x20; Stage 1's \*\*+0.268335\*\*. Near-identical magnitude, OPPOSITE sign:
+&#x20; deterministic is now the BETTER policy by about the margin it was worse
+&#x20; by at Stage 1. For deployment this is the wanted direction, since §13.1
+&#x20; runs the greedy policy. The original hypothesis (`ent_coef=0.0` plus
+&#x20; independent per-head argmax over `MultiDiscrete([3,3,3])` not yet
+&#x20; coinciding with the jointly-best action) was never confirmed and is now
+&#x20; moot for this checkpoint.
+&#x20; \*\*UNRESOLVED TENSION — logged deliberately, NOT resolved.\*\* Deterministic
+&#x20; has the higher REWARD (1.286) but WORSE tail behaviour: worst_wait 121.0s
+&#x20; / 1.09% starved, versus stochastic episodes mostly at 75-103s / 0.00%
+&#x20; starved. Reward and fairness disagree about which policy is better here.
+&#x20; Not investigated. Anyone treating mean reward as the sole quality signal
+&#x20; should know this exists first — §9.3's fairness claim and §9.4's reward
+&#x20; are not measuring the same thing on this checkpoint.
 
 \- \*\*WATCH-ITEM (Phase 6, added Stage 2): narrow-middle-bottleneck adaptivity
 &#x20; gap.\*\* Stage 2's consistency sweep (5 combos × seeds `{1,7,42}` against
@@ -602,6 +623,20 @@ Pause and ask the user rather than proceeding when:
 &#x20; earlier read called `graph_attention`'s j1-recheck a "uniform regression";
 &#x20; that was an artifact of comparing against Stage 4's mismatched budget AND
 &#x20; architecture simultaneously, not a real finding.
+&#x20; \*\*ESSENTIAL QUALIFIER (2026-08-16) — the gap to SINGLE-AGENT is NOT
+&#x20; closed. Do not read the 12/12 result as "MARL solved this".\*\* Stage 4
+&#x20; single-agent was subsequently run on the EXACT same 12 (combo, seed)
+&#x20; pairs. Three-way means: \*\*Stage 4 = 75.2s / 0.24% starved\*\*,
+&#x20; `graph_attention` = 123.1s / 1.64%, `shared_policy` = 127.1s / 86.60%.
+&#x20; Stage 4 is clean (0.00% starved) on 8 of the 12 pairs. \*\*Single-agent
+&#x20; beats BOTH MARL modes on both metrics.\*\* What stands: attention beats
+&#x20; shared_policy decisively, so §9.5's flip decision is unaffected. What
+&#x20; does NOT stand: any claim the `j1=3` gap is solved. The honest framing is
+&#x20; \*\*"attention meaningfully narrowed the gap between ARCHITECTURES, not the
+&#x20; gap to single-agent performance."\*\* Most likely cause — PLAUSIBLE BUT
+&#x20; UNCONFIRMED — is Stage 4's ~3x training budget (153,600 vs ~51-53k) plus
+&#x20; the MARL modes starting from scratch; testing it needs a Stage 5 mode
+&#x20; trained to ~153,600, which has not been done. Do not assert it.
 &#x20; Original follow-up note, superseded by the above:
 &#x20; re-check `(3,2,3)`/`(3,2,4)` specifically at the Stage 5 MARL checkpoint —
 &#x20; this is exactly the kind of localized, demand-skew-sensitive gap
@@ -623,6 +658,19 @@ Pause and ask the user rather than proceeding when:
 &#x20; way `(4,2,4)` got in Stage 2. Re-check at Stage 4/5 checkpoints alongside
 &#x20; the other two watch-items; escalate before Stage 5 MARL if it persists
 &#x20; or if further combos show the same high-density-only pattern.
+&#x20; \*\*RE-MEASURED at Stage 5 (2026-08-16) — SUBSTANTIALLY MITIGATED under
+&#x20; `graph_attention`, catastrophic under `shared_policy`.\*\* Stage 3's own
+&#x20; density-sweep methodology ((2,4,2) × density `{0.7,1.0,1.3}` × seeds
+&#x20; `{1,7,42}`, 9 runs per mode) against both Stage 5 finals:
+&#x20; `graph_attention` \*\*0.80% / 0.90% / 1.16%\*\* starved (worst_wait 106.3 /
+&#x20; 96.0 / 124.0s) — the load-triggered pattern is still visible but small;
+&#x20; `shared_policy` \*\*56.38% / 80.54% / 95.76%\*\* (worst_wait 125.3 / 127.0 /
+&#x20; 128.3s) — monotonic with load, and at 1.3x it has a starved lane for
+&#x20; essentially the entire episode. This is a SECOND independent axis on
+&#x20; which neighbour-aware attention helps, and being a load-SCALING effect
+&#x20; it is what §9.5 would predict. Status: substantially mitigated for
+&#x20; `graph_attention` (the deployed mode); still open for `shared_policy`,
+&#x20; which is moot in practice but recorded for completeness.
 &#x20; \*\*Observed again (Stage 5, graph_attention cold-start Burst A, episode 8):\*\*
 &#x20; the worst episode of that burst (mean_reward −3.6081) drew `(2,4,2)` at the
 &#x20; HIGHEST corridor density of the run (`density_mult_corridor=1.1653` vs a
@@ -754,6 +802,26 @@ Pause and ask the user rather than proceeding when:
 &#x20; generated, not left sitting untracked. Contrast with
 &#x20; `training/checkpoints/*`, which IS gitignored by design (only a
 &#x20; deliberately un-ignored final model should ever be tracked there).
+
+\- \*\*PHASE 8 WARNING — do NOT reuse the Stage 4 emergency-latency
+&#x20; measurement for §11.2's `clearance_time_s`. It is KNOWN BROKEN and
+&#x20; UNFIXED.\*\* The Stage 4 emergency sweep produced NEGATIVE latencies
+&#x20; (−42.0s to −2.0s) because the harness tracked detection and green-onset
+&#x20; at the FIRST junction the ambulance was seen at, while the §10 override
+&#x20; can fire at a LATER junction on a corridor-through route (J1→J2→J3) —
+&#x20; and green-onset recovered as `sim_time - time_since_switch_s` can predate
+&#x20; detection when that junction was already green for unrelated reasons.
+&#x20; `training/evaluate_stage.py`'s `--emergency-recheck` deliberately OMITS
+&#x20; latency rather than emit a known-bad number (see its docstring), so there
+&#x20; is currently NO working latency measurement in the repo. §11.2's
+&#x20; responder message reports a clearance time to an operator, so inheriting
+&#x20; this silently would put a wrong — possibly negative — number in front of
+&#x20; a human. Fix first: track detection/green-onset PER JUNCTION and attribute
+&#x20; the override to the junction it actually fired at. Phase 4's B2
+&#x20; (`sim/run_tier0_episode.py --b2`) has a correct single-junction
+&#x20; implementation to model it on — it measures from FIRST DETECTION at a
+&#x20; known junction and recovers green onset exactly; it is only the
+&#x20; multi-junction generalisation that is missing.
 
 \- (Add training/test/run commands here as each phase is built — this
 

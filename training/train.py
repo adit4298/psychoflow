@@ -30,6 +30,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import math
+import re
 from pathlib import Path
 
 from sb3_contrib import MaskablePPO
@@ -61,6 +63,24 @@ MARL_SCENARIO_SOURCE_STAGE = 4
 DEFAULT_SEED = 7
 
 DEFAULT_CHECKPOINT_FREQ = 5_000
+
+
+def preflight_timesteps(requested: int, resume_from: int = 0, n_steps: int = 2048) -> int:
+    """Actual `num_timesteps` a run will END on, given `--timesteps`.
+
+    PPO collects whole rollouts of `n_steps` and only stops on a rollout
+    boundary, so it ALWAYS overshoots unless `requested` is an exact
+    multiple. The overshoot is silent and has already caused one real
+    error: Stage 5's `shared_policy` was launched with `--timesteps 41000`
+    from 10,240 intending to land on 51,200, but 41,000 is 40 steps past
+    the 40,960 (20-rollout) boundary, so it took a 21st rollout and landed
+    on 53,248 — handing that mode a 3.1% budget advantage in what was
+    supposed to be a budget-matched A/B. This is printed BEFORE training
+    starts so the number can be checked against intent, rather than
+    discovered afterwards.
+    """
+    rollouts = math.ceil(requested / n_steps)
+    return resume_from + rollouts * n_steps
 
 
 def scenario_for_stage(stage: int) -> ScenarioConfig:
@@ -134,6 +154,19 @@ def train_stage(
                                     else f"stage{stage}")
     stage_dir.mkdir(parents=True, exist_ok=True)
     monitor_path = stage_dir / monitor_name
+
+    # Pre-flight (see preflight_timesteps): print the ACTUAL end point before
+    # spending any compute, so a rollout-boundary overshoot is caught here
+    # rather than discovered in the results.
+    resume_from = 0
+    if resume is not None:
+        m = re.search(r"_(\d+)_steps", Path(resume).name)
+        resume_from = int(m.group(1)) if m else 0
+    projected = preflight_timesteps(timesteps, resume_from)
+    print(f"PRE-FLIGHT: --timesteps {timesteps} from num_timesteps={resume_from} "
+          f"-> will END on num_timesteps={projected} "
+          f"({math.ceil(timesteps / 2048)} rollouts x 2048"
+          f"{f'; overshoot +{projected - resume_from - timesteps}' if projected - resume_from != timesteps else '; exact'})")
 
     env = build_env(stage, seed, monitor_path)
 

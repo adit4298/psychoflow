@@ -564,3 +564,46 @@ Caveats stated rather than smoothed: Stage 4's spike-rate figures came from a di
 **Verified:** Both final checkpoints re-loaded and architecture-confirmed. All sweep outputs pasted raw. Paired scenario alignment verified element-wise. Sweep results persisted to `training/checkpoints/_sweeps/j1_recheck_stage5.json` after the earlier `/tmp` outputs proved transient.
 
 **§18 Phase 7 (MARL, §9.5) is COMPLETE.** Next per §18's build order is **Phase 8 — Coordinator + Explainability (§11, §12)**: clearance behaviour, responder messaging, decision log, narration templates, query interface. Its done bar is *"full decision log renders correctly for a rule-based test run before the RL agent is even wired in"* — note it is explicitly gated on Tier 0, not on any trained checkpoint.
+
+## 2026-08-16 — §18 Phase 7 close-out addendum: four bounded diagnostics, and an IMPORTANT correction
+
+Four cheap diagnostics were run against existing checkpoints to close loose threads. Three changed the picture materially. Raw output: `training/checkpoints/_sweeps/phase7_loose_ends.txt` / `.json`.
+
+**CORRECTION 1 — the "attention wins" framing in the entries above was INCOMPLETE and needs the single-agent comparator stated.** The Stage 5 A/B compared `graph_attention` against `shared_policy` only. Running **Stage 4 single-agent on the exact same 12 (combo, seed) pairs** gives the true three-way ordering:
+
+| | mean worst_wait | mean starved_pct |
+|---|---|---|
+| **Stage 4 single-agent** (153,600, `FlattenExtractor`) | **75.2s** | **0.24%** |
+| `graph_attention` (51,624) | 123.1s | 1.64% |
+| `shared_policy` (53,248) | 127.1s | 86.60% |
+
+Per-pair, Stage 4 is clean (0.00% starved) on 8 of 12 and only reaches 0.95% on the four it does not. **Single-agent Stage 4 beats BOTH MARL modes on both metrics.** What stands and what does not:
+  - **STANDS:** `graph_attention` beats `shared_policy` decisively (12/12 paired runs, ~53× on starved_pct). §9.5's flip decision is unaffected and `COORDINATION_MODE` correctly remains `"graph_attention"`.
+  - **DOES NOT STAND:** any claim that MARL *solved* or *closed* the `j1=3` gap. The honest claim is that attention **meaningfully narrowed the gap between architectures, not the gap to single-agent performance.**
+  - **Most likely explanation — PLAUSIBLE BUT UNCONFIRMED:** Stage 4 has ~3× the training budget (153,600 vs ~51-53k) and the MARL modes started from scratch because the architecture change forbids resuming. This has NOT been tested; doing so would require training a Stage 5 mode to ~153,600. Do not state it as established.
+
+**CORRECTION 2 — folded into the `(2,4,2)` density watch-item.** Stage 3's density-sweep methodology ((2,4,2) × density {0.7, 1.0, 1.3} × seeds {1,7,42}, 9 runs per mode) against both Stage 5 finals:
+
+| density | `graph_attention` wait / starved | `shared_policy` wait / starved |
+|---|---|---|
+| 0.7× | 106.3s / **0.80%** | 125.3s / 56.38% |
+| 1.0× | 96.0s / **0.90%** | 127.0s / 80.54% |
+| 1.3× | 124.0s / **1.16%** | 128.3s / 95.76% |
+
+`graph_attention` shows only a mild load-triggered rise (0.80% → 1.16%); the Stage 3 watch-item's pattern is present but small. `shared_policy` degrades monotonically and severely with load, reaching **95.76%** starved at 1.3× — a starved lane for essentially the whole episode. This is a SECOND independent axis on which neighbour-aware attention helps, and it is a load-scaling effect, which is what §9.5 would predict. Status: **substantially mitigated for `graph_attention`; still open for `shared_policy`** — moot in practice since `shared_policy` is not the deployed mode, recorded for completeness.
+
+**RESOLVED — the ceiling-engagement question is now CONFIRMED, not hypothesised.** An earlier note flagged as unverified that `graph_attention`'s 121-125s band might reflect §10's `starvation_ceiling` actually firing, unlike Stage 4's 119-120s band (which was verified to fire ZERO overrides via a shielded/unshielded A/B). Override counts were captured on all 8 `(3,2,3)`/`(3,2,4)` runs: **every single run fires 1-2 `starvation_ceiling` overrides.** So the two bands are genuinely different phenomena — Stage 4 stayed under the ceiling on its own; `graph_attention` is being caught by it. The validator is doing work Stage 4's policy did not need. Thread closed.
+
+**RECORDED — the deterministic-vs-stochastic gap has INVERTED, and carries an unresolved tension.** Stage 1's watch-item recorded stochastic BEATING deterministic by +0.268335 (1.297183 vs 1.028848), hypothesised as `ent_coef=0.0` plus independent per-head argmax over `MultiDiscrete([3,3,3])`. Measured on `graph_attention`'s final checkpoint with Stage 1's exact methodology (corridor 4/3/2, seed 7, model loaded ONCE and looped — a fresh `.load()` reseeds torch's RNG and silently makes "stochastic" runs identical):
+
+```
+  deterministic        = 1.285947
+  stochastic n=10 mean = 1.027080  (stdev 0.061626, range 0.946280-1.130255)
+  GAP = -0.258867      (Stage 1 was +0.268335 — near-identical magnitude, OPPOSITE sign)
+```
+
+Deterministic is now the better policy by almost exactly the margin by which it was worse at Stage 1. For deployment this is the desired direction (§13.1 runs the greedy policy). **UNRESOLVED TENSION, logged deliberately without resolving it:** deterministic has the higher REWARD (1.286) but the WORSE tail behaviour — worst_wait 121.0s / 1.09% starved, versus stochastic episodes mostly at 75-103s / 0.00% starved. Reward and fairness disagree on which policy is better here. Not investigated; whoever picks this up should know it exists before treating mean reward as the sole quality signal.
+
+**Also added this pass (housekeeping, no investigation):**
+  - `training/train.py` gained `preflight_timesteps()` and a `PRE-FLIGHT:` line printed BEFORE `build_env()`, showing the actual `num_timesteps` a run will end on. Unit-checked against every real case from this session including the `--timesteps 41000 → 53248` error. This trap was explicitly flagged as a risk in CLAUDE.md and then walked into anyway; the fix makes it visible before compute is spent rather than after.
+  - CLAUDE.md §8 gained a **PHASE 8 WARNING** that the Stage 4 emergency-latency measurement is known-broken (negative latencies on corridor routes, unfixed) and must NOT be inherited by §11.2's `clearance_time_s` without being fixed first — that value is shown to a human operator, so a wrong or negative number would be user-facing. Points at `run_tier0_episode.py --b2` as the correct single-junction implementation to generalise from.
