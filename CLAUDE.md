@@ -514,21 +514,134 @@ Pause and ask the user rather than proceeding when:
 &#x20; both sit on this same per-junction action-head structure, so an unresolved gap
 &#x20; here is not a Stage-1-only quirk.
 
-\- \*\*Current status (2026-08-12): Stage 2 design plan fully approved, not yet
-&#x20; started.\*\* Plan: pre-generate all 27 lane-count combos in
-&#x20; `sim/networks/generated/` before Burst A (currently only `corridor_432` is
-&#x20; cached — every Phase 2-6 script through Stage 1 used the fixed 4/3/2
-&#x20; corridor exclusively), then Burst A (10k timesteps) with the same
-&#x20; stop-and-review discipline as Stage 1. The consistency sweep (§16's "Stage
-&#x20; 2: consistent across all 3 lane-counts" checkpoint) uses 3 seeds
-&#x20; `{1, 7, 42}` across 5 representative combos — `(4,3,2)`, `(2,2,2)`,
-&#x20; `(4,4,4)`, `(2,4,2)`, `(4,2,4)` — not a single seed, per the seed-spread
-&#x20; finding from Stage 1 (seeds 1/3/7/42 on the SAME 4/3/2 topology already
-&#x20; showed a 93-124s worst-wait range, so a single-seed-per-combo sweep could
-&#x20; not distinguish a real topology effect from ordinary seed noise). No
-&#x20; per-combo random/Tier 0 baselines exist yet outside 4/3/2 — the sweep is
-&#x20; self-referential (comparing the trained policy's own numbers across
-&#x20; combos), not baseline-relative.
+\- \*\*WATCH-ITEM (Phase 6, added Stage 2): narrow-middle-bottleneck adaptivity
+&#x20; gap.\*\* Stage 2's consistency sweep (5 combos × seeds `{1,7,42}` against
+&#x20; `psychoflow_stage2_51200_steps_final.zip`) found `(4,2,4)` as a clear
+&#x20; outlier (mean reward 0.46 vs. 0.93-1.33 for the other 4 combos; starved%
+&#x20; up to 37.5% vs. 0-6.3%) — see BUILD_LOG.md's Phase 6 Stage 2 entry for the
+&#x20; full diagnostic chain. Ruled out: topology-luck (checkpoint's general
+&#x20; upward trend is not topology-driven, r²=0.63%), inherent difficulty
+&#x20; (Tier 0 solves the identical combo/seeds with 0% starved on all 3 seeds),
+&#x20; and undersampling as primary cause (`(4,2,4)` had MORE Burst-B exposure
+&#x20; than `(4,3,2)`/`(4,4,4)`, both of which score far better). Identified
+&#x20; mechanism instead: the policy's per-junction phase-time serving ratio at
+&#x20; the 2-lane bottleneck junction is nearly seed-invariant (~24%/76% split
+&#x20; regardless of seed) even though the three seeds draw genuinely different
+&#x20; and oppositely-skewed demand (seed 7: 88%N/12%S vs. seeds 1/42's mild
+&#x20; south-skew) — the policy does not adapt its serving ratio to which
+&#x20; approach is actually loaded. Re-check at every future stage checkpoint
+&#x20; (Stage 3/4/5), specifically on 2-lane-bottleneck-shaped topologies under
+&#x20; skewed demand. Flagged as POSSIBLY sharing a root cause with the
+&#x20; determinism/per-head WATCH-ITEM above — both are, at heart, "policy
+&#x20; behavior not sufficiently sensitive to actual state" (per-head argmax
+&#x20; insensitive to cross-junction coordination; per-junction allocation
+&#x20; insensitive to which approach is loaded). Escalate before the Stage 5
+&#x20; MARL checkpoint if either gap persists.
+&#x20; \*\*UPDATE (Stage 4, 2026-08-15) — `(4,2,4)` itself has resolved; the gap has
+&#x20; NARROWED to a confirmed `j1=3`-specific vulnerability, not a shape-wide
+&#x20; effect.\*\* Full diagnostic chain against `psychoflow_stage4_153600_steps_final.zip`:
+&#x20; (1) `(4,2,4)` now scores worst_wait 58.7s mean, 0.0% starved on ALL 3 seeds
+&#x20; — down from Stage 3's 88.0s/0.4% and Stage 2's original 88.0s/19.3%; the
+&#x20; originally-flagged example no longer shows the gap. (2) A 6-combo sweep
+&#x20; (`(4,2,4)`, `(3,2,3)`, `(3,2,4)`, `(4,2,3)` + controls `(2,2,2)`/`(4,4,4)`,
+&#x20; seeds `{1,7,42}`) found `(3,2,3)` and `(3,2,4)` spiking on seed 1 (119.0s/
+&#x20; 120.0s) while `(4,2,4)`/`(4,2,3)` stayed normal — split along `j1=3` vs
+&#x20; `j1=4`. (3) 5 more seeds each on `(3,2,3)`/`(3,2,4)` (2,3,5,10,13):
+&#x20; `(3,2,3)` seed 3 REPEATED the spike almost exactly (119.0s/0.95%, vs
+&#x20; seed 1's 119.0s/1.0%) — 2/8 seeds now, confirmed repeatable, not a one-off;
+&#x20; `(3,2,4)`'s other 4 new seeds all stayed normal (61-68s) — still only 1/8
+&#x20; seeds for that combo. (4) Ceiling-masking hypothesis TESTED AND REJECTED:
+&#x20; re-ran the three spike cases (`(3,2,3)` seeds 1/3, `(3,2,4)` seed 1) with
+&#x20; `enable_safety_validator=False` — worst_wait identical to the shielded
+&#x20; runs in all three (119.0/119.0/120.0s, delta +0.0s), and ZERO §10
+&#x20; overrides fired in any shielded run. The 119-120s figures are the
+&#x20; policy's genuine, natural worst case, not a ceiling capping something
+&#x20; worse. (5) TARGETED same-seed test, not blind sampling: ran `(4,2,3)`/
+&#x20; `(4,2,4)` on the SAME seeds 1 and 3 that spike `(3,2,3)` — both stayed
+&#x20; firmly normal (56-61s, 0% starved). This confirms the `j1=3` vs `j1=4`
+&#x20; split causally, not just correlationally: identical demand draws produce
+&#x20; opposite outcomes depending on J1's own lane count.
+&#x20; \*\*FINAL READ: CONFIRMED, narrowly scoped to `(3,2,3)` and `(3,2,4)`
+&#x20; specifically — do NOT generalize to "`j1=3` combos" as a category.\*\*
+&#x20; The same-seed causal test (identical demand draw, opposite outcome on
+&#x20; `j1=3` vs `j1=4`) confirms this is a genuine j1-capacity effect for
+&#x20; THESE TWO combos, not coincidence, not an isolated seed-1 draw, and not
+&#x20; ceiling-masking (§10's validator fires zero times in the affected runs —
+&#x20; the policy's own behavior produces the ~119-120s wait unassisted). Only
+&#x20; `(3,2,3)` and `(3,2,4)` have been sampled at `j1=3`; no other `j1=3`
+&#x20; combo has been tested, so this is NOT evidence of a `j1=3`-wide pattern
+&#x20; — treat it as two specific data points, not a category. Within those
+&#x20; two: `(3,2,3)` is CONFIRMED REPEATABLE (2/8 seeds, ~25% rate, both
+&#x20; landing at ~119s); `(3,2,4)` is NOT YET CONFIRMED repeatable (1/8 seeds
+&#x20; — could still be an isolated draw). `(4,2,4)`'s original Stage 2 finding
+&#x20; has RESOLVED under this checkpoint — 58.7s/0.0% starved on all 3 seeds,
+&#x20; down from Stage 2's 88.0s/19.3% — a real update, not residual
+&#x20; background; `(4,2,3)` was never actually a problem. Mechanism still not
+&#x20; identified beyond "J1's own capacity matters for these two combos" —
+&#x20; likely the same class of issue as the original Stage 2 diagnosis (fixed
+&#x20; serving ratio not adapting to skewed demand), narrowed to specific
+&#x20; topology/seed pairs rather than one combo or a whole category.
+&#x20; Re-check `(3,2,3)`/`(3,2,4)` specifically at the Stage 5 MARL checkpoint —
+&#x20; this is exactly the kind of localized, demand-skew-sensitive gap
+&#x20; graph-attention (§9.5, neighbor-aware) should plausibly help with over
+&#x20; the shared-policy fallback, making it a real test of whether attention
+&#x20; earns its complexity, not just a box to check. Not investigating further
+&#x20; before Stage 5 — bounded to the two checks above by design.
+
+\- \*\*WATCH-ITEM (Phase 6, added Stage 3): `(2,4,2)` density-sensitive
+&#x20; degradation at high load.\*\* Distinct from the `(4,2,4)` bottleneck item
+&#x20; above — different topology shape (`(2,4,2)` is wide-middle/narrow-ends,
+&#x20; not narrow-middle/wide-ends), and only triggers at the highest swept
+&#x20; density level. Stage 3's density sweep (5 combos × seeds `{1,7,42}` ×
+&#x20; density `{0.7,1.0,1.3}` against `psychoflow_stage3_102400_steps_final.zip`)
+&#x20; found `(2,4,2)` clean at 0.7×/1.0× (worst_wait ~53-56s, 0.0% starved, in
+&#x20; line with every other well-behaved combo) but degrading specifically at
+&#x20; 1.3× (worst_wait mean 83.0s, max 99.0s, starved% mean 0.2%). NOT yet
+&#x20; diagnosed — no per-seed mechanism trace has been run for this combo the
+&#x20; way `(4,2,4)` got in Stage 2. Re-check at Stage 4/5 checkpoints alongside
+&#x20; the other two watch-items; escalate before Stage 5 MARL if it persists
+&#x20; or if further combos show the same high-density-only pattern.
+
+\- \*\*STANDING GOTCHA: `mean_reward` is NOT a valid axis for cross-density
+&#x20; comparison — always use `worst_wait`/`starved_pct` instead.\*\* `env/reward.py`'s
+&#x20; `throughput_bonus` term scales with vehicles arrived, which itself scales
+&#x20; with traffic density, so EVERY combo's mean_reward rises predictably with
+&#x20; density level regardless of policy quality (Stage 3's sweep: `(4,3,2)`
+&#x20; alone went 0.698 → 1.192 → 1.730 across 0.7×/1.0×/1.3× — a near-uniform
+&#x20; step, same shape for every combo). This makes an outlier's mean_reward
+&#x20; LOOK like it's closing across density levels even when the underlying
+&#x20; problem (elevated worst_wait, nonzero starved_pct) hasn't moved at all —
+&#x20; exactly what happened comparing `(4,2,4)`'s Stage 2 sweep (mean_reward
+&#x20; 0.456, starkly below peers) against its Stage 3 density sweep (0.733-1.806,
+&#x20; much closer to peers) while `worst_wait`/`starved_pct` stayed elevated at
+&#x20; every density level in both. Caught only after building and running the
+&#x20; Stage 3 density sweep, not anticipated beforehand — should have been
+&#x20; caught at design time. Apply this to any future eval work that varies
+&#x20; density (Stage 4/5's own checkpoints included).
+
+\- \*\*Current status (2026-08-15): Stage 3 complete, Stage 4 design plan
+&#x20; pending.\*\* Stage 3 (`+ randomize_density=True`) resumed from Stage 2's
+&#x20; final checkpoint (`num_timesteps≈51200`) rather than starting fresh — the
+&#x20; first stage to do so; Stage 1→2 was discovered to have been two
+&#x20; disconnected fresh-model runs, not a continuous curriculum (see
+&#x20; BUILD_LOG's Stage 3 entry), and this was corrected going forward without
+&#x20; retroactively re-running Stage 2. Trained in two bursts (Burst A to
+&#x20; `num_timesteps=61440`, Burst B resumed to `num_timesteps=102400`), passes
+&#x20; the applicable checkpoint bar (§16 has no explicit "after Stage 3" row;
+&#x20; the generic "reward trending up, not collapsing" plus an extension of
+&#x20; Stage 2's consistency-sweep methodology to the density axis was applied
+&#x20; instead) — reward improved under genuinely harder (not easier) draw
+&#x20; conditions, majority of `total_lanes` buckets improve (4 of 6) though the
+&#x20; single largest bucket (10 lanes, n=23) does not. `(4,2,4)`'s gap confirmed
+&#x20; structural and density-independent (present at every density level
+&#x20; including the lowest); `(2,4,2)`'s new density-triggered gap logged above,
+&#x20; not investigated further. Decision: proceed to Stage 4 rather than
+&#x20; investigate either gap further right now. All 27 lane-count combos remain
+&#x20; pre-generated in `sim/networks/generated/` — Stage 4 needs no new network
+&#x20; generation either. No per-combo random/Tier 0 baselines exist outside
+&#x20; 4/3/2 and the 5 swept combos — any future sweep on a new combo is
+&#x20; self-referential (comparing the trained policy's own numbers), not
+&#x20; baseline-relative, unless a baseline is run for that combo specifically.
 
 \- \*\*`sim/networks/generated/` is git-tracked, not gitignored\*\* (confirmed via
 &#x20; `git check-ignore` — no match). Stage 2's pre-generation step will add up

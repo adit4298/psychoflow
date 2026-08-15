@@ -51,8 +51,24 @@ def write_route_file(
     randomize_density: bool = False,
     density_range: tuple[float, float] = (0.6, 1.4),
     emergency_departures: tuple[float, ...] = (),
-) -> Path:
-    """Write one episode's route file. Returns the path written."""
+) -> tuple[Path, dict[str, float], list[dict]]:
+    """Write one episode's route file.
+
+    Returns (path, density_summary, emergency_info).
+
+    density_summary is the mean drawn multiplier per route group
+    ({"corridor_mean", "cross_mean"}, both 1.0 when randomize_density=False),
+    for Stage 3's §16 checkpoint to log per-episode alongside lane_counts
+    (same confound-check need that drove the lane_counts logging fix — see
+    CLAUDE.md/BUILD_LOG's Stage 2 entry). Each of the 8 flows draws its OWN
+    multiplier (see `flow()` below), so the mean is a lightweight summary,
+    not the full per-flow draw.
+
+    emergency_info is a list of {"route", "depart_s"} dicts, one per spawned
+    emergency vehicle (empty when emergency_departures is empty), for
+    Stage 4's §16 checkpoint — a cross-street route is a structurally
+    different, potentially harder-to-serve draw than a corridor-through one.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -65,12 +81,16 @@ def write_route_file(
     for route_id, edges in ROUTES.items():
         ET.SubElement(root, "route", {"id": route_id, "edges": edges})
 
-    def flow(route_id: str, base_vph: float) -> None:
+    corridor_mults: list[float] = []
+    cross_mults: list[float] = []
+
+    def flow(route_id: str, base_vph: float, mults: list[float]) -> None:
         # Each flow draws its own multiplier, so a scenario can be busy
         # on the corridor and quiet on the cross streets rather than
         # uniformly scaled — that asymmetry is what fairness has to cope
         # with (§9.3).
         mult = rng.uniform(*density_range) if randomize_density else 1.0
+        mults.append(mult)
         ET.SubElement(root, "flow", {
             "id": f"f_{route_id}",
             "type": "mixed",
@@ -83,19 +103,27 @@ def write_route_file(
         })
 
     for route_id in CORRIDOR_ROUTES:
-        flow(route_id, corridor_veh_per_hour)
+        flow(route_id, corridor_veh_per_hour, corridor_mults)
     for route_id in CROSS_ROUTES:
-        flow(route_id, cross_veh_per_hour)
+        flow(route_id, cross_veh_per_hour, cross_mults)
 
+    density_summary = {
+        "corridor_mean": sum(corridor_mults) / len(corridor_mults),
+        "cross_mean": sum(cross_mults) / len(cross_mults),
+    }
+
+    emergency_info: list[dict] = []
     for i, depart in enumerate(emergency_departures):
+        route_id = rng.choice(list(ROUTES))
+        emergency_info.append({"route": route_id, "depart_s": depart})
         ET.SubElement(root, "vehicle", {
             "id": f"amb_{i + 1}",
             "type": "ambulance",
-            "route": rng.choice(list(ROUTES)),
+            "route": route_id,
             "depart": f"{depart:.1f}",
             "departLane": "best",
             "departSpeed": "max",
         })
 
     ET.ElementTree(root).write(path, encoding="UTF-8", xml_declaration=True)
-    return path
+    return path, density_summary, emergency_info

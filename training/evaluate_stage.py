@@ -25,6 +25,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
+import pandas as pd  # noqa: E402
 from sb3_contrib import MaskablePPO  # noqa: E402
 
 from env.obs_action_spec import build_observation  # noqa: E402
@@ -132,14 +133,168 @@ def evaluate(checkpoint_path: Path, seed: int = 7, deterministic: bool = True) -
     return stats
 
 
+# §16 Stage 2 checkpoint: "consistent across all 3 lane-counts." Approved
+# design (see CLAUDE.md §8's Stage 2 status note): 5 representative combos —
+# not all 27, for cost — times 3 seeds each, not 1, because Stage 1's own
+# seed spread (seeds 1/3/7/42 on the SAME 4/3/2 topology) already showed a
+# 93-124s worst-wait range from seed noise alone; a single seed per combo
+# could not distinguish a real topology effect from that noise. No
+# per-combo baseline exists outside 4/3/2, so this sweep is self-referential
+# — comparing the trained policy's own numbers across combos, not against a
+# recorded baseline.
+SWEEP_COMBOS: list[tuple[int, int, int]] = [(4, 3, 2), (2, 2, 2), (4, 4, 4), (2, 4, 2), (4, 2, 4)]
+SWEEP_SEEDS: list[int] = [1, 7, 42]
+
+
+def run_consistency_sweep(checkpoint_path: Path) -> dict:
+    """5 combos x 3 seeds = 15 deterministic episodes against ONE loaded
+    model instance (loading once avoids MaskablePPO.load()'s
+    set_random_seed(self.seed) call re-seeding identically on every fresh
+    load — irrelevant to determinism itself since deterministic=True takes
+    the argmax regardless of RNG state, but loading once is still cheaper
+    than 15 separate process-level loads).
+    """
+    print(RULE)
+    print(f"STAGE 2 CONSISTENCY SWEEP — {checkpoint_path.name}")
+    print(f"combos: {SWEEP_COMBOS}")
+    print(f"seeds: {SWEEP_SEEDS}  (15 runs total, deterministic)")
+    print(RULE)
+
+    model = MaskablePPO.load(str(checkpoint_path))
+    rows = []
+    for combo in SWEEP_COMBOS:
+        for seed in SWEEP_SEEDS:
+            env = PsychoFlowEnv(
+                scenario_config=ScenarioConfig(lane_counts=combo, randomize_lane_counts=False),
+                spillover_predictor=SpilloverPredictor(),
+                seed=seed,
+            )
+            stats = run_episode(env, ppo_picker(env, model, deterministic=True))
+            env.close()
+            starved_pct = 100 * stats["starved_steps"] / max(1, stats["steps"])
+            rows.append({
+                "combo": combo, "seed": seed, "steps": stats["steps"],
+                "mean_reward": stats["mean_reward"], "worst_wait": stats["worst_wait"],
+                "starved_pct": starved_pct, "arrived": stats["arrived"],
+                "terminated": stats["terminated"],
+            })
+            print(f"  combo={combo} seed={seed:>2}  steps={stats['steps']:>4}  "
+                  f"mean_reward={stats['mean_reward']:>8.4f}  worst_wait={stats['worst_wait']:>6.1f}s  "
+                  f"starved={starved_pct:>5.1f}%  terminated={stats['terminated']}")
+
+    df = pd.DataFrame(rows)
+    print(f"\n{'combo':>14} {'mean_reward':>26} {'worst_wait_s':>26} {'starved_pct':>26}")
+    print(f"{'':>14} {'mean':>8}{'min':>9}{'max':>9} {'mean':>8}{'min':>9}{'max':>9} "
+          f"{'mean':>8}{'min':>9}{'max':>9}")
+    for combo in SWEEP_COMBOS:
+        g = df[df["combo"] == combo]
+        print(f"{str(combo):>14} "
+              f"{g['mean_reward'].mean():>8.3f}{g['mean_reward'].min():>9.3f}{g['mean_reward'].max():>9.3f} "
+              f"{g['worst_wait'].mean():>8.1f}{g['worst_wait'].min():>9.1f}{g['worst_wait'].max():>9.1f} "
+              f"{g['starved_pct'].mean():>8.1f}{g['starved_pct'].min():>9.1f}{g['starved_pct'].max():>9.1f}")
+
+    return {"rows": rows, "df": df}
+
+
+# §16 Stage 3 checkpoint density-consistency check (item 6 of the approved
+# Stage 3 design plan, deferred until after Burst B — that point is now).
+# Same 5 combos/3 seeds as the Stage 2 sweep, times 3 pinned density levels.
+# Base veh/hour rates are read from ScenarioConfig()'s own dataclass
+# defaults at call time, not hardcoded here, so this sweep can't silently
+# drift from the env's actual defaults if they ever change.
+SWEEP_DENSITY_LEVELS: list[float] = [0.7, 1.0, 1.3]
+
+
+def run_density_sweep(checkpoint_path: Path) -> dict:
+    """5 combos x 3 seeds x 3 density levels = 45 deterministic episodes
+    against ONE loaded model instance (see run_consistency_sweep's
+    docstring for why loading once is done regardless).
+
+    Density is pinned deterministically per level by setting
+    randomize_density=False and scaling ScenarioConfig's own
+    corridor_veh_per_hour/cross_veh_per_hour base rates directly —
+    write_route_file() only draws a random per-flow multiplier when
+    randomize_density=True (scenario_generator.py), so this reuses that
+    existing off-switch rather than needing any change to the route
+    generator itself.
+    """
+    base = ScenarioConfig()
+    base_corridor_vph = base.corridor_veh_per_hour
+    base_cross_vph = base.cross_veh_per_hour
+
+    print(RULE)
+    print(f"STAGE 3 DENSITY-CONSISTENCY SWEEP — {checkpoint_path.name}")
+    print(f"combos: {SWEEP_COMBOS}")
+    print(f"seeds: {SWEEP_SEEDS}")
+    print(f"density levels: {SWEEP_DENSITY_LEVELS}  "
+          f"(base corridor_veh_per_hour={base_corridor_vph}, cross_veh_per_hour={base_cross_vph}, "
+          f"read from ScenarioConfig() defaults)")
+    print(f"{len(SWEEP_COMBOS) * len(SWEEP_SEEDS) * len(SWEEP_DENSITY_LEVELS)} runs total, deterministic")
+    print(RULE)
+
+    model = MaskablePPO.load(str(checkpoint_path))
+    rows = []
+    for combo in SWEEP_COMBOS:
+        for level in SWEEP_DENSITY_LEVELS:
+            for seed in SWEEP_SEEDS:
+                env = PsychoFlowEnv(
+                    scenario_config=ScenarioConfig(
+                        lane_counts=combo,
+                        randomize_lane_counts=False,
+                        randomize_density=False,
+                        corridor_veh_per_hour=base_corridor_vph * level,
+                        cross_veh_per_hour=base_cross_vph * level,
+                    ),
+                    spillover_predictor=SpilloverPredictor(),
+                    seed=seed,
+                )
+                stats = run_episode(env, ppo_picker(env, model, deterministic=True))
+                env.close()
+                starved_pct = 100 * stats["starved_steps"] / max(1, stats["steps"])
+                rows.append({
+                    "combo": combo, "density_level": level, "seed": seed,
+                    "steps": stats["steps"], "mean_reward": stats["mean_reward"],
+                    "worst_wait": stats["worst_wait"], "starved_pct": starved_pct,
+                    "arrived": stats["arrived"], "terminated": stats["terminated"],
+                })
+                print(f"  combo={combo} density={level:.1f}x seed={seed:>2}  steps={stats['steps']:>4}  "
+                      f"mean_reward={stats['mean_reward']:>8.4f}  worst_wait={stats['worst_wait']:>6.1f}s  "
+                      f"starved={starved_pct:>5.1f}%  terminated={stats['terminated']}")
+
+    df = pd.DataFrame(rows)
+    print(f"\n{'combo':>14} {'density':>8} {'mean_reward':>26} {'worst_wait_s':>26} {'starved_pct':>26}")
+    print(f"{'':>14} {'':>8} {'mean':>8}{'min':>9}{'max':>9} {'mean':>8}{'min':>9}{'max':>9} "
+          f"{'mean':>8}{'min':>9}{'max':>9}")
+    for combo in SWEEP_COMBOS:
+        for level in SWEEP_DENSITY_LEVELS:
+            g = df[(df["combo"] == combo) & (df["density_level"] == level)]
+            print(f"{str(combo):>14} {level:>7.1f}x "
+                  f"{g['mean_reward'].mean():>8.3f}{g['mean_reward'].min():>9.3f}{g['mean_reward'].max():>9.3f} "
+                  f"{g['worst_wait'].mean():>8.1f}{g['worst_wait'].min():>9.1f}{g['worst_wait'].max():>9.1f} "
+                  f"{g['starved_pct'].mean():>8.1f}{g['starved_pct'].min():>9.1f}{g['starved_pct'].max():>9.1f}")
+
+    return {"rows": rows, "df": df}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--stochastic", action="store_true",
                          help="Sample actions instead of taking the argmax.")
+    parser.add_argument("--sweep", action="store_true",
+                         help="Run the §16 Stage 2 consistency sweep (5 combos x 3 seeds) "
+                              "instead of the single-seed evaluation.")
+    parser.add_argument("--density-sweep", action="store_true",
+                         help="Run the §16 Stage 3 density-consistency sweep "
+                              "(5 combos x 3 seeds x 3 density levels = 45 runs).")
     args = parser.parse_args()
-    evaluate(args.checkpoint, seed=args.seed, deterministic=not args.stochastic)
+    if args.density_sweep:
+        run_density_sweep(args.checkpoint)
+    elif args.sweep:
+        run_consistency_sweep(args.checkpoint)
+    else:
+        evaluate(args.checkpoint, seed=args.seed, deterministic=not args.stochastic)
 
 
 if __name__ == "__main__":

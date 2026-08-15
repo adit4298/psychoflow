@@ -1,4 +1,4 @@
-"""PPO training entry point (§16, Phase 6). Single-agent, Stages 1-4 only.
+"""PPO training entry point (§16, Phase 6). Stages 1-4 single-agent, Stage 5 MARL.
 
 Runs ONE stage for a bounded number of timesteps per invocation, then stops
 — no auto-advance to the next stage and no auto-continuation past the
@@ -6,9 +6,12 @@ requested budget within a stage. Stage-to-stage and burst-to-burst
 progression is a deliberate, separate --resume invocation gated on a human
 reading the §16 checkpoint for the burst just finished.
 
-Policy: MaskablePPO with SB3's default MlpPolicy (flattens the (3, 191) Box
-observation automatically). The custom graph-attention feature extractor
-(§9.5) is Stage 5/MARL scope, not built here. PsychoFlowEnv already exposes
+Policy: Stages 1-4 use MaskablePPO with SB3's default MlpPolicy (flattens
+the (3, 191) Box observation automatically). Stage 5 (MARL, §9.5) swaps in a
+custom feature extractor via --coordination-mode {graph_attention,
+shared_policy} — see agents/config.py. Stages 1-4's policy is deliberately
+left untouched so their recorded checkpoints and baselines stay valid.
+PsychoFlowEnv already exposes
 an `action_masks()` method under the exact name sb3-contrib looks for
 (EXPECTED_METHOD_NAME, verified via
 sb3_contrib.common.maskable.utils.is_masking_supported), reachable through
@@ -34,12 +37,22 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
-from env.psychoflow_env import PsychoFlowEnv
+from agents.config import COORDINATION_MODE, VALID_MODES, get_feature_extractor
+from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
 from prediction.spillover import SpilloverPredictor
 from training.curriculum import STAGES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKPOINTS_ROOT = REPO_ROOT / "training" / "checkpoints"
+
+# §16's Stage 5 — MARL (§9.5). Not in curriculum.py's STAGES: that module
+# is explicitly scoped to the single-agent stages, and Stage 5 differs from
+# Stage 4 by POLICY ARCHITECTURE, not by ScenarioConfig. It reuses Stage 4's
+# full config (all randomisation axes on) so §9.5's coordination claim is
+# tested under the hardest, most general conditions rather than a
+# re-narrowed scenario.
+MARL_STAGE = 5
+MARL_SCENARIO_SOURCE_STAGE = 4
 
 # Seed 7 matches every measured baseline this project has recorded
 # (CLAUDE.md §8's Checkpoint-1 table, run_tier0_episode.py's B1/B4) so a
@@ -50,9 +63,20 @@ DEFAULT_SEED = 7
 DEFAULT_CHECKPOINT_FREQ = 5_000
 
 
+def scenario_for_stage(stage: int) -> ScenarioConfig:
+    """ScenarioConfig for a stage. Stage 5 reuses Stage 4's (see MARL_STAGE)."""
+    if stage == MARL_STAGE:
+        return STAGES[MARL_SCENARIO_SOURCE_STAGE]
+    return STAGES[stage]
+
+
+def valid_stages() -> list[int]:
+    return sorted(STAGES) + [MARL_STAGE]
+
+
 def build_env(stage: int, seed: int, monitor_path: Path) -> DummyVecEnv:
     raw_env = PsychoFlowEnv(
-        scenario_config=STAGES[stage],
+        scenario_config=scenario_for_stage(stage),
         spillover_predictor=SpilloverPredictor(),
         seed=seed,
     )
@@ -72,7 +96,14 @@ def build_env(stage: int, seed: int, monitor_path: Path) -> DummyVecEnv:
     )
 
     monitor_path.parent.mkdir(parents=True, exist_ok=True)
-    monitored = Monitor(raw_env, filename=str(monitor_path))
+    monitored = Monitor(
+        raw_env,
+        filename=str(monitor_path),
+        info_keywords=(
+            "lane_counts", "density_mult_corridor", "density_mult_cross",
+            "emergency_route", "emergency_route_type", "emergency_depart_s",
+        ),
+    )
     return DummyVecEnv([lambda: monitored])
 
 
@@ -83,11 +114,24 @@ def train_stage(
     resume: Path | None = None,
     monitor_name: str = "monitor.csv",
     checkpoint_freq: int = DEFAULT_CHECKPOINT_FREQ,
+    coordination_mode: str = COORDINATION_MODE,
 ) -> None:
-    if stage not in STAGES:
-        raise ValueError(f"stage must be one of {sorted(STAGES)}, got {stage}")
+    if stage not in valid_stages():
+        raise ValueError(f"stage must be one of {valid_stages()}, got {stage}")
 
-    stage_dir = CHECKPOINTS_ROOT / f"stage{stage}"
+    # Stage 5 only. Stages 1-4 keep SB3's default MlpPolicy exactly as they
+    # were trained — swapping their extractor now would silently invalidate
+    # every checkpoint and baseline already recorded for them.
+    is_marl = stage == MARL_STAGE
+    if is_marl and coordination_mode not in VALID_MODES:
+        raise ValueError(f"--coordination-mode must be one of {VALID_MODES}, "
+                         f"got {coordination_mode!r}")
+
+    # Each mode gets its own directory: §9.5 expects the flag to be flipped
+    # and the stage re-run, and a shared directory would let the second run
+    # overwrite the first's checkpoints and monitor file.
+    stage_dir = CHECKPOINTS_ROOT / (f"stage{stage}_{coordination_mode}" if is_marl
+                                    else f"stage{stage}")
     stage_dir.mkdir(parents=True, exist_ok=True)
     monitor_path = stage_dir / monitor_name
 
@@ -102,6 +146,30 @@ def train_stage(
     if resume is not None:
         print(f"Resuming from {resume} (reset_num_timesteps=False)")
         model = MaskablePPO.load(str(resume), env=env)
+
+        # MEASURED, not assumed: loading a Stage 1-4 checkpoint under
+        # --stage 5 does NOT raise. SB3 restores policy_kwargs from the saved
+        # file, so it silently rebuilds the default FlattenExtractor
+        # (features_dim=573) and would happily train it — producing a
+        # checkpoint in stage5_<mode>/ labelled MARL but containing no
+        # attention whatsoever. A silent wrong-architecture run is far worse
+        # than a crash. Checking the LOADED extractor (rather than the resume
+        # path) also catches resuming a graph_attention checkpoint under
+        # --coordination-mode shared_policy, which is the same class of
+        # mistake in the other direction. Nothing has trained at this point,
+        # so raising here costs only the load.
+        if is_marl:
+            expected = get_feature_extractor(coordination_mode)
+            actual = type(model.policy.features_extractor)
+            if actual is not expected:
+                raise ValueError(
+                    f"--stage {MARL_STAGE} --coordination-mode {coordination_mode} expects a "
+                    f"{expected.__name__} policy, but {resume} restored a {actual.__name__}. "
+                    f"Stage 5's §9.5 extractor parameters do not exist in a Stage 1-4 "
+                    f"checkpoint, and MaskablePPO.load() does NOT fail on this — it would "
+                    f"silently train the wrong architecture. Start Stage 5 fresh (omit "
+                    f"--resume), or resume a checkpoint trained in this same mode."
+                )
         model.learn(
             total_timesteps=timesteps,
             reset_num_timesteps=False,
@@ -109,10 +177,23 @@ def train_stage(
             progress_bar=False,
         )
     else:
+        # Stage 5's custom extractor has a different parameter set than the
+        # default MlpPolicy, so a Stage 1-4 checkpoint CANNOT be resumed into
+        # it (MaskablePPO.load() requires matching shapes). Stage 5 therefore
+        # always starts fresh — a property of the architecture change, not a
+        # break in the curriculum-resume discipline used for Stages 2->3->4.
+        policy_kwargs = None
+        if is_marl:
+            policy_kwargs = dict(
+                features_extractor_class=get_feature_extractor(coordination_mode),
+            )
+            print(f"MARL stage {stage}: coordination_mode={coordination_mode}, "
+                  f"extractor={policy_kwargs['features_extractor_class'].__name__}")
         print(f"Fresh MaskablePPO, stage {stage}, seed {seed}")
         model = MaskablePPO(
             "MlpPolicy",
             env,
+            policy_kwargs=policy_kwargs,
             seed=seed,
             verbose=1,
             tensorboard_log=str(stage_dir / "tb"),
@@ -141,12 +222,16 @@ def train_stage(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", type=int, required=True, choices=sorted(STAGES))
+    parser.add_argument("--stage", type=int, required=True, choices=valid_stages())
     parser.add_argument("--timesteps", type=int, required=True)
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
     parser.add_argument("--resume", type=Path, default=None)
     parser.add_argument("--monitor-name", type=str, default="monitor.csv")
     parser.add_argument("--checkpoint-freq", type=int, default=DEFAULT_CHECKPOINT_FREQ)
+    parser.add_argument("--coordination-mode", type=str, default=COORDINATION_MODE,
+                        choices=VALID_MODES,
+                        help="§9.5 MARL feature extractor. Stage 5 only; ignored "
+                             "for Stages 1-4, which keep SB3's default MlpPolicy.")
     args = parser.parse_args()
 
     train_stage(
@@ -156,6 +241,7 @@ def main() -> None:
         resume=args.resume,
         monitor_name=args.monitor_name,
         checkpoint_freq=args.checkpoint_freq,
+        coordination_mode=args.coordination_mode,
     )
 
 

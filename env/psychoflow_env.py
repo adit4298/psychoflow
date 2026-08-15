@@ -89,7 +89,7 @@ from env.reward import IntervalStats, RewardConfig, compute_reward
 from perception.lane_sensor import WAITING_TIME_MEMORY_S
 from safety.validator import ValidatedAction, validate
 from sim.networks.generate_corridor import GENERATED_DIR, VALID_LANE_COUNTS, generate_corridor
-from sim.scenario_generator import write_route_file
+from sim.scenario_generator import CORRIDOR_ROUTES, write_route_file
 from twin.digital_twin import CORRIDOR_JUNCTIONS, DigitalTwin
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -247,6 +247,12 @@ class PsychoFlowEnv(gym.Env):
         self._sim_time = 0.0
         self._arrived_total = 0
         self._lane_counts = self.scenario.lane_counts
+        self._density_mult: dict[str, float] = {"corridor_mean": 1.0, "cross_mean": 1.0}
+        # §16 Stage 4 checkpoint needs — see write_route_file()'s docstring.
+        # "" / nan when spawn_emergencies=False (no ambulance this episode).
+        self._emergency_route: str = ""
+        self._emergency_route_type: str = ""
+        self._emergency_depart_s: float = float("nan")
 
     # ------------------------------------------------------------------
     # Network / scenario setup
@@ -279,7 +285,7 @@ class PsychoFlowEnv(gym.Env):
                 self._rng.uniform(lo, hi) for _ in range(self.scenario.n_emergencies)
             )
 
-        route_path = write_route_file(
+        route_path, self._density_mult, emergency_info = write_route_file(
             self._tmpdir / "episode.rou.xml",
             rng=self._rng,
             corridor_veh_per_hour=self.scenario.corridor_veh_per_hour,
@@ -289,6 +295,19 @@ class PsychoFlowEnv(gym.Env):
             density_range=self.scenario.density_range,
             emergency_departures=emergencies,
         )
+        if emergency_info:
+            # n_emergencies=1 for Stage 4; only the first is logged if more
+            # are ever configured — info_keywords needs one scalar per key.
+            first = emergency_info[0]
+            self._emergency_route = first["route"]
+            self._emergency_route_type = (
+                "corridor" if first["route"] in CORRIDOR_ROUTES else "cross"
+            )
+            self._emergency_depart_s = first["depart_s"]
+        else:
+            self._emergency_route = ""
+            self._emergency_route_type = ""
+            self._emergency_depart_s = float("nan")
         return net_path, route_path
 
     # ------------------------------------------------------------------
@@ -465,7 +484,15 @@ class PsychoFlowEnv(gym.Env):
 
         self._snapshot = self.twin.update(self._sim_time)
         obs = build_observation(self._snapshot, self._runtime(), self._spillover())
-        return obs, {"lane_counts": self._lane_counts, "action_masks": self.action_masks()}
+        return obs, {
+            "lane_counts": self._lane_counts,
+            "density_mult_corridor": self._density_mult["corridor_mean"],
+            "density_mult_cross": self._density_mult["cross_mean"],
+            "emergency_route": self._emergency_route,
+            "emergency_route_type": self._emergency_route_type,
+            "emergency_depart_s": self._emergency_depart_s,
+            "action_masks": self.action_masks(),
+        }
 
     def step(self, action):
         if not self._started:
@@ -594,6 +621,18 @@ class PsychoFlowEnv(gym.Env):
             "reward_breakdown": breakdown,
             "arrived_total": self._arrived_total,
             "lane_counts": self._lane_counts,
+            # §16 Stage 3 confound check (same need that drove lane_counts'
+            # logging fix at Stage 2) — mean drawn density multiplier per
+            # route group this episode, 1.0/1.0 when randomize_density=False.
+            "density_mult_corridor": self._density_mult["corridor_mean"],
+            "density_mult_cross": self._density_mult["cross_mean"],
+            # §16 Stage 4 checkpoint — which route the spawned ambulance
+            # took and when, since a cross-street draw is structurally
+            # different (and potentially harder to serve) than a
+            # corridor-through one. "" / nan when spawn_emergencies=False.
+            "emergency_route": self._emergency_route,
+            "emergency_route_type": self._emergency_route_type,
+            "emergency_depart_s": self._emergency_depart_s,
             "action_masks": self.action_masks(),
             "switched_junctions": switched,
             # §10 / §12.1 — what was asked for, what actually ran, and why
