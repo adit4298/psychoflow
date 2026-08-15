@@ -652,6 +652,26 @@ Pause and ask the user rather than proceeding when:
 &#x20; self-referential (comparing the trained policy's own numbers), not
 &#x20; baseline-relative, unless a baseline is run for that combo specifically.
 
+\- \*\*STAGE 5 MODE COMPARISON — `graph_attention`'s ACTUAL total is
+&#x20; `num_timesteps=51624`; `shared_policy` must be trained to a comparable
+&#x20; budget.\*\* §9.5's whole point is deciding whether attention earns its
+&#x20; complexity over the fallback, and that decision is meaningless if the two
+&#x20; modes trained on different budgets. `graph_attention`: Burst A to 10,240,
+&#x20; Burst B to 35,240 (interrupted there by a laptop battery power-cut, not a
+&#x20; code fault; checkpoint integrity re-verified by size progression and CSV
+&#x20; tail before resuming), then resumed 15,000 more to land at \*\*51,624\*\*.
+&#x20; Note 51,624 ≠ the 50,240 that was aimed for: PPO only stops on a rollout
+&#x20; boundary, and 35,240 + 8×2048 = 51,624, an overshoot of 1,384. This is
+&#x20; exactly why the actual final `num_timesteps` must be READ OFF each run
+&#x20; rather than assumed from the `--timesteps` argument — the two modes will
+&#x20; not land on identical totals by accident, and a "50k vs 50k" claim would
+&#x20; be wrong for both. Record both actuals when comparing, and treat a
+&#x20; difference of a few thousand steps as a caveat on the comparison rather
+&#x20; than pretending it away. Both modes are evaluated with the SAME mode-unaware harness
+&#x20; (`evaluate_stage.py --j1-recheck` / `--emergency-recheck`, which take only
+&#x20; a checkpoint path), so the budget is the one axis that has to be
+&#x20; controlled by hand.
+
 \- \*\*`sim/networks/generated/` is git-tracked, not gitignored\*\* (confirmed via
 &#x20; `git check-ignore` — no match). Stage 2's pre-generation step will add up
 &#x20; to 26 new `corridor_{j1}{j2}{j3}.{net,edg,nod}.xml` file sets to that
