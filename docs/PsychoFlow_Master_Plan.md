@@ -598,6 +598,19 @@ Derived from the sim's actual vehicle physics (idling time, stop-start frequency
 ### 15.4 Generalization testing
 Evaluate the trained agent on scenarios never seen during training (different density draws, different vehicle-mix seeds) to confirm it learned general principles rather than memorizing training scenarios.
 
+**REQUIRED (added 2026-08-18): an EXPLICIT held-out evaluation scenario set. Phase 12 must not rely on the current protection, which is incidental.**
+
+Training draws are far less diverse than the timestep counts suggest. Every training burst constructs a fresh env with the same seed, so the scenario sequence **restarts at episode 1 on every resume** — a resumed run adds passes over the same scenarios, not new ones. Measured 2026-08-18: Stage 5 `graph_attention` saw **81 distinct scenarios across 248 logged episodes** (~3.1× each), and its final 51,200-step burst introduced **zero** new scenarios. Stages 1–4 sit at ~64–65 distinct scenarios each. Stage 4 and Stage 5 trained on the *same* sequence, since both use `STAGES[4]` with `seed=7`.
+
+Against that, "scenarios never seen during training" is a much stronger requirement than it looks, and it is currently satisfied only by accident. `evaluate_stage.py`'s sweeps happen to pin `randomize_density=False` and `spawn_emergencies=False`, while every training episode has an ambulance and a non-1.0 density multiplier (measured: 162/162 and 0/162 respectively) — so the two sets cannot overlap. That is a *by-product of a config mismatch*, not a designed guarantee.
+
+**The failure mode this creates:** any future evaluation that matches the training config — which is the natural thing to do when measuring "realistic" performance, and exactly what a §15.4 generalization test would reach for — silently evaluates on scenarios the policy trained on, and reports memorization as generalization. Nothing raises.
+
+Phase 12 must therefore:
+1. Define a held-out set explicitly (reserved seeds, or a disjoint scenario-index range), recorded in the repo rather than implied.
+2. Assert disjointness from the training draw programmatically, not by inspection.
+3. State the distinct-scenario count of the training set alongside any generalization claim, since a policy trained on ~81 scenarios generalizing to held-out ones is a materially weaker claim than the raw timestep count implies.
+
 ---
 
 ## 16. Training Curriculum & Checkpoints

@@ -638,3 +638,81 @@ Two-proportion z against the pooled random control: Stage 4 **z=+3.29, p=0.0010*
 **Deviates from plan?** No. This is a measurement-methodology correction of the kind §0.3 requires, applied to §0.3's own motivating example. No locked decision (CLAUDE.md §2) is touched, no reward or validator code changed, and the Stage 4 checkpoint's FAILED status is unaffected.
 
 **Verified:** `training/scripts/phase0_baselines.py --selfcheck` reproduces the recorded `_sweeps/phase0_emergency.json` row (part2[110824] seed=1) EXACTLY on all 8 fields — steps=641, amb_visible=10, amb_junction=10, served=8, avoidable=0, unavoidable=2, quality=1.0, overrides=72 — confirming the rewritten harness is not silently disagreeing with the matrix it is compared against. Raw results persisted to `training/checkpoints/_sweeps/phase0_baselines.json` (now git-tracked).
+
+## 2026-08-18 — CORRECTION (scope + record accuracy): every burst REPLAYS its scenario sequence; the Stage 4 vs Stage 5 cause is now OPEN
+
+Appended, not edited — this file is append-only. This entry qualifies how several
+earlier entries' reward-progression claims may be read. It does **not** retract any
+measurement.
+
+**Finding:** every training burst constructs a fresh env with `seed=7`, so
+`reset(seed=...)` restarts at episode 1 and re-draws the identical scenarios in the
+identical order. **A resumed run adds PASSES, not DATA.** Verified across every stage
+that logs enough to test it: stage3 Burst A vs B **16/16 identical**; stage4 Burst A vs
+B **16/16**; Stage 5 Burst C vs D **81/81**, Burst B vs C **46/46**. It holds ACROSS
+STAGES sharing a config — **Stage 4 Burst B vs Stage 5 Burst C: 64/64 identical**, since
+both use `STAGES[4]` and `seed=7`. There is no stage-specific seed-handling path; Stage 5
+was not different.
+
+Measured distinct-scenario counts (= the longest single burst, never the sum):
+stage1/2/3 ≈ **65** each, stage4 ≈ **64**, Stage 5 `graph_attention` **81 distinct from
+248 logged episodes (~3.1x each)**. Stage 5's Burst D — 51,200 timesteps — introduced
+**ZERO** new scenarios.
+
+Stage 1 and 2 could not be tested directly (their Burst A predates `lane_counts`
+logging). Episode LENGTH was checked and is **not** a valid proxy — it varies with the
+policy and differs across bursts in stage3/4 where scenarios are provably identical. The
+mechanism is shared code, so they almost certainly replay too; for Stage 1 it is moot
+(fixed config).
+
+**CONFLATION — what this qualifies.** Every within-stage Burst A→B progression recorded
+in this log (Stage 1's rise to its ~1.28 plateau, Stage 2's, Stage 3's, Stage 4's)
+includes a component of **re-fitting to already-seen scenarios**: Burst B's first 16
+episodes are re-runs of Burst A's 16. Those improvements are real — the policy did get
+better — but "improved with more training" cannot be separated from "improved with more
+exposure to the same ~65 scenarios." Any future explanation invoking "more budget" must
+first check whether the extra steps were new scenarios or repeats.
+
+**NOT affected, stated so the correction is not over-read:**
+  - **Within-burst analyses stand.** Episodes inside one burst are all distinct (81/81
+    for Stage 5 Burst C), so Stage 2's `total_lanes` bucket analysis and Stage 3's
+    early/late-half splits compare genuinely different scenarios.
+  - **The §9.5 `graph_attention` vs `shared_policy` A/B stands, and DEPENDS on this** —
+    identical sequences are what make it paired. Both modes received the same scenarios.
+    The flip decision is untouched.
+  - **The 2026-08-18 measurements are uncontaminated.** `--j1-recheck` pins
+    `randomize_density=False` and `spawn_emergencies=False`; measured over 162 Stage 5
+    training episodes, **162/162 have an ambulance and 0/162 have density exactly 1.0**,
+    so no eval episode can coincide with a training episode. Incidental, not designed —
+    master plan §15.4 updated to require an explicit held-out set.
+
+**THE STAGE 4 vs STAGE 5 DATA-DIVERSITY CONFOUND IS UNRESOLVED — the CAUSE of the
+bottleneck gap is now genuinely OPEN.** Stated plainly rather than as a footnote:
+
+  - **The MEASUREMENT remains VALID.** Stage 4 single-agent outperforms
+    `graph_attention` on the flagged narrow-middle combos. Post-knee `graph_attention`
+    averages **30.33% starved across 14 checkpoints** (168 episodes) against Stage 4's
+    **0.24%**. That is measured on a structurally held-out eval set and nothing here
+    weakens it.
+  - **The CAUSE is now open between THREE candidates, not one.** Stage 4's policy
+    inherited a lineage through four *different* configs (Stage 1 fixed → 2 lane-counts
+    → 3 density → 4 emergencies), each generating its own sequence — roughly 259
+    scenario-instances across four distributions. Stage 5 `graph_attention` trained from
+    scratch and saw **81 scenarios from one distribution**. So the gap may be
+    **architecture**, **training budget**, or **data diversity**, and the Burst D
+    parity run controlled only for budget. This confound was never stated in the record
+    before now.
+  - **What this does and does not do to Track A.** Track A's conclusion — budget parity
+    does not close the gap — **stands, and is strengthened**: Burst D added zero new
+    scenarios, which is a concrete mechanism for why more budget could not help. But
+    Track A's further framing that the gap is therefore "a structural reward/curriculum
+    property" should be read as **curriculum-DIVERSITY property, cause still open**,
+    pending D1 (the persistent-seed-counter run). Do not cite the gap as evidence
+    against graph-attention as an ARCHITECTURE until D1 reports.
+
+**Deviates from plan?** No. No locked decision (CLAUDE.md §2) touched, no code changed by
+this entry, no measurement retracted. CLAUDE.md gained the standing rule; master plan
+§15.4 gained the held-out-set requirement.
+
+**Verified:** All comparisons above computed directly from the committed `monitor*.csv`
+files; disjointness figures computed over the 162 Stage 5 Burst C+D episodes.

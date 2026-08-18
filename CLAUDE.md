@@ -848,6 +848,53 @@ Pause and ask the user rather than proceeding when:
 &#x20; open with their status unchanged; do not read Stage 5's results as
 &#x20; bearing on either.
 
+\- \*\*STANDING RULE — EVERY BURST RESTARTS THE SCENARIO SEQUENCE. A resumed run
+&#x20; adds PASSES, not DATA. Distinct scenarios ≈ the LONGEST single burst, never
+&#x20; the sum of bursts.\*\* Each burst constructs a fresh env with `seed=7`, so the
+&#x20; `reset(seed=...)` sequence restarts at episode 1 and re-draws the identical
+&#x20; scenarios in the identical order. \*\*Verified across every stage that logs
+&#x20; enough to test it\*\* (2026-08-18): stage3 Burst A vs B \*\*16/16 identical\*\* on
+&#x20; `(lane_counts, density_mult_corridor, density_mult_cross)`; stage4 Burst A vs
+&#x20; B \*\*16/16\*\* on `(lane_counts, density, emergency_route, emergency_depart_s)`;
+&#x20; Stage 5 Burst C vs D \*\*81/81\*\*, Burst B vs C \*\*46/46\*\*. It also holds ACROSS
+&#x20; STAGES sharing a config: Stage 4 Burst B vs Stage 5 Burst C \*\*64/64
+&#x20; identical\*\* — Stage 4 and Stage 5 trained on the SAME scenario sequence,
+&#x20; because both use `STAGES[4]` and `seed=7`. There is no stage-specific
+&#x20; seed-handling path.
+&#x20; \*\*Measured distinct-scenario counts:\*\* stage1/2/3 ≈ 65 each, stage4 ≈ 64,
+&#x20; Stage 5 `graph_attention` \*\*81 distinct from 248 logged episodes — each seen
+&#x20; ~3.1x\*\*. Stage 5's Burst D (51,200 steps) introduced \*\*ZERO\*\* new scenarios.
+&#x20; \*\*Consequences, all load-bearing:\*\*
+&#x20; (1) \*\*Never explain a result by "more budget" or "more data" without checking
+&#x20; whether the extra steps were new scenarios or repeats.\*\* Within-stage Burst
+&#x20; A→B reward gains conflate additional training with repeated exposure.
+&#x20; (2) \*\*Within-burst analysis is UNAFFECTED\*\* — episodes inside one burst are
+&#x20; all distinct (81/81 for Stage 5 Burst C), so Stage 2's bucket analysis and
+&#x20; Stage 3's early/late splits compare genuinely different scenarios.
+&#x20; (3) \*\*The §9.5 graph_attention-vs-shared_policy A/B is UNAFFECTED and in fact
+&#x20; DEPENDS on this\*\* — identical sequences are what make it paired. BUILD_LOG
+&#x20; documents the property deliberately as a feature for that comparison; the
+&#x20; side effect on RESUMED TRAINING is what went unnoticed until 2026-08-18.
+&#x20; (4) Stage 1/2 could not be tested (their Burst A predates `lane_counts`
+&#x20; logging). \*\*Episode LENGTH is not a valid proxy\*\* for scenario identity —
+&#x20; it varies with the policy, and differs across bursts in stage3/4 where the
+&#x20; scenarios are provably identical.
+&#x20; \*\*Do NOT "fix" this globally without thought\*\* — pinning is required for the
+&#x20; paired mode comparison and for every reproducible eval. The fix belongs in
+&#x20; the TRAINING draw only (D1: a seed counter that persists across resumes),
+&#x20; with eval/demo left pinned.
+
+\- \*\*Eval configs are STRUCTURALLY DISJOINT from training — but only by
+&#x20; accident, so do not rely on it.\*\* `evaluate_stage.py --j1-recheck` runs
+&#x20; `randomize_density=False` (density exactly 1.0) and `spawn_emergencies=False`;
+&#x20; measured over 162 Stage 5 training episodes, \*\*162/162 have an ambulance and
+&#x20; 0/162 have `density_mult_corridor == 1.0`\*\*, so no eval episode can coincide
+&#x20; with a training episode. This is what keeps the 2026-08-18 j1 curve, per-term
+&#x20; decomposition and proposal-quality results uncontaminated. \*\*It is incidental
+&#x20; protection, not a designed held-out set\*\* — any future eval that MATCHES the
+&#x20; training config would silently evaluate on trained scenarios. See master plan
+&#x20; §15.4, which now requires an explicit held-out set.
+
 \- \*\*`sim/networks/generated/` is git-tracked, not gitignored\*\* (confirmed via
 &#x20; `git check-ignore` — no match). Stage 2's pre-generation step will add up
 &#x20; to 26 new `corridor_{j1}{j2}{j3}.{net,edg,nod}.xml` file sets to that
