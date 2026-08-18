@@ -607,3 +607,34 @@ Deterministic is now the better policy by almost exactly the margin by which it 
 **Also added this pass (housekeeping, no investigation):**
   - `training/train.py` gained `preflight_timesteps()` and a `PRE-FLIGHT:` line printed BEFORE `build_env()`, showing the actual `num_timesteps` a run will end on. Unit-checked against every real case from this session including the `--timesteps 41000 → 53248` error. This trap was explicitly flagged as a risk in CLAUDE.md and then walked into anyway; the fix makes it visible before compute is spent rather than after.
   - CLAUDE.md §8 gained a **PHASE 8 WARNING** that the Stage 4 emergency-latency measurement is known-broken (negative latencies on corridor routes, unfixed) and must NOT be inherited by §11.2's `clearance_time_s` without being fixed first — that value is shown to a human operator, so a wrong or negative number would be user-facing. Points at `run_tier0_episode.py --b2` as the correct single-junction implementation to generalise from.
+
+## 2026-08-18 — CORRECTION to the Stage 4 §16 emergency-priority entry (§18 Phase 6 Stage 4, 2026-08-15)
+
+**This entry does not overturn the Stage 4 checkpoint FAILURE. It corrects how strongly one specific sentence in that entry was worded, on the basis of a finer-grained measurement that did not exist when it was written.** Per this file's append-only rule the original entry is left intact; read the two together.
+
+**Decision:** The phrasing **"That is 0% proactive emergency handling — the policy never once served an approaching ambulance on its own initiative"** is WITHDRAWN as stated. The measurement behind it (§10's `emergency_override` fired in 15 of 15 sweep runs) is correct and is not in dispute; the inference drawn from it was too strong. Replacement wording: *the safety validator had to intervene at least once in every one of the 15 runs.*
+
+**Why — the metric is a per-episode BINARY, and cannot support a per-decision claim.** `override_fired` is true if §10 fired **at any point** in an episode of ~630 decision steps. It therefore cannot distinguish a policy that proposes correctly on 88% of ambulance decisions and lapses once, from one that proposes correctly on 50% and lapses once. Both read 15/15. "Never once served an ambulance on its own initiative" is a claim about every decision, and a metric with one bit per episode cannot license it. This is the same class of defect §0.3 was written about — the earlier finding was that the ORIGINAL metric (served-ambulance rate) was trivially satisfiable; this correction is that its REPLACEMENT, while a genuine improvement, is still too coarse for the sentence it was used to support.
+
+**Measured, on the same 3 seeds and the same Stage 4 checkpoint** (`psychoflow_stage4_153600_steps_final.zip`), using the per-junction-step classifier in `training/scripts/phase0_baselines.py` (`served` / `blocked_avoidable` / `blocked_unavoidable`, quality = served/(served+blocked_avoidable), mask-locked steps excluded so the metric measures the policy and not the action mask):
+
+| condition | served | avoidable | decidable | quality | chance | lift | ovr_emergency | ovr_starvation |
+|---|---|---|---|---|---|---|---|---|
+| **Stage 4 single-agent 153,600** | 23 | 3 | 26 | **0.885** | 0.583 | **+0.301** | **5** | **0** |
+| `graph_attention` 154,024 | 21 | 6 | 27 | 0.778 | 0.623 | +0.154 | 7 | 98 |
+| `graph_attention` 102,824 | 23 | 7 | 30 | 0.767 | 0.650 | +0.117 | 7 | 43 |
+| **RANDOM** (mask-valid uniform, 3 reps × 3 seeds) | 71 | 61 | 132 | **0.538** | 0.538 | **+0.000** | 65 | 1440 |
+
+Two-proportion z against the pooled random control: Stage 4 **z=+3.29, p=0.0010**; `graph_attention`@154,024 **z=+2.30, p=0.0214**; @102,824 **z=+2.29, p=0.0219**. **Both architectures propose ambulance-serving phases meaningfully above chance.** That is not compatible with "never once on its own initiative."
+
+**The chance baseline is validated, not assumed.** The random control's measured quality (0.538) equals its own analytically-computed chance rate (0.538) to three decimals — lift +0.000 — which is exactly what a uniform picker must produce if the chance arithmetic is right. This matters because chance here is HIGH (~0.54-0.65): when an ambulance is present there are typically few mask-valid slots and often more than one serves it. Any raw proposal-quality figure must be quoted against that floor, never alone.
+
+**Also corrected: the coarse metric INVERTS the ranking relative to the fine-grained one.** Override-firing put Stage 4 (15/15) behind `graph_attention` (11/15). Pooled proposal quality puts Stage 4 ahead (0.885 vs 0.778, roughly double the lift over chance), and the emergency-override COUNT agrees with the fine-grained view (Stage 4 **5**, `graph_attention` **7**, random **65**). So the 11/15-vs-15/15 comparison should not be cited as evidence that MARL handles emergencies better than single-agent without this caveat attached.
+
+**What still STANDS, unchanged:** §16's Stage 4 emergency-priority bar ("near-100% emergency priority") remains **FAILED and unremediated**. The validator intervened in all 15 runs; a policy needing the safety gate in every episode has not met that bar on any reading. The sparse-signal hypothesis remains untested.
+
+**HONEST LIMIT on this correction — it is underpowered and does NOT establish a winner between Stage 4 and `graph_attention`.** n=3 seeds, 26-30 decidable decisions per condition. Pooled quality favours Stage 4 (0.885 vs 0.778) but MEAN-OF-SEEDS reverses it (0.636 vs 0.695), because Stage 4's seed 42 drew only 2 decidable steps and missed both, scoring 0.000 with std 0.553 across seeds. Pooled and mean-of-seeds disagreeing that violently is a sample-size symptom. The claim supported at this n is only the one against RANDOM (n=132 control), which is what the p-values above cover. Widen the seed set before ranking the two policies.
+
+**Deviates from plan?** No. This is a measurement-methodology correction of the kind §0.3 requires, applied to §0.3's own motivating example. No locked decision (CLAUDE.md §2) is touched, no reward or validator code changed, and the Stage 4 checkpoint's FAILED status is unaffected.
+
+**Verified:** `training/scripts/phase0_baselines.py --selfcheck` reproduces the recorded `_sweeps/phase0_emergency.json` row (part2[110824] seed=1) EXACTLY on all 8 fields — steps=641, amb_visible=10, amb_junction=10, served=8, avoidable=0, unavoidable=2, quality=1.0, overrides=72 — confirming the rewritten harness is not silently disagreeing with the matrix it is compared against. Raw results persisted to `training/checkpoints/_sweeps/phase0_baselines.json` (now git-tracked).
