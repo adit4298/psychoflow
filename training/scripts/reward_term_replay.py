@@ -76,8 +76,11 @@ def replay(model, combo, seed):
             steps += 1
             switches += len(b["switched_junctions"])
             arrived += b["arrived_this_interval"]
+            # reward.py's worst_lane dict keys are junction_id/lane_id/wait_s/
+            # penalty — NOT the §7.1 lane-record key name. Getting this wrong
+            # silently yields 0.0 for every step rather than raising.
             w = b["worst_lane"]
-            wv = w.get("wait_time_max_single_vehicle", 0.0) if isinstance(w, dict) else 0.0
+            wv = w.get("wait_s", 0.0) if isinstance(w, dict) else 0.0
             worst = max(worst, wv)
             if wv > 90.0:
                 starved_steps += 1
