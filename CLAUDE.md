@@ -502,38 +502,68 @@ Pause and ask the user rather than proceeding when:
 &#x20; emits a `UserWarning` when this happens, as a free tripwire; the actual
 &#x20; enforcement for training is the Phase 6 prerequisite recorded under §3 above.
 
-\- \*\*WATCH-ITEM (Phase 6, added Stage 1): re-check the deterministic-vs-stochastic
-&#x20; reward gap at every future stage checkpoint (Stage 2/3/4).\*\* Stage 1's final
-&#x20; checkpoint scores +1.03 mean reward/step deterministic vs. 1.297 stochastic
-&#x20; (10-episode average, seed-independent, bit-for-bit reproducible — see
-&#x20; BUILD_LOG.md's Phase 6 entry) — likely `ent_coef=0.0` plus independent-per-head
-&#x20; argmax over the `MultiDiscrete([3,3,3])` action space not yet coinciding with the
-&#x20; jointly-best combination, but this is an unconfirmed hypothesis. If the gap does
-&#x20; NOT narrow as training progresses and entropy naturally decays, escalate before
-&#x20; the Stage 5 MARL checkpoint — §9.5's graph-attention and shared-policy extractors
-&#x20; both sit on this same per-junction action-head structure, so an unresolved gap
-&#x20; here is not a Stage-1-only quirk.
-&#x20; \*\*MEASURED at Stage 5 (2026-08-16) — the gap has INVERTED.\*\* Same
-&#x20; methodology as Stage 1's original test (corridor 4/3/2, seed 7, model
-&#x20; loaded ONCE and looped — a fresh `.load()` reseeds torch's RNG and
-&#x20; silently makes "stochastic" runs identical), against
-&#x20; `graph_attention`'s final checkpoint:
-&#x20; deterministic \*\*1.285947\*\* vs stochastic n=10 mean \*\*1.027080\*\*
-&#x20; (stdev 0.061626, range 0.946280-1.130255) — \*\*gap −0.258867\*\*, against
-&#x20; Stage 1's \*\*+0.268335\*\*. Near-identical magnitude, OPPOSITE sign:
-&#x20; deterministic is now the BETTER policy by about the margin it was worse
-&#x20; by at Stage 1. For deployment this is the wanted direction, since §13.1
-&#x20; runs the greedy policy. The original hypothesis (`ent_coef=0.0` plus
-&#x20; independent per-head argmax over `MultiDiscrete([3,3,3])` not yet
-&#x20; coinciding with the jointly-best action) was never confirmed and is now
-&#x20; moot for this checkpoint.
-&#x20; \*\*UNRESOLVED TENSION — logged deliberately, NOT resolved.\*\* Deterministic
-&#x20; has the higher REWARD (1.286) but WORSE tail behaviour: worst_wait 121.0s
-&#x20; / 1.09% starved, versus stochastic episodes mostly at 75-103s / 0.00%
-&#x20; starved. Reward and fairness disagree about which policy is better here.
-&#x20; Not investigated. Anyone treating mean reward as the sole quality signal
-&#x20; should know this exists first — §9.3's fairness claim and §9.4's reward
-&#x20; are not measuring the same thing on this checkpoint.
+\- \*\*CLOSED (Phase 6/7, opened Stage 1, RESOLVED 2026-08-17): deterministic-vs-
+&#x20; stochastic reward gap — diagnosed, mechanism identified, track closed. No
+&#x20; further investigation needed.\*\* Do NOT reopen this as a watch-item; the
+&#x20; original `ent_coef=0.0` / per-head-argmax hypothesis was never confirmed and
+&#x20; is now superseded by a measured mechanism. History: Stage 1 recorded
+&#x20; stochastic BEATING deterministic (1.297 vs 1.029, gap +0.268); at Stage 5 the
+&#x20; sign inverted. Diagnosed against `psychoflow_stage5_51624_steps_final.zip`
+&#x20; (`graph_attention`) with \*\*74 episodes across 4 seeds\*\* — seed 7 n=40, seeds
+&#x20; 1/3/42 n=10 each. Raw data: `training/checkpoints/_sweeps/det_stoch_diag.json`.
+&#x20; \*\*(1) The gap is ROBUST and the mechanism is SWITCH FREQUENCY.\*\* Deterministic
+&#x20; wins all 4 seeds — gaps +0.2372 / +0.2678 / +0.3627 / +0.3359, \*\*mean
+&#x20; +0.3009\*\*. Deterministic switches \*\*18-19% less\*\* (0.642-0.657 vs 0.793-0.796
+&#x20; switches/step, extremely tight across seeds). Fewer switches = less green time
+&#x20; lost to yellow, which roughly \*\*halves the integrated starvation penalty\*\*
+&#x20; (0.177-0.221 vs 0.400-0.445 per step) and separately saves switch penalty
+&#x20; (0.321-0.328 vs 0.396-0.398). Attribution of the gap: starvation \*\*67-80%\*\*,
+&#x20; switch \*\*21-30%\*\*, throughput −10% to +9%. Term decomposition reconstructs
+&#x20; each mean reward exactly, so this is arithmetic, not inference.
+&#x20; \*\*(2) The throughput hypothesis was TESTED and RULED OUT.\*\* All 74 episodes
+&#x20; clear \*\*exactly 4668\*\* vehicles, so `throughput_bonus` summed is identical in
+&#x20; every run; it only enters per-step reward via episode length, contributes
+&#x20; near-zero, and \*\*changes sign across seeds\*\*. On seed 7 it works AGAINST
+&#x20; deterministic. It is not a source of the gap.
+&#x20; \*\*(3) WHY reward and `worst_wait` disagree — the wait distributions CROSS.\*\*
+&#x20; Deterministic wins the body, stochastic wins the extreme tail:
+&#x20; | percentile | DET | STO | winner |
+&#x20; |---|---|---|---|
+&#x20; | p50 | \*\*25.0s\*\* | 37.7s | DET, −34% |
+&#x20; | p90 | \*\*36.8s\*\* | 57.2s | DET, −36% |
+&#x20; | p99 | 95.3s | \*\*77.8s\*\* | STO |
+&#x20; | max | 123.3s | \*\*87.3s\*\* | STO |
+&#x20; The crossover sits between p90 and p99. §9.4's reward INTEGRATES the body
+&#x20; (its `max` term is a max across lanes WITHIN a step, then averaged over
+&#x20; ~640 steps); `worst_wait`/`starved_pct` read only the episode-level EXTREME.
+&#x20; They are different statistics of one distribution, not contradictory quality
+&#x20; signals — and a rare excursion is diluted to near-invisibility in the mean
+&#x20; (p(121s)≈2.28 vs p(87s)≈0.94 on ~7 of 640 steps ≈ 0.015 reward/step, against
+&#x20; the 0.189/step deterministic saves on typical waits — a ~12:1 payoff, so the
+&#x20; policy is correctly optimising the reward as written).
+&#x20; \*\*(4) CORRECTION — this is SCENARIO-DEPENDENT, not universal. The earlier
+&#x20; "unresolved tension" framing overstated it.\*\* On 3 of 4 seeds (7/1/42)
+&#x20; deterministic crosses `STARVATION_CEILING_S` exactly \*\*once per episode\*\*
+&#x20; (worst_wait 121/124/125s, 1.09-1.27% starved, exactly \*\*1\*\*
+&#x20; `starvation_ceiling` override each). On \*\*seed 3 the disagreement REVERSES\*\*:
+&#x20; deterministic wins BOTH metrics cleanly — worst_wait \*\*54.0s / 0.00% starved
+&#x20; / ZERO overrides\*\* (p99 only 47.0s, no excursion at all) versus stochastic's
+&#x20; 89.5s / 0.82%. So the "worse tail" is a single once-per-episode excursion on
+&#x20; SOME scenarios, not a property of the greedy policy. Do not state it as one.
+&#x20; \*\*(5) SCOPE LIMIT — says NOTHING about emergency behaviour.\*\* The test ran
+&#x20; `ScenarioConfig(lane_counts=(4,3,2))`, i.e. \*\*`spawn_emergencies=False`\*\*;
+&#x20; `emergency_per_step` was \*\*0.0000 in all 74 episodes\*\*. Nothing here bears on
+&#x20; §16's failed Stage 4 emergency-priority checkpoint, which remains open and
+&#x20; unremediated on its own terms.
+&#x20; \*\*Methodology worth reusing\*\* (both guarantees verified, not assumed): model
+&#x20; loaded ONCE and looped (a fresh `.load()` reseeds torch's RNG and silently
+&#x20; makes "stochastic" runs identical), and the scenario PINNED per seed via
+&#x20; `env.reset(seed=s)` so action sampling is the only variable — without the pin
+&#x20; a stochastic sample mixes policy noise with scenario-draw noise and no
+&#x20; per-term attribution is possible. Seed 7's deterministic run reproduced the
+&#x20; recorded 1.285947 / 121.0s / 1.09% EXACTLY, and two deterministic reps were
+&#x20; bit-identical, confirming the harness measures the originally-logged
+&#x20; phenomenon rather than a similar-looking different draw.
 
 \- \*\*WATCH-ITEM (Phase 6, added Stage 2): narrow-middle-bottleneck adaptivity
 &#x20; gap.\*\* Stage 2's consistency sweep (5 combos × seeds `{1,7,42}` against

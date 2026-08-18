@@ -61,6 +61,14 @@ You have one Claude Pro seat, subscription runs to Sep 11, but the real deadline
 
 ---
 
+## 0.3 Done-Bar Integrity Principle
+
+Any phase "done bar" or §16 checkpoint metric must be checked for whether it can be satisfied trivially or structurally, regardless of actual system/policy quality — for instance, an outcome that a downstream safety or validation mechanism already guarantees by construction, independent of what the layer under test actually does. A metric that would pass for any implementation, including a deliberately bad one, is not measuring what it claims to measure. If a done-bar check turns out to have this shape, redefine the metric to isolate the underlying behavior it was meant to verify — before building or training against it, not after.[^1]
+
+[^1]: Motivating example: §16's Stage 4 checkpoint bar was originally read as "near-100% emergency priority in test episodes," measured as the served-ambulance rate. But §10's safety validator makes an unserved ambulance impossible by construction — the emergency override always fires if the policy doesn't proactively serve it — so this metric would read 100% for any policy whatsoever, including a random one. It measured the validator, not the policy. The corrected metric — validator override-firing rate, i.e. how often the safety gate had to intervene rather than the policy handling it proactively — showed the real result: 15/15 overrides fired, meaning 0% proactive emergency handling, which the naive metric would have reported as a full pass. See `docs/BUILD_LOG.md`'s 2026-08-15 §18 Phase 6 Stage 4 entry.
+
+---
+
 ## 1. Governing Problem Statement
 
 > **Autonomous Traffic Flow Optimization & Road-Safety Response Agents (V2X + Multi-Modal Signals)**
