@@ -565,6 +565,29 @@ Pause and ask the user rather than proceeding when:
 &#x20; bit-identical, confirming the harness measures the originally-logged
 &#x20; phenomenon rather than a similar-looking different draw.
 
+\- \*\*CORRECTION (Phase 0, 2026-08-18) — the `ovr` column in the recovered
+&#x20; 12-checkpoint matrix (`training/checkpoints/_sweeps/phase0_emergency.json`)
+&#x20; is dominated by `starvation_ceiling` overrides, NOT `emergency_override`,
+&#x20; and must NOT be read as an emergency-handling signal.\*\*
+&#x20; `training/scripts/phase0_emergency.py` counted `len(info["safety_overrides"])`,
+&#x20; which lumps §10's two rules together. That the column is starvation-dominated
+&#x20; is visible in the recorded numbers themselves: `ovr` ranges 22-383 per
+&#x20; 3-seed triple while `ambJstep` (the hard ceiling on how many emergency
+&#x20; overrides are even possible, since at most one can fire per junction per
+&#x20; ambulance-present step) ranges only 23-34 in the same triples. So on
+&#x20; every row above ~34 the majority of counted overrides provably cannot be
+&#x20; emergency ones — 349+ of the 383 row, for instance. The one row where
+&#x20; the column could in principle be emergency-dominated is 51624 (ovr=22,
+&#x20; ambJstep=25); everywhere else the arithmetic settles it.
+&#x20; `training/scripts/phase0_baselines.py` splits them via the `rule` key of
+&#x20; `OverrideRecord.to_dict()` (`RULE_EMERGENCY` / `RULE_STARVATION`, both in
+&#x20; `safety/validator.py`) and reports `ovrE`/`ovrS` separately. \*\*Any future
+&#x20; emergency-quality claim must cite the SPLIT figures, not the combined
+&#x20; count\*\* — and note this is a different measurement again from
+&#x20; `evaluate_stage.py --emergency-recheck`'s per-episode binary
+&#x20; override-fired rate (the 15/15, 11/15, 13/15 figures), which counts
+&#x20; EPISODES not overrides. Three distinct numbers, easily conflated.
+
 \- \*\*WATCH-ITEM (Phase 6, added Stage 2): narrow-middle-bottleneck adaptivity
 &#x20; gap.\*\* Stage 2's consistency sweep (5 combos × seeds `{1,7,42}` against
 &#x20; `psychoflow_stage2_51200_steps_final.zip`) found `(4,2,4)` as a clear
