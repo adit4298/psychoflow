@@ -135,6 +135,7 @@ def train_stage(
     monitor_name: str = "monitor.csv",
     checkpoint_freq: int = DEFAULT_CHECKPOINT_FREQ,
     coordination_mode: str = COORDINATION_MODE,
+    run_tag: str = "",
 ) -> None:
     if stage not in valid_stages():
         raise ValueError(f"stage must be one of {valid_stages()}, got {stage}")
@@ -152,6 +153,15 @@ def train_stage(
     # overwrite the first's checkpoints and monitor file.
     stage_dir = CHECKPOINTS_ROOT / (f"stage{stage}_{coordination_mode}" if is_marl
                                     else f"stage{stage}")
+    # --run-tag isolates a NEW experiment from an existing one. Without it a
+    # fresh --stage 5 run writes psychoflow_stage5_5000_steps.zip etc. straight
+    # into stage5_graph_attention/, OVERWRITING the checkpoint series an
+    # earlier run left there — which for Stage 5 is the evidence base behind
+    # the §9.5 decision, the 16-point j1 curve and the Phase 0 matrix. The
+    # CheckpointCallback name_prefix depends only on the stage number, so the
+    # directory is the only thing separating two runs of the same stage.
+    if run_tag:
+        stage_dir = stage_dir.parent / f"{stage_dir.name}_{run_tag}"
     stage_dir.mkdir(parents=True, exist_ok=True)
     monitor_path = stage_dir / monitor_name
 
@@ -265,6 +275,12 @@ def main() -> None:
                         choices=VALID_MODES,
                         help="§9.5 MARL feature extractor. Stage 5 only; ignored "
                              "for Stages 1-4, which keep SB3's default MlpPolicy.")
+    parser.add_argument("--run-tag", type=str, default="",
+                        help="Suffix the checkpoint DIRECTORY, isolating a new "
+                             "experiment from an existing run of the same stage. "
+                             "Without it, a fresh run overwrites the earlier "
+                             "run's checkpoint series (name_prefix depends only "
+                             "on the stage number).")
     args = parser.parse_args()
 
     train_stage(
@@ -275,6 +291,7 @@ def main() -> None:
         monitor_name=args.monitor_name,
         checkpoint_freq=args.checkpoint_freq,
         coordination_mode=args.coordination_mode,
+        run_tag=args.run_tag,
     )
 
 
