@@ -1,0 +1,4013 @@
+{
+  "checkpoint": "psychoflow_stage5_51624_steps_final.zip",
+  "det": {
+    "7": [
+      {
+        "seed": 7,
+        "deterministic": true,
+        "steps": 640,
+        "mean_reward": 1.2859469682355957,
+        "total_reward": 823.0060596707813,
+        "worst_wait": 121.0,
+        "starved_steps": 7,
+        "starved_pct": 1.09375,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.21171124999999996,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.32578125,
+        "sum_starvation": 135.49519999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 208.5,
+        "switch_events": 417,
+        "switches_per_step": 0.6515625,
+        "per_junction_starvation": {
+          "J1": 51.75759999999996,
+          "J2": 24.302200000000013,
+          "J3": 59.431599999999975
+        },
+        "worst_wait_p50": 25.0,
+        "worst_wait_p90": 37.0,
+        "worst_wait_p99": 91.0,
+        "worst_junction_hits": {
+          "J3": 227,
+          "J1": 339,
+          "J2": 65
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            106
+          ],
+          [
+            "J2_J3_0",
+            87
+          ],
+          [
+            "N1_J1_0",
+            85
+          ]
+        ],
+        "overrides_total": 1,
+        "overrides_by_rule": {
+          "starvation_ceiling/applied": 1
+        }
+      },
+      {
+        "seed": 7,
+        "deterministic": true,
+        "steps": 640,
+        "mean_reward": 1.2859469682355957,
+        "total_reward": 823.0060596707813,
+        "worst_wait": 121.0,
+        "starved_steps": 7,
+        "starved_pct": 1.09375,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.21171124999999996,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.32578125,
+        "sum_starvation": 135.49519999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 208.5,
+        "switch_events": 417,
+        "switches_per_step": 0.6515625,
+        "per_junction_starvation": {
+          "J1": 51.75759999999996,
+          "J2": 24.302200000000013,
+          "J3": 59.431599999999975
+        },
+        "worst_wait_p50": 25.0,
+        "worst_wait_p90": 37.0,
+        "worst_wait_p99": 91.0,
+        "worst_junction_hits": {
+          "J3": 227,
+          "J1": 339,
+          "J2": 65
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            106
+          ],
+          [
+            "J2_J3_0",
+            87
+          ],
+          [
+            "N1_J1_0",
+            85
+          ]
+        ],
+        "overrides_total": 1,
+        "overrides_by_rule": {
+          "starvation_ceiling/applied": 1
+        }
+      }
+    ],
+    "1": [
+      {
+        "seed": 1,
+        "deterministic": true,
+        "steps": 636,
+        "mean_reward": 1.2932509742118954,
+        "total_reward": 822.5076195987655,
+        "worst_wait": 124.0,
+        "starved_steps": 8,
+        "starved_pct": 1.2578616352201257,
+        "arrived": 4668,
+        "sim_time": 3190.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.2209009433962264,
+        "throughput_per_step": 1.8349056603773586,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.32075471698113206,
+        "sum_starvation": 140.493,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 204.0,
+        "switch_events": 408,
+        "switches_per_step": 0.6415094339622641,
+        "per_junction_starvation": {
+          "J1": 66.70659999999994,
+          "J2": 22.545899999999996,
+          "J3": 51.23999999999997
+        },
+        "worst_wait_p50": 25.0,
+        "worst_wait_p90": 37.0,
+        "worst_wait_p99": 95.0,
+        "worst_junction_hits": {
+          "J1": 331,
+          "J2": 63,
+          "J3": 235
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            102
+          ],
+          [
+            "J2_J1_0",
+            99
+          ],
+          [
+            "N1_J1_0",
+            86
+          ]
+        ],
+        "overrides_total": 1,
+        "overrides_by_rule": {
+          "starvation_ceiling/applied": 1
+        }
+      }
+    ],
+    "3": [
+      {
+        "seed": 3,
+        "deterministic": true,
+        "steps": 628,
+        "mean_reward": 1.3604514380357002,
+        "total_reward": 854.3635030864198,
+        "worst_wait": 54.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3150.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.17696990445859878,
+        "throughput_per_step": 1.85828025477707,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.320859872611465,
+        "sum_starvation": 111.13710000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 201.5,
+        "switch_events": 403,
+        "switches_per_step": 0.64171974522293,
+        "per_junction_starvation": {
+          "J1": 49.95029999999997,
+          "J2": 20.015599999999967,
+          "J3": 41.17139999999998
+        },
+        "worst_wait_p50": 25.0,
+        "worst_wait_p90": 37.0,
+        "worst_wait_p99": 47.0,
+        "worst_junction_hits": {
+          "J3": 244,
+          "J1": 338,
+          "J2": 39
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            104
+          ],
+          [
+            "J2_J3_0",
+            81
+          ],
+          [
+            "N1_J1_0",
+            78
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      }
+    ],
+    "42": [
+      {
+        "seed": 42,
+        "deterministic": true,
+        "steps": 629,
+        "mean_reward": 1.3251496124392368,
+        "total_reward": 833.5191062242799,
+        "worst_wait": 125.0,
+        "starved_steps": 8,
+        "starved_pct": 1.2718600953895072,
+        "arrived": 4668,
+        "sim_time": 3155.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.20187742448330673,
+        "throughput_per_step": 1.8553259141494436,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.32829888712241656,
+        "sum_starvation": 126.98089999999993,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 206.5,
+        "switch_events": 413,
+        "switches_per_step": 0.6565977742448331,
+        "per_junction_starvation": {
+          "J1": 43.91839999999997,
+          "J2": 20.1032,
+          "J3": 62.95800000000002
+        },
+        "worst_wait_p50": 25.0,
+        "worst_wait_p90": 36.0,
+        "worst_wait_p99": 100.0,
+        "worst_junction_hits": {
+          "J1": 305,
+          "J3": 260,
+          "J2": 57
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            99
+          ],
+          [
+            "J2_J1_0",
+            96
+          ],
+          [
+            "S1_J1_0",
+            64
+          ]
+        ],
+        "overrides_total": 1,
+        "overrides_by_rule": {
+          "starvation_ceiling/applied": 1
+        }
+      }
+    ]
+  },
+  "stoch": {
+    "7": [
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 632,
+        "mean_reward": 1.0653073193402611,
+        "total_reward": 673.2742258230451,
+        "worst_wait": 85.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3170.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3848506329113923,
+        "throughput_per_step": 1.8465189873417722,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3963607594936709,
+        "sum_starvation": 243.22559999999996,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.5,
+        "switch_events": 501,
+        "switches_per_step": 0.7927215189873418,
+        "per_junction_starvation": {
+          "J1": 70.04530000000004,
+          "J2": 64.48410000000001,
+          "J3": 108.69639999999998
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 75.0,
+        "worst_junction_hits": {
+          "J1": 155,
+          "J2": 131,
+          "J3": 340
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            269
+          ],
+          [
+            "J2_J1_0",
+            99
+          ],
+          [
+            "J1_J2_0",
+            67
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 641,
+        "mean_reward": 0.9850100814217746,
+        "total_reward": 631.3914621913575,
+        "worst_wait": 103.0,
+        "starved_steps": 8,
+        "starved_pct": 1.24804992199688,
+        "arrived": 4668,
+        "sim_time": 3215.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.43620811232449286,
+        "throughput_per_step": 1.8205928237129485,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3993759750390016,
+        "sum_starvation": 279.60939999999994,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.0,
+        "switch_events": 512,
+        "switches_per_step": 0.7987519500780031,
+        "per_junction_starvation": {
+          "J1": 89.90099999999988,
+          "J2": 78.66689999999991,
+          "J3": 111.04339999999992
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 96.0,
+        "worst_junction_hits": {
+          "J1": 191,
+          "J3": 272,
+          "J2": 172
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            228
+          ],
+          [
+            "J2_J1_0",
+            128
+          ],
+          [
+            "J1_J2_0",
+            78
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.0593652868793832,
+        "total_reward": 670.5782265946497,
+        "worst_wait": 75.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.37981232227488154,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40442338072669826,
+        "sum_starvation": 240.4212,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.0,
+        "switch_events": 512,
+        "switches_per_step": 0.8088467614533965,
+        "per_junction_starvation": {
+          "J1": 72.90020000000001,
+          "J2": 65.46689999999998,
+          "J3": 102.05249999999995
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 57.0,
+        "worst_wait_p99": 70.0,
+        "worst_junction_hits": {
+          "J1": 178,
+          "J2": 128,
+          "J3": 319
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            239
+          ],
+          [
+            "J2_J1_0",
+            114
+          ],
+          [
+            "J2_J3_1",
+            65
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 635,
+        "mean_reward": 0.9614309626227292,
+        "total_reward": 610.508661265433,
+        "worst_wait": 87.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3185.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4669154330708659,
+        "throughput_per_step": 1.8377952755905511,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4094488188976378,
+        "sum_starvation": 296.49129999999985,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 260.0,
+        "switch_events": 520,
+        "switches_per_step": 0.8188976377952756,
+        "per_junction_starvation": {
+          "J1": 109.99510000000014,
+          "J2": 80.37209999999996,
+          "J3": 106.12430000000003
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 74.0,
+        "worst_junction_hits": {
+          "J2": 157,
+          "J3": 243,
+          "J1": 228
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            165
+          ],
+          [
+            "J2_J1_0",
+            134
+          ],
+          [
+            "J2_J3_1",
+            60
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.0780235960974272,
+        "total_reward": 675.9207947530869,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3797133971291868,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40350877192982454,
+        "sum_starvation": 238.0803000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 253.0,
+        "switch_events": 506,
+        "switches_per_step": 0.8070175438596491,
+        "per_junction_starvation": {
+          "J1": 78.09579999999988,
+          "J2": 66.21630000000003,
+          "J3": 93.76690000000013
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 66.0,
+        "worst_junction_hits": {
+          "J3": 285,
+          "J1": 187,
+          "J2": 148
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            216
+          ],
+          [
+            "J2_J1_0",
+            123
+          ],
+          [
+            "J1_J2_0",
+            72
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 639,
+        "mean_reward": 0.9462795077506643,
+        "total_reward": 604.6726054526745,
+        "worst_wait": 81.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3205.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4801672926447578,
+        "throughput_per_step": 1.8262910798122065,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3998435054773083,
+        "sum_starvation": 306.82690000000025,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 255.5,
+        "switch_events": 511,
+        "switches_per_step": 0.7996870109546166,
+        "per_junction_starvation": {
+          "J1": 94.74140000000004,
+          "J2": 80.9873,
+          "J3": 131.0987999999999
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 66.0,
+        "worst_wait_p99": 75.0,
+        "worst_junction_hits": {
+          "J2": 122,
+          "J3": 335,
+          "J1": 173
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            265
+          ],
+          [
+            "J2_J1_0",
+            104
+          ],
+          [
+            "J1_J2_0",
+            55
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 630,
+        "mean_reward": 0.9791235323175906,
+        "total_reward": 616.8478253600821,
+        "worst_wait": 103.0,
+        "starved_steps": 5,
+        "starved_pct": 0.7936507936507936,
+        "arrived": 4668,
+        "sim_time": 3160.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.475638253968254,
+        "throughput_per_step": 1.8523809523809525,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3976190476190476,
+        "sum_starvation": 299.6521,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.5,
+        "switch_events": 501,
+        "switches_per_step": 0.7952380952380952,
+        "per_junction_starvation": {
+          "J1": 80.04509999999999,
+          "J2": 83.53799999999995,
+          "J3": 136.06849999999994
+        },
+        "worst_wait_p50": 41.0,
+        "worst_wait_p90": 60.0,
+        "worst_wait_p99": 88.0,
+        "worst_junction_hits": {
+          "J2": 121,
+          "J1": 167,
+          "J3": 336
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            255
+          ],
+          [
+            "J2_J1_0",
+            117
+          ],
+          [
+            "J2_J3_1",
+            75
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 624,
+        "mean_reward": 1.0745818803913425,
+        "total_reward": 670.5390933641977,
+        "worst_wait": 85.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3130.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3909623397435898,
+        "throughput_per_step": 1.8701923076923077,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4046474358974359,
+        "sum_starvation": 243.96050000000002,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.5,
+        "switch_events": 505,
+        "switches_per_step": 0.8092948717948718,
+        "per_junction_starvation": {
+          "J1": 87.65980000000009,
+          "J2": 62.31439999999997,
+          "J3": 93.9873000000001
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 55.0,
+        "worst_wait_p99": 77.0,
+        "worst_junction_hits": {
+          "J2": 133,
+          "J3": 250,
+          "J1": 232
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            213
+          ],
+          [
+            "J2_J1_0",
+            148
+          ],
+          [
+            "J1_J2_0",
+            53
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 638,
+        "mean_reward": 0.9914204988905673,
+        "total_reward": 632.5262782921819,
+        "worst_wait": 100.0,
+        "starved_steps": 2,
+        "starved_pct": 0.31347962382445144,
+        "arrived": 4668,
+        "sim_time": 3200.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.44274733542319694,
+        "throughput_per_step": 1.829153605015674,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3949843260188088,
+        "sum_starvation": 282.47279999999967,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.0,
+        "switch_events": 504,
+        "switches_per_step": 0.7899686520376176,
+        "per_junction_starvation": {
+          "J1": 89.08430000000006,
+          "J2": 72.08690000000009,
+          "J3": 121.30300000000003
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 61.0,
+        "worst_wait_p99": 85.0,
+        "worst_junction_hits": {
+          "J1": 171,
+          "J3": 318,
+          "J2": 143
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            261
+          ],
+          [
+            "J2_J1_0",
+            121
+          ],
+          [
+            "J1_J2_0",
+            78
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 628,
+        "mean_reward": 1.1302547217799006,
+        "total_reward": 709.7999652777776,
+        "worst_wait": 82.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3150.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.33232611464968126,
+        "throughput_per_step": 1.85828025477707,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39570063694267515,
+        "sum_starvation": 208.70079999999982,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 248.5,
+        "switch_events": 497,
+        "switches_per_step": 0.7914012738853503,
+        "per_junction_starvation": {
+          "J1": 68.18489999999993,
+          "J2": 55.766300000000044,
+          "J3": 84.74910000000006
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 51.0,
+        "worst_wait_p99": 65.0,
+        "worst_junction_hits": {
+          "J1": 208,
+          "J2": 119,
+          "J3": 294
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            232
+          ],
+          [
+            "J2_J1_0",
+            125
+          ],
+          [
+            "J1_J2_0",
+            51
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.100632164316985,
+        "total_reward": 690.0963670267496,
+        "worst_wait": 87.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.36986156299840517,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39074960127591707,
+        "sum_starvation": 231.90320000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 245.0,
+        "switch_events": 490,
+        "switches_per_step": 0.7814992025518341,
+        "per_junction_starvation": {
+          "J1": 70.39650000000002,
+          "J2": 65.84320000000001,
+          "J3": 95.66300000000014
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 52.0,
+        "worst_wait_p99": 79.0,
+        "worst_junction_hits": {
+          "J1": 182,
+          "J3": 276,
+          "J2": 157
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            209
+          ],
+          [
+            "J2_J1_0",
+            112
+          ],
+          [
+            "J1_J2_0",
+            70
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 628,
+        "mean_reward": 1.0369503092972654,
+        "total_reward": 651.2047942386827,
+        "worst_wait": 85.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3150.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4335901273885349,
+        "throughput_per_step": 1.85828025477707,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3877388535031847,
+        "sum_starvation": 272.29459999999995,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 243.5,
+        "switch_events": 487,
+        "switches_per_step": 0.7754777070063694,
+        "per_junction_starvation": {
+          "J1": 95.95699999999995,
+          "J2": 67.89980000000001,
+          "J3": 108.43720000000008
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 75.0,
+        "worst_junction_hits": {
+          "J1": 232,
+          "J2": 137,
+          "J3": 253
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            165
+          ],
+          [
+            "J2_J3_0",
+            161
+          ],
+          [
+            "J2_J3_1",
+            67
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 625,
+        "mean_reward": 1.0116996584362148,
+        "total_reward": 632.3122865226343,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3135.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.45309871999999995,
+        "throughput_per_step": 1.8672,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4024,
+        "sum_starvation": 283.1867,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.8048,
+        "per_junction_starvation": {
+          "J1": 91.67100000000016,
+          "J2": 79.82159999999996,
+          "J3": 111.69429999999997
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 75.0,
+        "worst_junction_hits": {
+          "J2": 132,
+          "J1": 233,
+          "J3": 250
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            206
+          ],
+          [
+            "J2_J1_0",
+            133
+          ],
+          [
+            "J1_J2_0",
+            64
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 631,
+        "mean_reward": 1.0976187061004496,
+        "total_reward": 692.5974035493837,
+        "worst_wait": 108.0,
+        "starved_steps": 5,
+        "starved_pct": 0.7923930269413629,
+        "arrived": 4668,
+        "sim_time": 3165.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.36197068145800343,
+        "throughput_per_step": 1.849445324881141,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3898573692551506,
+        "sum_starvation": 228.40350000000018,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 246.0,
+        "switch_events": 492,
+        "switches_per_step": 0.7797147385103012,
+        "per_junction_starvation": {
+          "J1": 78.99380000000004,
+          "J2": 57.11560000000003,
+          "J3": 92.29190000000001
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 51.0,
+        "worst_wait_p99": 83.0,
+        "worst_junction_hits": {
+          "J2": 122,
+          "J3": 326,
+          "J1": 174
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            242
+          ],
+          [
+            "J2_J1_0",
+            101
+          ],
+          [
+            "J1_J2_0",
+            74
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 640,
+        "mean_reward": 1.0538182910558112,
+        "total_reward": 674.4437062757191,
+        "worst_wait": 95.0,
+        "starved_steps": 7,
+        "starved_pct": 1.09375,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3836793750000004,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3859375,
+        "sum_starvation": 245.55480000000023,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 247.0,
+        "switch_events": 494,
+        "switches_per_step": 0.771875,
+        "per_junction_starvation": {
+          "J1": 84.50639999999999,
+          "J2": 67.03539999999995,
+          "J3": 94.0141
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 56.0,
+        "worst_wait_p99": 91.0,
+        "worst_junction_hits": {
+          "J3": 276,
+          "J2": 139,
+          "J1": 216
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            179
+          ],
+          [
+            "J2_J1_0",
+            122
+          ],
+          [
+            "J2_J3_1",
+            70
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 625,
+        "mean_reward": 1.0554268456790137,
+        "total_reward": 659.6417785493836,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3135.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.40857359999999954,
+        "throughput_per_step": 1.8672,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4032,
+        "sum_starvation": 255.3584999999997,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.0,
+        "switch_events": 504,
+        "switches_per_step": 0.8064,
+        "per_junction_starvation": {
+          "J1": 92.95320000000007,
+          "J2": 64.38180000000004,
+          "J3": 98.02279999999995
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 60.0,
+        "worst_wait_p99": 73.0,
+        "worst_junction_hits": {
+          "J1": 243,
+          "J3": 233,
+          "J2": 143
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            190
+          ],
+          [
+            "J2_J1_0",
+            154
+          ],
+          [
+            "J2_J1_1",
+            46
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.0574524014426052,
+        "total_reward": 669.367370113169,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.38883586097946304,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39731437598736175,
+        "sum_starvation": 246.1331000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.7946287519747235,
+        "per_junction_starvation": {
+          "J1": 76.61699999999992,
+          "J2": 71.4901000000001,
+          "J3": 98.02419999999998
+        },
+        "worst_wait_p50": 33.0,
+        "worst_wait_p90": 57.0,
+        "worst_wait_p99": 84.0,
+        "worst_junction_hits": {
+          "J2": 146,
+          "J1": 212,
+          "J3": 269
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            203
+          ],
+          [
+            "J2_J1_0",
+            135
+          ],
+          [
+            "J1_J2_0",
+            61
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 630,
+        "mean_reward": 1.058634845107452,
+        "total_reward": 666.9399524176948,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3160.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.40247714285714364,
+        "throughput_per_step": 1.8523809523809525,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39126984126984127,
+        "sum_starvation": 253.5606000000005,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 246.5,
+        "switch_events": 493,
+        "switches_per_step": 0.7825396825396825,
+        "per_junction_starvation": {
+          "J1": 77.68119999999998,
+          "J2": 71.17220000000013,
+          "J3": 104.70599999999997
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 69.0,
+        "worst_junction_hits": {
+          "J3": 317,
+          "J1": 163,
+          "J2": 142
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            219
+          ],
+          [
+            "J2_J1_0",
+            101
+          ],
+          [
+            "J2_J3_1",
+            82
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 642,
+        "mean_reward": 1.0363426867396122,
+        "total_reward": 665.332004886831,
+        "worst_wait": 119.0,
+        "starved_steps": 21,
+        "starved_pct": 3.2710280373831777,
+        "arrived": 4668,
+        "sim_time": 3220.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3842176012461062,
+        "throughput_per_step": 1.8177570093457944,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.397196261682243,
+        "sum_starvation": 246.6677000000002,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 255.0,
+        "switch_events": 510,
+        "switches_per_step": 0.794392523364486,
+        "per_junction_starvation": {
+          "J1": 68.85859999999997,
+          "J2": 70.49950000000005,
+          "J3": 107.30780000000003
+        },
+        "worst_wait_p50": 33.0,
+        "worst_wait_p90": 47.0,
+        "worst_wait_p99": 111.0,
+        "worst_junction_hits": {
+          "J3": 313,
+          "J1": 175,
+          "J2": 147
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            223
+          ],
+          [
+            "J2_J1_0",
+            126
+          ],
+          [
+            "J1_J2_0",
+            78
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 626,
+        "mean_reward": 1.0879736701113614,
+        "total_reward": 681.0715174897122,
+        "worst_wait": 77.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3140.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.379279392971246,
+        "throughput_per_step": 1.8642172523961662,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39696485623003197,
+        "sum_starvation": 237.4289,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 248.5,
+        "switch_events": 497,
+        "switches_per_step": 0.7939297124600639,
+        "per_junction_starvation": {
+          "J1": 82.40099999999995,
+          "J2": 63.93300000000001,
+          "J3": 91.09329999999983
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 54.0,
+        "worst_wait_p99": 69.0,
+        "worst_junction_hits": {
+          "J1": 214,
+          "J2": 141,
+          "J3": 266
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            219
+          ],
+          [
+            "J2_J1_0",
+            117
+          ],
+          [
+            "J1_J2_0",
+            81
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 629,
+        "mean_reward": 1.0277341271009564,
+        "total_reward": 646.4447659465015,
+        "worst_wait": 109.0,
+        "starved_steps": 5,
+        "starved_pct": 0.794912559618442,
+        "arrived": 4668,
+        "sim_time": 3155.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.42774992050874416,
+        "throughput_per_step": 1.8553259141494436,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3998410174880763,
+        "sum_starvation": 269.0547000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.7996820349761526,
+        "per_junction_starvation": {
+          "J1": 98.51110000000004,
+          "J2": 76.43520000000005,
+          "J3": 94.10870000000001
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 56.0,
+        "worst_wait_p99": 84.0,
+        "worst_junction_hits": {
+          "J1": 226,
+          "J3": 236,
+          "J2": 159
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            178
+          ],
+          [
+            "J2_J1_0",
+            142
+          ],
+          [
+            "J1_J2_0",
+            58
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 639,
+        "mean_reward": 1.0491522951724996,
+        "total_reward": 670.4083166152272,
+        "worst_wait": 107.0,
+        "starved_steps": 11,
+        "starved_pct": 1.7214397496087637,
+        "arrived": 4668,
+        "sim_time": 3205.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3843361502347418,
+        "throughput_per_step": 1.8262910798122065,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39280125195618154,
+        "sum_starvation": 245.59080000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.0,
+        "switch_events": 502,
+        "switches_per_step": 0.7856025039123631,
+        "per_junction_starvation": {
+          "J1": 80.89109999999995,
+          "J2": 65.5036,
+          "J3": 99.19749999999999
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 54.0,
+        "worst_wait_p99": 99.0,
+        "worst_junction_hits": {
+          "J1": 221,
+          "J3": 288,
+          "J2": 125
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            201
+          ],
+          [
+            "J2_J1_0",
+            131
+          ],
+          [
+            "J2_J3_1",
+            72
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.157347937218185,
+        "total_reward": 725.657156635802,
+        "worst_wait": 77.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3051706539074957,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39872408293460926,
+        "sum_starvation": 191.3419999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.0,
+        "switch_events": 500,
+        "switches_per_step": 0.7974481658692185,
+        "per_junction_starvation": {
+          "J1": 65.11080000000003,
+          "J2": 54.89569999999999,
+          "J3": 71.3357
+        },
+        "worst_wait_p50": 32.0,
+        "worst_wait_p90": 47.0,
+        "worst_wait_p99": 65.0,
+        "worst_junction_hits": {
+          "J3": 254,
+          "J1": 232,
+          "J2": 134
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            169
+          ],
+          [
+            "J2_J3_0",
+            166
+          ],
+          [
+            "J2_J3_1",
+            68
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 626,
+        "mean_reward": 1.1301722018433045,
+        "total_reward": 707.4877983539086,
+        "worst_wait": 69.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3140.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.34826150159744423,
+        "throughput_per_step": 1.8642172523961662,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.38578274760383385,
+        "sum_starvation": 218.01170000000008,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 241.5,
+        "switch_events": 483,
+        "switches_per_step": 0.7715654952076677,
+        "per_junction_starvation": {
+          "J1": 75.08980000000005,
+          "J2": 60.25640000000003,
+          "J3": 82.66640000000011
+        },
+        "worst_wait_p50": 34.0,
+        "worst_wait_p90": 50.0,
+        "worst_wait_p99": 60.0,
+        "worst_junction_hits": {
+          "J2": 128,
+          "J3": 268,
+          "J1": 223
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            196
+          ],
+          [
+            "J2_J1_0",
+            136
+          ],
+          [
+            "J2_J3_1",
+            54
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 630,
+        "mean_reward": 1.026665521506957,
+        "total_reward": 646.7992785493828,
+        "worst_wait": 75.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3160.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4225422222222225,
+        "throughput_per_step": 1.8523809523809525,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4031746031746032,
+        "sum_starvation": 266.20160000000016,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 254.0,
+        "switch_events": 508,
+        "switches_per_step": 0.8063492063492064,
+        "per_junction_starvation": {
+          "J1": 83.01320000000013,
+          "J2": 78.7417,
+          "J3": 104.4441000000001
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 58.0,
+        "worst_wait_p99": 72.0,
+        "worst_junction_hits": {
+          "J2": 165,
+          "J3": 268,
+          "J1": 187
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            196
+          ],
+          [
+            "J2_J1_0",
+            118
+          ],
+          [
+            "J1_J2_0",
+            60
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.0868860018311777,
+        "total_reward": 681.4775231481484,
+        "worst_wait": 80.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3764318979266348,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39792663476874,
+        "sum_starvation": 236.02280000000002,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 249.5,
+        "switch_events": 499,
+        "switches_per_step": 0.79585326953748,
+        "per_junction_starvation": {
+          "J1": 74.43249999999999,
+          "J2": 62.17399999999995,
+          "J3": 99.41490000000002
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 52.0,
+        "worst_wait_p99": 67.0,
+        "worst_junction_hits": {
+          "J2": 122,
+          "J3": 329,
+          "J1": 169
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            217
+          ],
+          [
+            "J2_J3_1",
+            90
+          ],
+          [
+            "J2_J1_0",
+            85
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 632,
+        "mean_reward": 1.0590810860746471,
+        "total_reward": 669.339246399177,
+        "worst_wait": 76.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3170.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.39582215189873404,
+        "throughput_per_step": 1.8465189873417722,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3916139240506329,
+        "sum_starvation": 250.15959999999993,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 247.5,
+        "switch_events": 495,
+        "switches_per_step": 0.7832278481012658,
+        "per_junction_starvation": {
+          "J1": 79.8874,
+          "J2": 66.26760000000006,
+          "J3": 104.00459999999998
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 55.0,
+        "worst_wait_p99": 66.0,
+        "worst_junction_hits": {
+          "J1": 169,
+          "J2": 130,
+          "J3": 326
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            273
+          ],
+          [
+            "J2_J1_0",
+            100
+          ],
+          [
+            "J1_J2_0",
+            66
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 632,
+        "mean_reward": 1.1404219409282697,
+        "total_reward": 720.7466666666664,
+        "worst_wait": 72.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3170.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.30736376582278424,
+        "throughput_per_step": 1.8465189873417722,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3987341772151899,
+        "sum_starvation": 194.25389999999965,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.0,
+        "switch_events": 504,
+        "switches_per_step": 0.7974683544303798,
+        "per_junction_starvation": {
+          "J1": 61.5174,
+          "J2": 53.57529999999999,
+          "J3": 79.15969999999996
+        },
+        "worst_wait_p50": 32.0,
+        "worst_wait_p90": 47.0,
+        "worst_wait_p99": 60.0,
+        "worst_junction_hits": {
+          "J1": 216,
+          "J3": 285,
+          "J2": 123
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            202
+          ],
+          [
+            "J2_J1_0",
+            140
+          ],
+          [
+            "J2_J3_1",
+            61
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 634,
+        "mean_reward": 0.9888893087685489,
+        "total_reward": 626.95582175926,
+        "worst_wait": 94.0,
+        "starved_steps": 3,
+        "starved_pct": 0.47318611987381703,
+        "arrived": 4668,
+        "sim_time": 3180.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4464414826498423,
+        "throughput_per_step": 1.8406940063091484,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40536277602523657,
+        "sum_starvation": 283.0439,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 257.0,
+        "switch_events": 514,
+        "switches_per_step": 0.8107255520504731,
+        "per_junction_starvation": {
+          "J1": 111.03670000000015,
+          "J2": 72.19880000000002,
+          "J3": 99.80719999999992
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 61.0,
+        "worst_wait_p99": 86.0,
+        "worst_junction_hits": {
+          "J3": 250,
+          "J1": 227,
+          "J2": 150
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            179
+          ],
+          [
+            "J2_J1_0",
+            137
+          ],
+          [
+            "J1_J2_0",
+            70
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 638,
+        "mean_reward": 1.0682037811060796,
+        "total_reward": 681.5140123456788,
+        "worst_wait": 91.0,
+        "starved_steps": 1,
+        "starved_pct": 0.15673981191222572,
+        "arrived": 4668,
+        "sim_time": 3200.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3683144200626958,
+        "throughput_per_step": 1.829153605015674,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3926332288401254,
+        "sum_starvation": 234.98459999999994,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.5,
+        "switch_events": 501,
+        "switches_per_step": 0.7852664576802508,
+        "per_junction_starvation": {
+          "J1": 79.22790000000002,
+          "J2": 67.99110000000002,
+          "J3": 87.76739999999995
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 74.0,
+        "worst_junction_hits": {
+          "J3": 256,
+          "J2": 175,
+          "J1": 198
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            193
+          ],
+          [
+            "J2_J1_0",
+            143
+          ],
+          [
+            "J1_J2_0",
+            61
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 641,
+        "mean_reward": 1.0525521726115963,
+        "total_reward": 674.6859426440332,
+        "worst_wait": 95.0,
+        "starved_steps": 1,
+        "starved_pct": 0.15600624024961,
+        "arrived": 4668,
+        "sim_time": 3215.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3686645865834638,
+        "throughput_per_step": 1.8205928237129485,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3993759750390016,
+        "sum_starvation": 236.31400000000028,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.0,
+        "switch_events": 512,
+        "switches_per_step": 0.7987519500780031,
+        "per_junction_starvation": {
+          "J1": 86.11960000000006,
+          "J2": 65.15950000000002,
+          "J3": 85.0336000000001
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 51.0,
+        "worst_wait_p99": 83.0,
+        "worst_junction_hits": {
+          "J2": 144,
+          "J3": 241,
+          "J1": 246
+        },
+        "worst_lane_top": [
+          [
+            "J2_J1_0",
+            186
+          ],
+          [
+            "J2_J3_0",
+            164
+          ],
+          [
+            "J2_J3_1",
+            63
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.0458737472187776,
+        "total_reward": 655.7628395061736,
+        "worst_wait": 74.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.42781020733652336,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3875598086124402,
+        "sum_starvation": 268.23700000000014,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 243.0,
+        "switch_events": 486,
+        "switches_per_step": 0.7751196172248804,
+        "per_junction_starvation": {
+          "J1": 88.82880000000004,
+          "J2": 64.3781,
+          "J3": 115.02909999999986
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 55.0,
+        "worst_wait_p99": 66.0,
+        "worst_junction_hits": {
+          "J2": 116,
+          "J3": 318,
+          "J1": 186
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            253
+          ],
+          [
+            "J2_J1_0",
+            116
+          ],
+          [
+            "J2_J3_1",
+            58
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.1140995727933491,
+        "total_reward": 705.2250295781901,
+        "worst_wait": 73.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.32586666666666636,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40363349131121645,
+        "sum_starvation": 206.27359999999982,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 255.5,
+        "switch_events": 511,
+        "switches_per_step": 0.8072669826224329,
+        "per_junction_starvation": {
+          "J1": 74.13270000000007,
+          "J2": 53.92700000000001,
+          "J3": 78.2163
+        },
+        "worst_wait_p50": 33.0,
+        "worst_wait_p90": 50.0,
+        "worst_wait_p99": 63.0,
+        "worst_junction_hits": {
+          "J3": 269,
+          "J1": 221,
+          "J2": 134
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            200
+          ],
+          [
+            "J2_J1_0",
+            140
+          ],
+          [
+            "J1_J2_0",
+            64
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 651,
+        "mean_reward": 0.9854566791040057,
+        "total_reward": 641.5322980967077,
+        "worst_wait": 121.0,
+        "starved_steps": 7,
+        "starved_pct": 1.075268817204301,
+        "arrived": 4668,
+        "sim_time": 3265.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4047125960061441,
+        "throughput_per_step": 1.792626728110599,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.402457757296467,
+        "sum_starvation": 263.4678999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 262.0,
+        "switch_events": 524,
+        "switches_per_step": 0.804915514592934,
+        "per_junction_starvation": {
+          "J1": 97.31679999999996,
+          "J2": 71.0761,
+          "J3": 95.07510000000008
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 57.0,
+        "worst_wait_p99": 91.0,
+        "worst_junction_hits": {
+          "J2": 149,
+          "J1": 234,
+          "J3": 260
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            194
+          ],
+          [
+            "J2_J1_0",
+            176
+          ],
+          [
+            "J2_J3_1",
+            52
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 1.006539358005002,
+        "total_reward": 631.1001774691362,
+        "worst_wait": 86.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4615626794258369,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39314194577352474,
+        "sum_starvation": 289.39979999999974,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 246.5,
+        "switch_events": 493,
+        "switches_per_step": 0.7862838915470495,
+        "per_junction_starvation": {
+          "J1": 84.07090000000005,
+          "J2": 82.17449999999998,
+          "J3": 123.15490000000003
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 66.0,
+        "worst_wait_p99": 83.0,
+        "worst_junction_hits": {
+          "J2": 146,
+          "J3": 305,
+          "J1": 169
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            209
+          ],
+          [
+            "J2_J1_0",
+            86
+          ],
+          [
+            "J2_J3_1",
+            65
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 624,
+        "mean_reward": 1.111939869222855,
+        "total_reward": 693.8504783950615,
+        "worst_wait": 74.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3130.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3600155448717948,
+        "throughput_per_step": 1.8701923076923077,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39823717948717946,
+        "sum_starvation": 224.64969999999997,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 248.5,
+        "switch_events": 497,
+        "switches_per_step": 0.7964743589743589,
+        "per_junction_starvation": {
+          "J1": 82.81739999999995,
+          "J2": 56.24549999999996,
+          "J3": 85.58779999999994
+        },
+        "worst_wait_p50": 34.0,
+        "worst_wait_p90": 52.0,
+        "worst_wait_p99": 72.0,
+        "worst_junction_hits": {
+          "J2": 114,
+          "J1": 259,
+          "J3": 241
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            166
+          ],
+          [
+            "J2_J1_0",
+            157
+          ],
+          [
+            "J2_J3_1",
+            60
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.0191541539894295,
+        "total_reward": 645.1245794753089,
+        "worst_wait": 85.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.42476287519747197,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39968404423380727,
+        "sum_starvation": 268.87489999999974,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 253.0,
+        "switch_events": 506,
+        "switches_per_step": 0.7993680884676145,
+        "per_junction_starvation": {
+          "J1": 83.08060000000008,
+          "J2": 73.1078,
+          "J3": 112.6882
+        },
+        "worst_wait_p50": 41.0,
+        "worst_wait_p90": 57.0,
+        "worst_wait_p99": 71.0,
+        "worst_junction_hits": {
+          "J3": 325,
+          "J2": 126,
+          "J1": 174
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            255
+          ],
+          [
+            "J2_J1_0",
+            134
+          ],
+          [
+            "J2_J3_1",
+            55
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 640,
+        "mean_reward": 1.0224471671649957,
+        "total_reward": 654.3661869855972,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.39942718750000017,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4015625,
+        "sum_starvation": 255.6334000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 257.0,
+        "switch_events": 514,
+        "switches_per_step": 0.803125,
+        "per_junction_starvation": {
+          "J1": 85.16540000000012,
+          "J2": 68.10609999999997,
+          "J3": 102.3624
+        },
+        "worst_wait_p50": 38.0,
+        "worst_wait_p90": 56.0,
+        "worst_wait_p99": 76.0,
+        "worst_junction_hits": {
+          "J3": 288,
+          "J2": 147,
+          "J1": 197
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            235
+          ],
+          [
+            "J2_J1_0",
+            118
+          ],
+          [
+            "J1_J2_0",
+            61
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 0.9778527477504082,
+        "total_reward": 613.113672839506,
+        "worst_wait": 92.0,
+        "starved_steps": 1,
+        "starved_pct": 0.1594896331738437,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.48068165869218565,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40271132376395535,
+        "sum_starvation": 301.3874000000004,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.5,
+        "switch_events": 505,
+        "switches_per_step": 0.8054226475279107,
+        "per_junction_starvation": {
+          "J1": 83.86749999999994,
+          "J2": 84.32940000000004,
+          "J3": 133.18749999999986
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 83.0,
+        "worst_junction_hits": {
+          "J1": 171,
+          "J3": 317,
+          "J2": 130
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            239
+          ],
+          [
+            "J2_J1_0",
+            92
+          ],
+          [
+            "J1_J2_0",
+            81
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 7,
+        "deterministic": false,
+        "steps": 629,
+        "mean_reward": 1.0124054446603463,
+        "total_reward": 636.8030246913579,
+        "worst_wait": 91.0,
+        "starved_steps": 1,
+        "starved_pct": 0.1589825119236884,
+        "arrived": 4668,
+        "sim_time": 3155.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.44705484896661346,
+        "throughput_per_step": 1.8553259141494436,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3958664546899841,
+        "sum_starvation": 281.1974999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 249.0,
+        "switch_events": 498,
+        "switches_per_step": 0.7917329093799682,
+        "per_junction_starvation": {
+          "J1": 100.32600000000018,
+          "J2": 72.84150000000001,
+          "J3": 108.02940000000002
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 61.0,
+        "worst_wait_p99": 81.0,
+        "worst_junction_hits": {
+          "J1": 227,
+          "J3": 257,
+          "J2": 139
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            195
+          ],
+          [
+            "J2_J1_0",
+            150
+          ],
+          [
+            "J1_J2_0",
+            76
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      }
+    ],
+    "1": [
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 638,
+        "mean_reward": 1.0843608216584744,
+        "total_reward": 691.8222042181067,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3200.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3513769592476487,
+        "throughput_per_step": 1.829153605015674,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3934169278996865,
+        "sum_starvation": 224.1784999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.0,
+        "switch_events": 502,
+        "switches_per_step": 0.786833855799373,
+        "per_junction_starvation": {
+          "J1": 75.00129999999994,
+          "J2": 58.77060000000002,
+          "J3": 90.40670000000003
+        },
+        "worst_wait_p50": 34.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 72.0,
+        "worst_junction_hits": {
+          "J1": 234,
+          "J2": 136,
+          "J3": 260
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            178
+          ],
+          [
+            "J2_J1_0",
+            156
+          ],
+          [
+            "J1_J2_0",
+            66
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 641,
+        "mean_reward": 1.0388728388641708,
+        "total_reward": 665.9174897119335,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3215.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.37766443057722343,
+        "throughput_per_step": 1.8205928237129485,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4040561622464899,
+        "sum_starvation": 242.08290000000022,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 259.0,
+        "switch_events": 518,
+        "switches_per_step": 0.8081123244929798,
+        "per_junction_starvation": {
+          "J1": 83.62740000000007,
+          "J2": 65.21630000000002,
+          "J3": 93.23680000000002
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 84.0,
+        "worst_junction_hits": {
+          "J1": 236,
+          "J2": 131,
+          "J3": 266
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            208
+          ],
+          [
+            "J2_J1_0",
+            161
+          ],
+          [
+            "J1_J2_0",
+            50
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 639,
+        "mean_reward": 1.0895596458264913,
+        "total_reward": 696.228613683128,
+        "worst_wait": 68.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3205.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.34236604068857607,
+        "throughput_per_step": 1.8262910798122065,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39436619718309857,
+        "sum_starvation": 218.7719000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.0,
+        "switch_events": 504,
+        "switches_per_step": 0.7887323943661971,
+        "per_junction_starvation": {
+          "J1": 75.15859999999995,
+          "J2": 58.075899999999976,
+          "J3": 85.53449999999995
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 50.0,
+        "worst_wait_p99": 64.0,
+        "worst_junction_hits": {
+          "J3": 295,
+          "J1": 203,
+          "J2": 134
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            230
+          ],
+          [
+            "J2_J1_0",
+            126
+          ],
+          [
+            "J1_J2_0",
+            53
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 639,
+        "mean_reward": 1.0103840636411052,
+        "total_reward": 645.6354166666663,
+        "worst_wait": 105.0,
+        "starved_steps": 4,
+        "starved_pct": 0.6259780907668232,
+        "arrived": 4668,
+        "sim_time": 3205.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4223250391236305,
+        "throughput_per_step": 1.8262910798122065,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3935837245696401,
+        "sum_starvation": 269.8656999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.7871674491392802,
+        "per_junction_starvation": {
+          "J1": 101.72669999999991,
+          "J2": 68.77070000000005,
+          "J3": 99.36770000000007
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 80.0,
+        "worst_junction_hits": {
+          "J1": 255,
+          "J3": 257,
+          "J2": 120
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            181
+          ],
+          [
+            "J2_J1_0",
+            151
+          ],
+          [
+            "J2_J3_1",
+            60
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 647,
+        "mean_reward": 0.9748716794353185,
+        "total_reward": 630.7419765946511,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3245.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.433164296754251,
+        "throughput_per_step": 1.80370942812983,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3956723338485317,
+        "sum_starvation": 280.2573000000004,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.0,
+        "switch_events": 512,
+        "switches_per_step": 0.7913446676970634,
+        "per_junction_starvation": {
+          "J1": 85.49130000000011,
+          "J2": 77.6550999999999,
+          "J3": 117.10870000000007
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 57.0,
+        "worst_wait_p99": 74.0,
+        "worst_junction_hits": {
+          "J1": 169,
+          "J2": 153,
+          "J3": 316
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            261
+          ],
+          [
+            "J2_J1_0",
+            93
+          ],
+          [
+            "J1_J2_0",
+            77
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 634,
+        "mean_reward": 1.054087410831354,
+        "total_reward": 668.2914184670784,
+        "worst_wait": 75.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3180.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3907094637223975,
+        "throughput_per_step": 1.8406940063091484,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39589905362776023,
+        "sum_starvation": 247.70980000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.0,
+        "switch_events": 502,
+        "switches_per_step": 0.7917981072555205,
+        "per_junction_starvation": {
+          "J1": 78.85870000000004,
+          "J2": 62.27199999999999,
+          "J3": 106.57940000000006
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 56.0,
+        "worst_wait_p99": 68.0,
+        "worst_junction_hits": {
+          "J2": 131,
+          "J1": 167,
+          "J3": 329
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            248
+          ],
+          [
+            "J2_J1_0",
+            95
+          ],
+          [
+            "J2_J3_1",
+            69
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 640,
+        "mean_reward": 1.0249114181455763,
+        "total_reward": 655.9433076131688,
+        "worst_wait": 73.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4055574999999999,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39296875,
+        "sum_starvation": 259.55679999999995,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.7859375,
+        "per_junction_starvation": {
+          "J1": 81.44379999999997,
+          "J2": 69.4998999999999,
+          "J3": 108.61189999999995
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 54.0,
+        "worst_wait_p99": 65.0,
+        "worst_junction_hits": {
+          "J1": 188,
+          "J2": 141,
+          "J3": 302
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            259
+          ],
+          [
+            "J2_J1_0",
+            112
+          ],
+          [
+            "J1_J2_0",
+            80
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 640,
+        "mean_reward": 0.964640739535108,
+        "total_reward": 617.3700733024691,
+        "worst_wait": 93.0,
+        "starved_steps": 1,
+        "starved_pct": 0.15625,
+        "arrived": 4668,
+        "sim_time": 3210.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.46114046875000014,
+        "throughput_per_step": 1.8234375,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39765625,
+        "sum_starvation": 295.1299000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 254.5,
+        "switch_events": 509,
+        "switches_per_step": 0.7953125,
+        "per_junction_starvation": {
+          "J1": 93.56270000000006,
+          "J2": 82.21669999999997,
+          "J3": 119.35079999999986
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 62.0,
+        "worst_wait_p99": 78.0,
+        "worst_junction_hits": {
+          "J1": 185,
+          "J2": 145,
+          "J3": 303
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            250
+          ],
+          [
+            "J2_J1_0",
+            136
+          ],
+          [
+            "J1_J2_0",
+            75
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 644,
+        "mean_reward": 0.9418671741207226,
+        "total_reward": 606.5624601337454,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3230.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.46807142857142836,
+        "throughput_per_step": 1.812111801242236,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.40217391304347827,
+        "sum_starvation": 301.4379999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 259.0,
+        "switch_events": 518,
+        "switches_per_step": 0.8043478260869565,
+        "per_junction_starvation": {
+          "J1": 92.07140000000003,
+          "J2": 79.13059999999996,
+          "J3": 130.2355999999998
+        },
+        "worst_wait_p50": 43.0,
+        "worst_wait_p90": 58.0,
+        "worst_wait_p99": 72.0,
+        "worst_junction_hits": {
+          "J1": 173,
+          "J2": 126,
+          "J3": 336
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            243
+          ],
+          [
+            "J2_J1_0",
+            133
+          ],
+          [
+            "J2_J3_1",
+            89
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 1,
+        "deterministic": false,
+        "steps": 643,
+        "mean_reward": 1.0711232151885774,
+        "total_reward": 688.7322273662553,
+        "worst_wait": 73.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3225.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3480051321928464,
+        "throughput_per_step": 1.8149300155520995,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39580093312597203,
+        "sum_starvation": 223.76730000000023,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 254.5,
+        "switch_events": 509,
+        "switches_per_step": 0.7916018662519441,
+        "per_junction_starvation": {
+          "J1": 79.03030000000005,
+          "J2": 54.371700000000025,
+          "J3": 90.36680000000008
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 49.0,
+        "worst_wait_p99": 64.0,
+        "worst_junction_hits": {
+          "J1": 204,
+          "J3": 299,
+          "J2": 131
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            223
+          ],
+          [
+            "J2_J1_0",
+            140
+          ],
+          [
+            "J2_J3_1",
+            50
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      }
+    ],
+    "3": [
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 652,
+        "mean_reward": 0.8065332768436473,
+        "total_reward": 525.859696502058,
+        "worst_wait": 124.0,
+        "starved_steps": 25,
+        "starved_pct": 3.834355828220859,
+        "arrived": 4668,
+        "sim_time": 3270.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.5876369631901839,
+        "throughput_per_step": 1.789877300613497,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39570552147239263,
+        "sum_starvation": 383.1392999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 258.0,
+        "switch_events": 516,
+        "switches_per_step": 0.7914110429447853,
+        "per_junction_starvation": {
+          "J1": 131.14959999999996,
+          "J2": 103.67190000000011,
+          "J3": 148.31850000000006
+        },
+        "worst_wait_p50": 42.0,
+        "worst_wait_p90": 71.0,
+        "worst_wait_p99": 124.0,
+        "worst_junction_hits": {
+          "J1": 200,
+          "J3": 305,
+          "J2": 139
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            234
+          ],
+          [
+            "J2_J1_0",
+            139
+          ],
+          [
+            "J1_J2_0",
+            69
+          ]
+        ],
+        "overrides_total": 5,
+        "overrides_by_rule": {
+          "starvation_ceiling/applied": 3,
+          "starvation_ceiling/deferred_min_green": 2
+        }
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 636,
+        "mean_reward": 1.1048440533038286,
+        "total_reward": 702.680817901235,
+        "worst_wait": 62.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3190.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.33226132075471676,
+        "throughput_per_step": 1.8349056603773586,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3977987421383648,
+        "sum_starvation": 211.31819999999985,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 253.0,
+        "switch_events": 506,
+        "switches_per_step": 0.7955974842767296,
+        "per_junction_starvation": {
+          "J1": 70.32920000000004,
+          "J2": 52.367000000000026,
+          "J3": 88.62160000000003
+        },
+        "worst_wait_p50": 34.0,
+        "worst_wait_p90": 49.0,
+        "worst_wait_p99": 59.0,
+        "worst_junction_hits": {
+          "J1": 211,
+          "J2": 129,
+          "J3": 288
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            219
+          ],
+          [
+            "J2_J1_0",
+            137
+          ],
+          [
+            "J1_J2_0",
+            76
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 632,
+        "mean_reward": 1.0807111035415693,
+        "total_reward": 683.0094174382717,
+        "worst_wait": 85.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3170.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.37023876582278475,
+        "throughput_per_step": 1.8465189873417722,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39556962025316456,
+        "sum_starvation": 233.99089999999995,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.0,
+        "switch_events": 500,
+        "switches_per_step": 0.7911392405063291,
+        "per_junction_starvation": {
+          "J1": 73.0790000000001,
+          "J2": 63.769799999999954,
+          "J3": 97.14230000000006
+        },
+        "worst_wait_p50": 34.0,
+        "worst_wait_p90": 55.0,
+        "worst_wait_p99": 82.0,
+        "worst_junction_hits": {
+          "J1": 196,
+          "J2": 124,
+          "J3": 305
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            234
+          ],
+          [
+            "J2_J1_0",
+            126
+          ],
+          [
+            "J1_J2_0",
+            57
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 636,
+        "mean_reward": 0.948486062986903,
+        "total_reward": 603.2371360596703,
+        "worst_wait": 93.0,
+        "starved_steps": 8,
+        "starved_pct": 1.2578616352201257,
+        "arrived": 4668,
+        "sim_time": 3190.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4894048742138366,
+        "throughput_per_step": 1.8349056603773586,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3970125786163522,
+        "sum_starvation": 311.26150000000007,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.5,
+        "switch_events": 505,
+        "switches_per_step": 0.7940251572327044,
+        "per_junction_starvation": {
+          "J1": 95.32870000000011,
+          "J2": 86.82710000000003,
+          "J3": 129.10780000000008
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 65.0,
+        "worst_wait_p99": 93.0,
+        "worst_junction_hits": {
+          "J3": 291,
+          "J1": 194,
+          "J2": 144
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            233
+          ],
+          [
+            "J2_J1_0",
+            120
+          ],
+          [
+            "J1_J2_0",
+            61
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 638,
+        "mean_reward": 0.9922680367693528,
+        "total_reward": 633.0670074588471,
+        "worst_wait": 95.0,
+        "starved_steps": 1,
+        "starved_pct": 0.15673981191222572,
+        "arrived": 4668,
+        "sim_time": 3200.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4387663009404383,
+        "throughput_per_step": 1.829153605015674,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3981191222570533,
+        "sum_starvation": 279.9328999999996,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 254.0,
+        "switch_events": 508,
+        "switches_per_step": 0.7962382445141066,
+        "per_junction_starvation": {
+          "J1": 93.74870000000003,
+          "J2": 79.1899,
+          "J3": 106.99400000000004
+        },
+        "worst_wait_p50": 41.0,
+        "worst_wait_p90": 58.0,
+        "worst_wait_p99": 74.0,
+        "worst_junction_hits": {
+          "J3": 297,
+          "J1": 190,
+          "J2": 143
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            198
+          ],
+          [
+            "J2_J1_0",
+            112
+          ],
+          [
+            "J2_J3_1",
+            73
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 651,
+        "mean_reward": 0.8594682504124715,
+        "total_reward": 559.513831018519,
+        "worst_wait": 131.0,
+        "starved_steps": 19,
+        "starved_pct": 2.9185867895545314,
+        "arrived": 4668,
+        "sim_time": 3265.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.5353093701996929,
+        "throughput_per_step": 1.792626728110599,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3978494623655914,
+        "sum_starvation": 348.4864000000001,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 259.0,
+        "switch_events": 518,
+        "switches_per_step": 0.7956989247311828,
+        "per_junction_starvation": {
+          "J1": 112.79650000000008,
+          "J2": 96.0354999999999,
+          "J3": 139.65240000000006
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 67.0,
+        "worst_wait_p99": 106.0,
+        "worst_junction_hits": {
+          "J1": 148,
+          "J3": 317,
+          "J2": 179
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            246
+          ],
+          [
+            "J2_J1_0",
+            96
+          ],
+          [
+            "J1_J2_0",
+            70
+          ]
+        ],
+        "overrides_total": 2,
+        "overrides_by_rule": {
+          "starvation_ceiling/deferred_min_green": 2
+        }
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 637,
+        "mean_reward": 1.050950162234885,
+        "total_reward": 669.4552533436217,
+        "worst_wait": 72.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3195.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.38076106750392463,
+        "throughput_per_step": 1.8320251177394034,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4003139717425432,
+        "sum_starvation": 242.54479999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 255.0,
+        "switch_events": 510,
+        "switches_per_step": 0.8006279434850864,
+        "per_junction_starvation": {
+          "J1": 73.94889999999998,
+          "J2": 70.52700000000002,
+          "J3": 98.0678
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 69.0,
+        "worst_junction_hits": {
+          "J1": 195,
+          "J3": 290,
+          "J2": 144
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            232
+          ],
+          [
+            "J2_J1_0",
+            113
+          ],
+          [
+            "J1_J2_0",
+            52
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 637,
+        "mean_reward": 1.0860653235653237,
+        "total_reward": 691.8236111111112,
+        "worst_wait": 71.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3195.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.35349419152276296,
+        "throughput_per_step": 1.8320251177394034,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3924646781789639,
+        "sum_starvation": 225.1758,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.0,
+        "switch_events": 500,
+        "switches_per_step": 0.7849293563579278,
+        "per_junction_starvation": {
+          "J1": 74.70589999999993,
+          "J2": 61.91630000000002,
+          "J3": 88.55330000000002
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 51.0,
+        "worst_wait_p99": 61.0,
+        "worst_junction_hits": {
+          "J1": 221,
+          "J3": 275,
+          "J2": 133
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            199
+          ],
+          [
+            "J2_J1_0",
+            142
+          ],
+          [
+            "J2_J3_1",
+            53
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 637,
+        "mean_reward": 1.005935636600318,
+        "total_reward": 640.7810005144025,
+        "worst_wait": 83.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3195.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4328401883830459,
+        "throughput_per_step": 1.8320251177394034,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39324960753532184,
+        "sum_starvation": 275.7192000000002,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.5,
+        "switch_events": 501,
+        "switches_per_step": 0.7864992150706437,
+        "per_junction_starvation": {
+          "J1": 84.81920000000005,
+          "J2": 73.73430000000013,
+          "J3": 117.16529999999997
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 59.0,
+        "worst_wait_p99": 76.0,
+        "worst_junction_hits": {
+          "J1": 172,
+          "J2": 149,
+          "J3": 310
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            261
+          ],
+          [
+            "J2_J1_0",
+            117
+          ],
+          [
+            "J1_J2_0",
+            76
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 3,
+        "deterministic": false,
+        "steps": 636,
+        "mean_reward": 1.0421791207262467,
+        "total_reward": 662.8259207818929,
+        "worst_wait": 79.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3190.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.39728443396226415,
+        "throughput_per_step": 1.8349056603773586,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39544025157232704,
+        "sum_starvation": 252.6729,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.5,
+        "switch_events": 503,
+        "switches_per_step": 0.7908805031446541,
+        "per_junction_starvation": {
+          "J1": 80.99810000000002,
+          "J2": 72.07669999999995,
+          "J3": 99.60039999999998
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 59.0,
+        "worst_wait_p99": 79.0,
+        "worst_junction_hits": {
+          "J1": 187,
+          "J2": 153,
+          "J3": 288
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            216
+          ],
+          [
+            "J2_J1_0",
+            105
+          ],
+          [
+            "J1_J2_0",
+            72
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      }
+    ],
+    "42": [
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 636,
+        "mean_reward": 0.9397397996900627,
+        "total_reward": 597.6745126028799,
+        "worst_wait": 92.0,
+        "starved_steps": 1,
+        "starved_pct": 0.15723270440251572,
+        "arrived": 4668,
+        "sim_time": 3190.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.495793710691824,
+        "throughput_per_step": 1.8349056603773586,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39937106918238996,
+        "sum_starvation": 315.32480000000004,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 254.0,
+        "switch_events": 508,
+        "switches_per_step": 0.7987421383647799,
+        "per_junction_starvation": {
+          "J1": 100.48099999999997,
+          "J2": 78.80470000000005,
+          "J3": 136.0395
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 66.0,
+        "worst_wait_p99": 89.0,
+        "worst_junction_hits": {
+          "J2": 128,
+          "J3": 304,
+          "J1": 197
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            253
+          ],
+          [
+            "J2_J1_0",
+            142
+          ],
+          [
+            "J1_J2_0",
+            65
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 630,
+        "mean_reward": 1.0676384826735899,
+        "total_reward": 672.6122440843616,
+        "worst_wait": 84.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3160.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.39268142857142857,
+        "throughput_per_step": 1.8523809523809525,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39206349206349206,
+        "sum_starvation": 247.3893,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 247.0,
+        "switch_events": 494,
+        "switches_per_step": 0.7841269841269841,
+        "per_junction_starvation": {
+          "J1": 91.51599999999999,
+          "J2": 61.85420000000004,
+          "J3": 94.01839999999994
+        },
+        "worst_wait_p50": 36.0,
+        "worst_wait_p90": 54.0,
+        "worst_wait_p99": 69.0,
+        "worst_junction_hits": {
+          "J1": 235,
+          "J2": 107,
+          "J3": 280
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            192
+          ],
+          [
+            "J2_J1_0",
+            156
+          ],
+          [
+            "J2_J3_1",
+            78
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.0552432973169759,
+        "total_reward": 667.9690072016457,
+        "worst_wait": 88.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.3831451816745656,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4052132701421801,
+        "sum_starvation": 242.53090000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.5,
+        "switch_events": 513,
+        "switches_per_step": 0.8104265402843602,
+        "per_junction_starvation": {
+          "J1": 74.39490000000009,
+          "J2": 70.09659999999992,
+          "J3": 98.03970000000001
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 51.0,
+        "worst_wait_p99": 70.0,
+        "worst_junction_hits": {
+          "J1": 167,
+          "J3": 316,
+          "J2": 143
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            226
+          ],
+          [
+            "J2_J1_0",
+            101
+          ],
+          [
+            "J2_J3_1",
+            77
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 655,
+        "mean_reward": 0.9768970368799678,
+        "total_reward": 639.8675591563789,
+        "worst_wait": 131.0,
+        "starved_steps": 17,
+        "starved_pct": 2.595419847328244,
+        "arrived": 4668,
+        "sim_time": 3285.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4024912977099241,
+        "throughput_per_step": 1.7816793893129772,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4022900763358779,
+        "sum_starvation": 263.6318000000003,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 263.5,
+        "switch_events": 527,
+        "switches_per_step": 0.8045801526717558,
+        "per_junction_starvation": {
+          "J1": 114.59359999999994,
+          "J2": 65.83489999999996,
+          "J3": 83.20349999999992
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 56.0,
+        "worst_wait_p99": 101.0,
+        "worst_junction_hits": {
+          "J1": 236,
+          "J3": 263,
+          "J2": 147
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            179
+          ],
+          [
+            "J2_J1_0",
+            151
+          ],
+          [
+            "J2_J3_1",
+            65
+          ]
+        ],
+        "overrides_total": 2,
+        "overrides_by_rule": {
+          "starvation_ceiling/deferred_min_green": 2
+        }
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 644,
+        "mean_reward": 0.8966082930756843,
+        "total_reward": 577.4157407407407,
+        "worst_wait": 98.0,
+        "starved_steps": 3,
+        "starved_pct": 0.4658385093167702,
+        "arrived": 4668,
+        "sim_time": 3230.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.517209161490683,
+        "throughput_per_step": 1.812111801242236,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3982919254658385,
+        "sum_starvation": 333.0826999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 256.5,
+        "switch_events": 513,
+        "switches_per_step": 0.796583850931677,
+        "per_junction_starvation": {
+          "J1": 104.12359999999997,
+          "J2": 97.43740000000004,
+          "J3": 131.5247999999999
+        },
+        "worst_wait_p50": 43.0,
+        "worst_wait_p90": 64.0,
+        "worst_wait_p99": 86.0,
+        "worst_junction_hits": {
+          "J1": 210,
+          "J3": 284,
+          "J2": 140
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            215
+          ],
+          [
+            "J2_J1_0",
+            106
+          ],
+          [
+            "J2_J3_1",
+            59
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 633,
+        "mean_reward": 1.001996882293475,
+        "total_reward": 634.2640264917696,
+        "worst_wait": 91.0,
+        "starved_steps": 1,
+        "starved_pct": 0.1579778830963665,
+        "arrived": 4668,
+        "sim_time": 3175.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4458688783570303,
+        "throughput_per_step": 1.8436018957345972,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3957345971563981,
+        "sum_starvation": 282.2350000000002,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 250.5,
+        "switch_events": 501,
+        "switches_per_step": 0.7914691943127962,
+        "per_junction_starvation": {
+          "J1": 99.16360000000007,
+          "J2": 72.51339999999999,
+          "J3": 110.55909999999996
+        },
+        "worst_wait_p50": 37.0,
+        "worst_wait_p90": 60.0,
+        "worst_wait_p99": 78.0,
+        "worst_junction_hits": {
+          "J2": 140,
+          "J1": 228,
+          "J3": 258
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            202
+          ],
+          [
+            "J2_J1_0",
+            155
+          ],
+          [
+            "J1_J2_0",
+            60
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 639,
+        "mean_reward": 0.9181645261371619,
+        "total_reward": 586.7071322016465,
+        "worst_wait": 91.0,
+        "starved_steps": 1,
+        "starved_pct": 0.1564945226917058,
+        "arrived": 4668,
+        "sim_time": 3205.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.5153261345852892,
+        "throughput_per_step": 1.8262910798122065,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.39280125195618154,
+        "sum_starvation": 329.2933999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 251.0,
+        "switch_events": 502,
+        "switches_per_step": 0.7856025039123631,
+        "per_junction_starvation": {
+          "J1": 101.91320000000005,
+          "J2": 90.70960000000008,
+          "J3": 136.6689
+        },
+        "worst_wait_p50": 42.0,
+        "worst_wait_p90": 66.0,
+        "worst_wait_p99": 82.0,
+        "worst_junction_hits": {
+          "J2": 126,
+          "J1": 212,
+          "J3": 293
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            232
+          ],
+          [
+            "J2_J1_0",
+            137
+          ],
+          [
+            "J1_J2_0",
+            72
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 627,
+        "mean_reward": 0.9530047059286824,
+        "total_reward": 597.5339506172838,
+        "worst_wait": 91.0,
+        "starved_steps": 1,
+        "starved_pct": 0.1594896331738437,
+        "arrived": 4668,
+        "sim_time": 3145.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.5119081339712918,
+        "throughput_per_step": 1.861244019138756,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3963317384370016,
+        "sum_starvation": 320.9663999999999,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 248.5,
+        "switch_events": 497,
+        "switches_per_step": 0.7926634768740032,
+        "per_junction_starvation": {
+          "J1": 103.31330000000008,
+          "J2": 82.72770000000006,
+          "J3": 134.9260000000003
+        },
+        "worst_wait_p50": 40.0,
+        "worst_wait_p90": 66.0,
+        "worst_wait_p99": 81.0,
+        "worst_junction_hits": {
+          "J1": 209,
+          "J3": 280,
+          "J2": 131
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            251
+          ],
+          [
+            "J2_J1_0",
+            126
+          ],
+          [
+            "J1_J2_0",
+            64
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 635,
+        "mean_reward": 1.0687522702601995,
+        "total_reward": 678.6576916152267,
+        "worst_wait": 76.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3185.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.36431763779527526,
+        "throughput_per_step": 1.8377952755905511,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.4047244094488189,
+        "sum_starvation": 231.3416999999998,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 257.0,
+        "switch_events": 514,
+        "switches_per_step": 0.8094488188976378,
+        "per_junction_starvation": {
+          "J1": 72.8875,
+          "J2": 63.306700000000035,
+          "J3": 95.14709999999997
+        },
+        "worst_wait_p50": 35.0,
+        "worst_wait_p90": 53.0,
+        "worst_wait_p99": 69.0,
+        "worst_junction_hits": {
+          "J1": 185,
+          "J3": 308,
+          "J2": 134
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            224
+          ],
+          [
+            "J2_J1_0",
+            112
+          ],
+          [
+            "J1_J2_0",
+            74
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      },
+      {
+        "seed": 42,
+        "deterministic": false,
+        "steps": 637,
+        "mean_reward": 1.014825379463276,
+        "total_reward": 646.4437667181068,
+        "worst_wait": 87.0,
+        "starved_steps": 0,
+        "starved_pct": 0.0,
+        "arrived": 4668,
+        "sim_time": 3195.0,
+        "terminated": true,
+        "truncated": false,
+        "starvation_per_step": 0.4215954474097331,
+        "throughput_per_step": 1.8320251177394034,
+        "emergency_per_step": 0.0,
+        "switch_per_step": 0.3956043956043956,
+        "sum_starvation": 268.55629999999996,
+        "sum_throughput": 1167.0,
+        "sum_emergency": 0.0,
+        "sum_switch": 252.0,
+        "switch_events": 504,
+        "switches_per_step": 0.7912087912087912,
+        "per_junction_starvation": {
+          "J1": 97.65070000000007,
+          "J2": 66.02539999999998,
+          "J3": 104.87909999999988
+        },
+        "worst_wait_p50": 39.0,
+        "worst_wait_p90": 60.0,
+        "worst_wait_p99": 71.0,
+        "worst_junction_hits": {
+          "J1": 211,
+          "J2": 137,
+          "J3": 281
+        },
+        "worst_lane_top": [
+          [
+            "J2_J3_0",
+            235
+          ],
+          [
+            "J2_J1_0",
+            125
+          ],
+          [
+            "J1_J2_0",
+            67
+          ]
+        ],
+        "overrides_total": 0,
+        "overrides_by_rule": {}
+      }
+    ]
+  }
+}

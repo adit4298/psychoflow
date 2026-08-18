@@ -18,3 +18,20 @@ training/checkpoints/*
 # ...then explicitly un-ignore the specific final checkpoint file(s) once
 # training completes, e.g.:
 # !training/checkpoints/final_model.zip
+
+# DELIBERATE NARROW EXCEPTION — evidentiary sweep RESULTS, not model weights.
+# The rule above was written about checkpoint .zip files (large, regenerable
+# by re-running training). _sweeps/*.json is the opposite: small, and NOT
+# regenerable without re-spending the compute that produced it. These files
+# are the cited evidence behind claims in CLAUDE.md and BUILD_LOG.md, so
+# losing them silently invalidates the record.
+#
+# Needs THREE lines, not a single `!.../_sweeps/*.json`. Git will not
+# re-include a file if one of its parent DIRECTORIES is excluded, and
+# `training/checkpoints/*` above excludes the `_sweeps` directory itself —
+# so the directory must be un-ignored first, then its contents re-excluded,
+# then the .json re-included. Verified: .json tracked, .txt logs still
+# ignored, stage*/ checkpoint .zip files still ignored.
+!training/checkpoints/_sweeps/
+training/checkpoints/_sweeps/*
+!training/checkpoints/_sweeps/*.json
