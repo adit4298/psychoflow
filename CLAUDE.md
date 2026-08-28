@@ -1272,6 +1272,40 @@ Pause and ask the user rather than proceeding when:
 &#x20; empty `score_breakdown`/`alternative_scores` accepted under RL mode by
 &#x20; `DecisionLog.record_step` and exempted from its phase-key structural check.
 
+\- \*\*STANDING RULE — NEVER launch SUMO while another process is driving it.
+&#x20; Check the Tier 1 beacon first: `python -m sim.sumo_activity`\*\* (prints
+&#x20; `free` or `HELD by pid=... kind=... for N min — note`).
+&#x20; \*\*Why this exists:\*\* two coordination failures in one evening. A
+&#x20; multi-SUMO sweep launched into the live D1 training run killed it with
+&#x20; `FatalTraCIError: Could not connect`; separately, a leg3/leg4 collision
+&#x20; between concurrent sessions. In the first case the session DID check, saw a
+&#x20; live SUMO process and a fresh training log, and talked itself out of both —
+&#x20; which is the argument for a mechanism that returns a hard refusal rather
+&#x20; than a signal needing interpretation.
+&#x20; \*\*How it works\*\* (`sim/sumo_activity.py`): long-running SUMO owners
+&#x20; (`training/train.py` via `_SumoBeaconCallback`, `backend/sim_runner.py`'s
+&#x20; loop) call `beat()` periodically, writing `.sumo_active.json` (gitignored).
+&#x20; Every SUMO-launching harness calls `require_free("<label>")` as the FIRST
+&#x20; statement inside its `if __name__ == "__main__":` guard — inside the guard
+&#x20; on purpose, because several harnesses import each other and the check must
+&#x20; fire on invocation, never on import. \*\*15 harnesses are instrumented\*\*
+&#x20; (`training/scripts/*.py`, `training/evaluate_stage.py`, `sim/run_*.py`);
+&#x20; \*\*any new harness that launches SUMO must add the same two lines.\*\*
+&#x20; \*\*Self-clearing\*\*, so a stale beacon can never block work: ignored if the
+&#x20; PID is dead OR the file is older than `STALE_AFTER_S` (300s). Override with
+&#x20; `PSYCHOFLOW_IGNORE_SUMO_BEACON=1` — it proceeds but prints what it ignored.
+&#x20; \*\*It is a BEACON, not a lock\*\* — no queueing or blocking, and two sweeps
+&#x20; can still collide with each other. Tier 2 (acquire/release, lock classes,
+&#x20; instance caps) was DEFERRED on schedule grounds, not because the case is
+&#x20; weak; see `sim/sumo_activity.py`'s docstring.
+&#x20; \*\*Two traps when testing this — both produced false negatives once:\*\*
+&#x20; (1) `os.kill(pid, 0)` is the POSIX liveness idiom but on Windows routes to
+&#x20; TerminateProcess and would KILL the training run — use
+&#x20; `psutil.pid_exists()`, which this module does. (2) Git Bash's `$!` is an
+&#x20; MSYS pid, NOT the Windows pid `psutil` sees, so planting a test beacon from
+&#x20; bash reads as dead and the harness runs anyway. Drive the test from Python
+&#x20; with `subprocess.Popen(...).pid`.
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops

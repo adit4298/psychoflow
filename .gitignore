@@ -35,3 +35,6 @@ training/checkpoints/*
 !training/checkpoints/_sweeps/
 training/checkpoints/_sweeps/*
 !training/checkpoints/_sweeps/*.json
+# Tier 1 SUMO-activity beacon (sim/sumo_activity.py) — per-machine runtime
+# state announcing which process currently drives SUMO. Never committed.
+.sumo_active.json

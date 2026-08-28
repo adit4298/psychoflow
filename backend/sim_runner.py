@@ -49,6 +49,7 @@ from backend.control_api import EMERGENCY_HOLD_S, Command, ControlState
 from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
 from perception.lane_sensor import DEFAULT_STARVATION_THRESHOLD_S
 from prediction.spillover import SpilloverPredictor
+from sim.sumo_activity import beat as _sumo_beat, clear as _sumo_clear
 from safety.validator import RULE_EMERGENCY, RULE_STARVATION
 from twin.digital_twin import CORRIDOR_JUNCTIONS
 
@@ -97,6 +98,10 @@ DEFAULT_CHECKPOINT = (
 )
 
 _JUNCTION_ORDER = {jid: i for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
+
+# How often the sim thread refreshes the Tier 1 SUMO beacon. Well under
+# sumo_activity.STALE_AFTER_S so a live backend never reads as stale.
+_BEACON_EVERY_S = 20.0
 
 # §12.2's narration templates, verbatim, plus the two reason values §12.2 does
 # not itself list. `rl_policy` is CONFIRMED FINAL by Session 2 (Phase 8) — exact
@@ -173,6 +178,7 @@ class SimRunner:
         self._step_idx = 0
         self._starved_lanes: set[str] = set()
         self._starvation_events = 0
+        self._last_beat = 0.0
         # §15.2 metrics — per-step samples, averaged over the episode.
         self._step_vars: list[float] = []      # pvariance across lanes / step
         self._step_maxes: list[float] = []     # across-lane max wait / step
@@ -251,6 +257,16 @@ class SimRunner:
             self._build_env()
             self._started.set()
             while not self._stop.is_set():
+                # Tier 1 SUMO beacon: the backend owns a live SUMO instance for
+                # as long as it runs, so it BEATS like a training run rather
+                # than checking like a sweep. Rate-limited to once per
+                # _BEACON_EVERY_S: under --fast, _sleep_s is 0.0 and this loop
+                # runs flat out, so an unguarded beat would rewrite the file
+                # thousands of times a second.
+                now = time.time()
+                if now - self._last_beat > _BEACON_EVERY_S:
+                    self._last_beat = now
+                    _sumo_beat("backend", f"live demo, lane_counts={self._lane_counts}")
                 self._drain_commands()
                 if self._pending_lane_counts is not None:
                     self._lane_counts = self._pending_lane_counts
@@ -288,6 +304,7 @@ class SimRunner:
         finally:
             if self._env is not None:
                 self._env.close()
+            _sumo_clear()   # release the Tier 1 beacon when the sim thread exits
 
     # ------------------------------------------------------------------
     # control commands

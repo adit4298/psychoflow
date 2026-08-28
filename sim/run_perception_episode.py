@@ -170,4 +170,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Tier 1 SUMO beacon (sim/sumo_activity.py): refuse to launch
+    # concurrent SUMO while a training run or the backend is live.
+    from sim.sumo_activity import require_free
+    require_free('perception episode')
     main()

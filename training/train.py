@@ -35,14 +35,40 @@ import re
 from pathlib import Path
 
 from sb3_contrib import MaskablePPO
-from stable_baselines3.common.callbacks import CheckpointCallback
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, CheckpointCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 from agents.config import COORDINATION_MODE, VALID_MODES, get_feature_extractor
 from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
 from prediction.spillover import SpilloverPredictor
+from sim.sumo_activity import beat as _sumo_beat, clear as _sumo_clear
 from training.curriculum import STAGES
+
+
+class _SumoBeaconCallback(BaseCallback):
+    """Refreshes the Tier 1 SUMO beacon so it never looks stale mid-run.
+
+    Beats on every rollout end AND periodically within a rollout: a rollout is
+    2048 steps (~2 min), comfortably inside STALE_AFTER_S, but a slow or
+    stalled rollout should not make a live trainer look dead to a sweep.
+    """
+
+    def __init__(self, kind: str, note: str, every_steps: int = 500):
+        super().__init__()
+        self._kind, self._note, self._every = kind, note, every_steps
+
+    def _on_training_start(self) -> None:
+        _sumo_beat(self._kind, self._note)
+
+    def _on_rollout_end(self) -> None:
+        _sumo_beat(self._kind, self._note)
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self._every == 0:
+            _sumo_beat(self._kind, self._note)
+        return True
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKPOINTS_ROOT = REPO_ROOT / "training" / "checkpoints"
@@ -186,6 +212,17 @@ def train_stage(
         name_prefix=f"psychoflow_stage{stage}",
     )
 
+    # Tier 1 SUMO beacon (sim/sumo_activity.py): announce that this process is
+    # driving SUMO, so a sweep harness in another session refuses to launch
+    # concurrent instances instead of crashing this run with
+    # FatalTraCIError: Could not connect. Advisory, self-clearing, and never
+    # fatal to training — see that module's docstring.
+    beacon_callback = _SumoBeaconCallback(
+        kind="training",
+        note=f"stage {stage} ({coordination_mode}) -> {stage_dir.name}",
+    )
+    callbacks = CallbackList([checkpoint_callback, beacon_callback])
+
     if resume is not None:
         print(f"Resuming from {resume} (reset_num_timesteps=False)")
         model = MaskablePPO.load(str(resume), env=env)
@@ -216,7 +253,7 @@ def train_stage(
         model.learn(
             total_timesteps=timesteps,
             reset_num_timesteps=False,
-            callback=checkpoint_callback,
+            callback=callbacks,
             progress_bar=False,
         )
     else:
@@ -244,7 +281,7 @@ def train_stage(
         model.learn(
             total_timesteps=timesteps,
             reset_num_timesteps=True,
-            callback=checkpoint_callback,
+            callback=callbacks,
             progress_bar=False,
         )
 
@@ -260,6 +297,12 @@ def train_stage(
     print(f"Saved final checkpoint: {final_path}")
 
     print(f"Done. num_timesteps={model.num_timesteps}")
+
+    # Release the Tier 1 SUMO beacon on a clean exit. Not in a finally block
+    # on purpose: if this run dies instead, the beacon self-clears anyway
+    # (sim/sumo_activity.holder() ignores a beacon whose PID is gone), so
+    # there is no stale-lock failure mode to defend against here.
+    _sumo_clear()
     env.close()
 
 
