@@ -1,0 +1,398 @@
+"""Technical decision log (§12.1).
+
+One structured entry per junction per decision step — §12.1's schema is
+per-junction (`junction_id` singular), so a 3-junction corridor produces
+three entries per decision step. §13.2's single per-step `decision` field
+is a later filtering concern, not this module's shape.
+
+Each entry is §12.1 verbatim:
+
+    { "sim_time", "junction_id", "phase_selected", "score_breakdown",
+      "alternative_scores", "reason" }
+
+plus a reconciliation block that only appears when §10's validator
+overrode that junction on that step:
+
+    "proposed": {"phase", "reason"}      # what the controller/policy wanted
+    "override": {"rule", "lane_id", "wait_s", "from_slot", "to_slot", "outcome"}
+
+The recorder is AGENT-AGNOSTIC. `record_step()` takes the `decisions`
+dict shape that `agents.rule_based.Tier0Controller.act()` already
+returns; Phase 9's RL auto-mode builds the same-shaped dict with
+`reason="rl_policy"` and whatever breakdown it has, and the override
+reconciliation is identical regardless of who produced the proposal.
+It is fed CALLER-SIDE (the Phase 8 harness, later Phase 9's
+`backend/sim_runner.py`) — never wired into `PsychoFlowEnv.step()`,
+whose scope is frozen (CLAUDE.md §3).
+
+Reason vocabulary — six values, single-sourced from the modules that own
+each string so they cannot drift:
+
+    wait_time_threshold   agents.rule_based.REASON_STARVATION   (Tier 0)
+    raw_count             agents.rule_based.REASON_COUNT        (Tier 0)
+    emergency_override    safety.validator.RULE_EMERGENCY       (§10)
+    starvation_ceiling    safety.validator.RULE_STARVATION      (§10)
+    voice_command         §12.2 — producer is Phase 9/11
+    rl_policy             §12.2-adjacent — producer is Phase 9 auto mode
+"""
+
+from __future__ import annotations
+
+import json
+from collections import deque
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+
+from agents.rule_based import REASON_COUNT, REASON_STARVATION
+from env.obs_action_spec import _lane_index
+from safety.validator import (
+    OUTCOME_DEFERRED_MIN_GREEN,
+    RULE_EMERGENCY,
+    RULE_STARVATION,
+)
+
+# --------------------------------------------------------------------------
+# Reason enum — imported, never retyped (CLAUDE.md discipline)
+# --------------------------------------------------------------------------
+REASON_WAIT_THRESHOLD = REASON_STARVATION       # "wait_time_threshold"
+REASON_RAW_COUNT = REASON_COUNT                 # "raw_count"
+REASON_EMERGENCY_OVERRIDE = RULE_EMERGENCY      # "emergency_override"
+REASON_STARVATION_CEILING = RULE_STARVATION     # "starvation_ceiling"
+REASON_VOICE_COMMAND = "voice_command"          # §12.2; producer Phase 9/11
+REASON_RL_POLICY = "rl_policy"                  # §12.2-adjacent; producer Phase 9
+
+# Tripwire: if an upstream constant is ever re-spelled, fail loudly here
+# rather than let Session 3 / the narrator silently miss a template.
+assert REASON_WAIT_THRESHOLD == "wait_time_threshold"
+assert REASON_RAW_COUNT == "raw_count"
+assert REASON_EMERGENCY_OVERRIDE == "emergency_override"
+assert REASON_STARVATION_CEILING == "starvation_ceiling"
+
+REASONS = frozenset({
+    REASON_WAIT_THRESHOLD,
+    REASON_RAW_COUNT,
+    REASON_EMERGENCY_OVERRIDE,
+    REASON_STARVATION_CEILING,
+    REASON_VOICE_COMMAND,
+    REASON_RL_POLICY,
+})
+
+# Which reasons carry a Tier-0-style score_breakdown / alternative_scores.
+# The other three are produced by a layer that has no such scoring.
+SCORED_REASONS = frozenset({REASON_WAIT_THRESHOLD, REASON_RAW_COUNT})
+
+
+# --------------------------------------------------------------------------
+# Entry
+# --------------------------------------------------------------------------
+@dataclass(frozen=True)
+class DecisionLogEntry:
+    """One junction, one decision step. §12.1 schema plus reconciliation."""
+
+    sim_time: float
+    junction_id: str
+    phase_selected: int          # what ACTUALLY ran (post-override)
+    score_breakdown: dict        # {halted_count, wait_time, starvation_bonus}
+    alternative_scores: dict     # {"phase_0": .., "phase_1": ..}
+    reason: str
+
+    # Reconciliation — non-None only when §10 overrode this junction here.
+    proposed: dict | None = None
+    override: dict | None = None
+
+    # Context the narrator (§12.2) needs. `lane_slot` is the within-approach
+    # index rendered as "Lane N"; it names the most-loaded lane the selected
+    # phase serves (or, for an override, the lane that caused it).
+    lane_id: str | None = None
+    direction: str | None = None
+    lane_slot: int | None = None
+
+    # voice_command only.
+    transcript: str | None = None
+    action_taken: str | None = None
+
+    def to_dict(self) -> dict:
+        d = asdict(self)
+        return {k: v for k, v in d.items() if v is not None}
+
+
+# --------------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------------
+def _triggering_lane(
+    snapshot: dict, junction_id: str, served_set, reason: str
+) -> str | None:
+    """The lane the narrator should name for a non-override decision.
+
+    For `wait_time_threshold` the honest trigger is the longest-waiting
+    lane the phase serves (that is the term that flipped the decision);
+    otherwise the most-halted. Computable from the snapshot alone, so it
+    works for `rl_policy` too.
+    """
+    lanes = snapshot["junctions"][junction_id]["lanes"]
+    cands = [(lid, lanes[lid]) for lid in served_set if lid in lanes]
+    if not cands:
+        return None
+    if reason == REASON_WAIT_THRESHOLD:
+        key = lambda kv: (kv[1]["wait_time_max_single_vehicle"],
+                          kv[1]["halted_count"], kv[0])
+    else:
+        key = lambda kv: (kv[1]["halted_count"],
+                          kv[1]["wait_time_max_single_vehicle"], kv[0])
+    return max(cands, key=key)[0]
+
+
+# --------------------------------------------------------------------------
+# Log
+# --------------------------------------------------------------------------
+class DecisionLog:
+    """In-memory decision recorder. Bounded per episode; `maxlen` is a cap.
+
+    `to_jsonl()` dumps the full log for §15 evaluation later.
+    """
+
+    def __init__(self, maxlen: int | None = None):
+        self.entries: deque[DecisionLogEntry] = deque(maxlen=maxlen)
+
+    def __len__(self) -> int:
+        return len(self.entries)
+
+    # -- recording -----------------------------------------------------------
+    def record_step(
+        self,
+        sim_time: float,
+        decisions: dict[str, dict],
+        info: dict,
+        snapshot: dict,
+        served_lanes: dict[str, dict[int, frozenset[str]]],
+    ) -> list[DecisionLogEntry]:
+        """One `env.step()` worth of decisions -> one entry per junction.
+
+        `decisions` is keyed by junction id, each value carrying
+        `phase_selected` / `score_breakdown` / `alternative_scores` /
+        `reason` (the `Tier0Controller.act()` shape). `info` is the env's
+        step info — `safety_overrides` / `executed_action` are read from
+        it. `snapshot` is the state the decision was scored against (the
+        pre-step snapshot). `served_lanes` is the static phase->lane map.
+        """
+        overrides_by_j = {
+            record["junction_id"]: record
+            for record in info.get("safety_overrides", [])
+        }
+
+        new: list[DecisionLogEntry] = []
+        for junction_id, decision in decisions.items():
+            reason = decision["reason"]
+            phase_selected = int(decision["phase_selected"])
+            proposed = override = None
+            lane_id = None
+
+            ovr = overrides_by_j.get(junction_id)
+            if ovr is not None:
+                proposed = {"phase": phase_selected, "reason": reason}
+                override = {
+                    k: ovr[k] for k in
+                    ("rule", "lane_id", "wait_s", "from_slot", "to_slot", "outcome")
+                }
+                reason = ovr["rule"]
+                # A deferred ceiling did NOT change what ran this step.
+                if ovr["outcome"] != OUTCOME_DEFERRED_MIN_GREEN:
+                    phase_selected = int(ovr["to_slot"])
+                lane_id = ovr["lane_id"]
+            else:
+                served_set = served_lanes.get(junction_id, {}).get(
+                    phase_selected, frozenset()
+                )
+                lane_id = _triggering_lane(
+                    snapshot, junction_id, served_set, reason
+                )
+
+            direction = lane_slot = None
+            if lane_id is not None:
+                reading = snapshot["junctions"][junction_id]["lanes"].get(lane_id)
+                if reading is not None:
+                    direction = reading["approach"]
+                lane_slot = _lane_index(lane_id)
+
+            entry = DecisionLogEntry(
+                sim_time=float(sim_time),
+                junction_id=junction_id,
+                phase_selected=phase_selected,
+                score_breakdown=dict(decision.get("score_breakdown", {})),
+                alternative_scores=dict(decision.get("alternative_scores", {})),
+                reason=reason,
+                proposed=proposed,
+                override=override,
+                lane_id=lane_id,
+                direction=direction,
+                lane_slot=lane_slot,
+            )
+            self.entries.append(entry)
+            new.append(entry)
+        return new
+
+    def record_voice(
+        self, sim_time: float, junction_id: str, transcript: str, action_taken: str
+    ) -> DecisionLogEntry:
+        """§12.2: voice-triggered actions post to this same log.
+
+        Wired by Phase 9/11; defined here so the schema and reason value
+        are fixed now.
+        """
+        entry = DecisionLogEntry(
+            sim_time=float(sim_time),
+            junction_id=junction_id,
+            phase_selected=-1,
+            score_breakdown={},
+            alternative_scores={},
+            reason=REASON_VOICE_COMMAND,
+            transcript=transcript,
+            action_taken=action_taken,
+        )
+        self.entries.append(entry)
+        return entry
+
+    # -- reading -----------------------------------------------------------
+    def entries_for(
+        self, junction_id: str | None = None, upto_sim_time: float | None = None
+    ) -> list[DecisionLogEntry]:
+        out = list(self.entries)
+        if junction_id is not None:
+            out = [e for e in out if e.junction_id == junction_id]
+        if upto_sim_time is not None:
+            out = [e for e in out if e.sim_time <= upto_sim_time + 1e-9]
+        return out
+
+    def latest(self, junction_id: str | None = None) -> DecisionLogEntry | None:
+        found = self.entries_for(junction_id=junction_id)
+        return found[-1] if found else None
+
+    def to_jsonl(self, path: str | Path) -> Path:
+        path = Path(path)
+        with path.open("w", encoding="utf-8") as fh:
+            for entry in self.entries:
+                fh.write(json.dumps(entry.to_dict(), sort_keys=True) + "\n")
+        return path
+
+
+# --------------------------------------------------------------------------
+# Self-test — no SUMO process
+# --------------------------------------------------------------------------
+def _selftest() -> None:
+    print("§12.1 decision_log self-test\n")
+
+    # Reason enum is complete and correctly spelled.
+    assert len(REASONS) == 6, REASONS
+    assert REASON_RL_POLICY == "rl_policy"
+    print(f"  [OK] 6 reasons, rl_policy == {REASON_RL_POLICY!r}")
+
+    # Minimal §7.6-shaped snapshot: J1 with a north lane and an east lane.
+    snapshot = {
+        "junctions": {
+            "J1": {"lanes": {
+                "N1_J1_0": {"approach": "north", "halted_count": 6,
+                            "wait_time_max_single_vehicle": 30.0},
+                "N1_J1_1": {"approach": "north", "halted_count": 2,
+                            "wait_time_max_single_vehicle": 95.0},
+                "E1_J1_0": {"approach": "east", "halted_count": 1,
+                            "wait_time_max_single_vehicle": 5.0},
+            }},
+        },
+    }
+    served = {"J1": {0: frozenset({"N1_J1_0", "N1_J1_1"}), 1: frozenset({"E1_J1_0"})}}
+
+    # -- 1: ordinary raw_count decision, no override --------------------
+    decisions = {"J1": {
+        "junction_id": "J1", "phase_selected": 0,
+        "score_breakdown": {"halted_count": 4.8, "wait_time": 12.0,
+                            "starvation_bonus": 0.0},
+        "alternative_scores": {"phase_0": 16.8, "phase_1": 0.6},
+        "reason": REASON_RAW_COUNT,
+    }}
+    log = DecisionLog()
+    (e,) = log.record_step(1840.0, decisions, {"safety_overrides": []},
+                           snapshot, served)
+    assert e.reason == REASON_RAW_COUNT and e.proposed is None and e.override is None
+    # raw_count -> names the most-halted served lane (N1_J1_0, halted 6).
+    assert e.lane_id == "N1_J1_0" and e.direction == "north" and e.lane_slot == 0
+    print(f"  [OK] raw_count entry: lane={e.lane_id} slot={e.lane_slot} "
+          f"dir={e.direction}")
+
+    # -- 2: same decision but a wait_time_threshold reason -------------
+    decisions["J1"]["reason"] = REASON_WAIT_THRESHOLD
+    log = DecisionLog()
+    (e,) = log.record_step(1845.0, decisions, {"safety_overrides": []},
+                           snapshot, served)
+    # wait_time_threshold -> names the longest-waiting served lane (N1_J1_1, 95s).
+    assert e.lane_id == "N1_J1_1" and e.lane_slot == 1, (e.lane_id, e.lane_slot)
+    print(f"  [OK] wait_time_threshold entry: lane={e.lane_id} slot={e.lane_slot}")
+
+    # -- 3: §10 emergency override reconciliation ---------------------
+    info = {"safety_overrides": [{
+        "junction_id": "J1", "rule": REASON_EMERGENCY_OVERRIDE,
+        "from_slot": 0, "to_slot": 1, "lane_id": "E1_J1_0",
+        "wait_s": 5.0, "outcome": "applied",
+    }]}
+    decisions["J1"]["reason"] = REASON_RAW_COUNT
+    decisions["J1"]["phase_selected"] = 0
+    log = DecisionLog()
+    (e,) = log.record_step(1850.0, decisions, info, snapshot, served)
+    assert e.reason == REASON_EMERGENCY_OVERRIDE
+    assert e.phase_selected == 1, e.phase_selected           # executed, not proposed
+    assert e.proposed == {"phase": 0, "reason": REASON_RAW_COUNT}
+    assert e.override["rule"] == REASON_EMERGENCY_OVERRIDE
+    assert e.lane_id == "E1_J1_0" and e.lane_slot == 0
+    print(f"  [OK] emergency override: proposed phase {e.proposed['phase']} "
+          f"-> executed phase {e.phase_selected}, reason now {e.reason!r}")
+
+    # -- 4: a DEFERRED ceiling does not change what ran ---------------
+    info = {"safety_overrides": [{
+        "junction_id": "J1", "rule": REASON_STARVATION_CEILING,
+        "from_slot": 1, "to_slot": 0, "lane_id": "N1_J1_1",
+        "wait_s": 130.0, "outcome": OUTCOME_DEFERRED_MIN_GREEN,
+    }]}
+    decisions["J1"]["phase_selected"] = 1
+    log = DecisionLog()
+    (e,) = log.record_step(1855.0, decisions, info, snapshot, served)
+    assert e.reason == REASON_STARVATION_CEILING
+    assert e.phase_selected == 1, e.phase_selected           # deferred -> unchanged
+    assert e.override["outcome"] == OUTCOME_DEFERRED_MIN_GREEN
+    print(f"  [OK] deferred ceiling: executed phase stays {e.phase_selected} "
+          f"(outcome={e.override['outcome']})")
+
+    # -- 5: voice entry + jsonl round-trip --------------------------
+    log = DecisionLog()
+    log.record_step(1860.0, decisions, {"safety_overrides": []}, snapshot, served)
+    log.record_voice(1861.0, "J2", "switch to manual mode", "set_mode(manual)")
+    assert len(log) == 2
+    import tempfile
+    tmp = Path(tempfile.mkdtemp()) / "log.jsonl"
+    log.to_jsonl(tmp)
+    lines = tmp.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 2
+    back = [json.loads(ln) for ln in lines]
+    assert back[1]["reason"] == REASON_VOICE_COMMAND
+    assert back[1]["transcript"] == "switch to manual mode"
+    assert "proposed" not in back[0]   # to_dict() drops None fields
+    print(f"  [OK] jsonl round-trip: {len(lines)} lines, voice entry intact")
+
+    # -- 6: query helpers -----------------------------------------------
+    log = DecisionLog()
+    for t in (10.0, 20.0, 30.0):
+        for jid in ("J1", "J2"):
+            d = {jid: dict(decisions["J1"], junction_id=jid)}
+            log.record_step(t, d, {"safety_overrides": []},
+                            {"junctions": {jid: {"lanes": {}}}}, {jid: {}})
+    assert len(log.entries_for(junction_id="J2")) == 3
+    assert len(log.entries_for(upto_sim_time=20.0)) == 4
+    assert log.latest("J1").sim_time == 30.0
+    print(f"  [OK] entries_for / latest filters")
+
+    print(f"\nAll decision_log self-tests passed.")
+
+
+if __name__ == "__main__":
+    import sys
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    _selftest()
