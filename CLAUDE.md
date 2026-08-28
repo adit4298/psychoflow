@@ -923,6 +923,132 @@ Pause and ask the user rather than proceeding when:
 &#x20; known junction and recovers green onset exactly; it is only the
 &#x20; multi-junction generalisation that is missing.
 
+\- \*\*Backend (Phase 9, §13) commands\*\*: run the live server with
+&#x20; `venv/Scripts/python.exe -m backend.main` (or `uvicorn backend.main:app`) —
+&#x20; flags `--topology 432 --realtime-factor 0.3 --fast --no-checkpoint
+&#x20; --host --port`. Phase 9 done-bar check: `venv/Scripts/python.exe
+&#x20; sim/run_backend_smoke.py` (boots the app in-process via `TestClient`, no
+&#x20; external server needed; 7-point §13.1/§13.2 checklist + a no-SUMO unit
+&#x20; check of the new Tier 0 `lane_weights` param). Last run: 21/21 pass.
+
+\- \*\*`Tier0Controller.act()` now takes an optional `lane_weights:
+&#x20; dict[str, float]`\*\* — §13.1's `set_lane_bias(lane_id, weight, duration_s)`,
+&#x20; a per-lane multiplier on that lane's whole §9.1 score contribution. It
+&#x20; lives in `agents/rule_based.py` (the one place lane scoring is defined),
+&#x20; NOT in a backend wrapper. `lane_weights=None` reproduces the unbiased
+&#x20; controller byte-for-byte, so every existing caller is unaffected. It has
+&#x20; a hook only under `mode="manual"`; the RL policy has no per-lane score,
+&#x20; so `set_lane_bias` under `mode="auto"` is recorded and echoed but inert.
+
+\- \*\*Backend auto-mode checkpoint = `training/checkpoints/stage4/
+&#x20; psychoflow_stage4_153600_steps_final.zip`\*\* (`DEFAULT_CHECKPOINT` in
+&#x20; `backend/sim_runner.py`). \*\*SUPERSEDES the earlier `ga_51624` choice\*\*,
+&#x20; which was recorded here before the 4a bake-off measured it. Decided by
+&#x20; `python -m training.scripts.checkpoint_bakeoff` (48 episodes: 4 controllers
+&#x20; x 4 topologies x 3 seeds, pinned config; raw data
+&#x20; `_sweeps/checkpoint_bakeoff.json`). Means:
+&#x20; | controller | starv_ev | wait_var | starved% | reward | ovrS |
+&#x20; |---|---|---|---|---|---|
+&#x20; | tier0 | 0.00 | 50.7 | 0.00 | 1.2011 | 0.00 |
+&#x20; | \*\*stage4_153600\*\* | \*\*0.08\*\* | 72.2 | \*\*0.08\*\* | \*\*1.3450\*\* | \*\*0.00\*\* |
+&#x20; | ga_51624 | 3.33 | 109.8 | 1.20 | 1.2347 | 1.08 |
+&#x20; | ga_154024 | 132.75 | 592.9 | 25.82 | 0.2414 | 15.75 |
+&#x20; On the DEMO CORRIDOR (4,3,2) Stage 4 is 0 events / 0 overrides / 38-42s
+&#x20; worst on all 3 seeds, vs ga_51624's 4 / 1 / 121-125s. Stage 4 also leads
+&#x20; §8.2 emergency proposal quality (0.885 vs 0.778).
+&#x20; \*\*§9.5 IS NOT REOPENED\*\* — `COORDINATION_MODE` stays `graph_attention` as
+&#x20; the MARL-architecture answer (attention beat shared_policy 12/12). Which
+&#x20; CHECKPOINT the backend serves is a separate axis from which MARL extractor
+&#x20; won; see the Stage 5 ESSENTIAL QUALIFIER above, which already recorded that
+&#x20; single-agent beats both MARL modes. \*\*Demo-honesty consequence (§17, §20):
+&#x20; the deployed policy is SINGLE-AGENT PPO, not MARL\*\* — say so out loud
+&#x20; rather than describing the live demo as multi-agent.
+&#x20; \*\*Re-evaluate once the D1 (persistent-seed-counter) run completes.\*\*
+&#x20; Deterministic policy (`deterministic=True`) — deployment runs the greedy
+&#x20; policy, per §16.
+
+\- \*\*`worst_wait` is a SATURATED statistic — never use it to rank policies or
+&#x20; show it to a judge (Phase 0 close-out, 2026-08-28).\*\* §10's ceiling
+&#x20; (`STARVATION_CEILING_S=120`) intervenes before a lane can run far past 120s,
+&#x20; so an episode MAX collapses to a near-binary "did the ceiling fire." In the
+&#x20; 4a bake-off, on the demo corridor (4,3,2), `ga_51624` scores `worst_wait`
+&#x20; 121/124/125s and `ga_154024` scores 125/125/132s — OVERLAPPING bands — while
+&#x20; their `starvation_events_count` on those same runs is 4/4/4 versus 85/186/208.
+&#x20; A ~50x difference in policy quality that `worst_wait` renders as ~5s.
+&#x20; Use `starvation_events_count`, `wait_time_variance_across_lanes` and
+&#x20; `starved_pct`; master plan §15.2 now defines all three, and
+&#x20; `training/scripts/checkpoint_bakeoff.py` is the reference implementation.
+
+\- \*\*4a bake-off command\*\*: `python -m training.scripts.checkpoint_bakeoff`
+&#x20; (48 episodes, ~27 min; `--timing` runs one timed episode). Re-run it when a
+&#x20; new candidate checkpoint appears — it is the deployment decision procedure,
+&#x20; not a one-off. It reproduces the recorded Tier 0 B1 baseline exactly
+&#x20; (627 steps / 4668 arrived / 41.0s / 0 starved / 1.1947) and ga_51624's
+&#x20; recorded (4,3,2) seed 7 row exactly (1.2859 / 121.0s / 1.09%), which is how
+&#x20; it is known to be measuring the same thing the existing record does.
+
+\- \*\*STANDING RULE (Phase 9): `backend/` is a hard TraCI-single-thread
+&#x20; boundary.\*\* `backend/sim_runner.py`'s `SimRunner` thread is the ONLY code
+&#x20; that may call `env.step()/reset()` or anything touching TraCI. FastAPI
+&#x20; handlers and the WebSocket `Hub` never do — control endpoints push a
+&#x20; `Command` onto `ControlState.pending` which the sim thread drains between
+&#x20; decision steps; `get_stats()` reads a lock-protected cache the sim thread
+&#x20; publishes. `enable_safety_validator` is not referenced anywhere under
+&#x20; `backend/` except the three standing-rule comments citing this — the §20
+&#x20; pre-event grep should treat those as the expected hits.
+
+\- \*\*PHASE 8 SEAM (Phase 9 → Phase 8 handoff): the §13.2 frame's `decision`
+&#x20; and `narration` fields are produced by a thin adapter in
+&#x20; `backend/sim_runner.py`\*\* (`_decision_entry` / `_narrate`), built from
+&#x20; `Tier0Controller.act()`'s `decisions` return + `info["safety_overrides"]`
+&#x20; + `info["reward_breakdown"]`, emitting the frozen §12.1 / §12.2 shapes.
+&#x20; Phase 8's `explainability/{decision_log,narrator,query_interface}.py`
+&#x20; replace the adapter; the wire schema does not move. Open items for the
+&#x20; Phase 8 session, each marked `# PHASE 8 SEAM` in code: (1) the sixth
+&#x20; `reason` value for a no-override RL decision is used as `"rl_policy"`
+&#x20; (Session 2's stated string) — confirm and finalise; (2) §12.2 defines
+&#x20; only 4 narration templates — `starvation_ceiling` and `rl_policy` have
+&#x20; placeholder wording; (3) `score_breakdown`/`alternative_scores` are `{}`
+&#x20; under RL control — Phase 8's decision log owns the RL-mode breakdown.
+&#x20; Auto-mode's override classification checks BOTH `emergency_override` and
+&#x20; `starvation_ceiling` (emergency outranks, then lowest corridor index),
+&#x20; mirroring Phase 8's reconciliation order. §11.2 responder messaging is
+&#x20; NOT in §13.2's frame and is not emitted by Phase 9 — it stays Phase 8 /
+&#x20; §11.2, and the PHASE 8 WARNING above about `clearance_time_s` still
+&#x20; applies to whoever builds it.
+
+\- \*\*`set_baseline_mode("greedy")` is PLUMBED BUT STUBBED\*\* — the §13.1
+&#x20; switch, its state flag and stream echo all exist, but it returns
+&#x20; `{"applied": false, "reason": "...Phase 12..."}` because the Greedy
+&#x20; controller itself is a Phase 12 deliverable (§18) and CLAUDE.md §3
+&#x20; forbids building ahead (same precedent as Phase 4's Greedy note). §19
+&#x20; names Greedy-vs-PsychoFlow as the strongest demo beat — Phase 12 needs
+&#x20; real rehearsal runway before the event.
+
+\- \*\*Phase 8 (Coordinator + Explainability, §11/§12) commands\*\*:
+&#x20; `python sim/run_explainability_episode.py` (done-bar harness — two rule-based
+&#x20; segments, 8-step check: decision-log structure + override reconciliation,
+&#x20; narration of all 6 reasons, "why" queries, §11.2 responder messages) and the
+&#x20; five module self-tests, no SUMO process, run after ANY change to those
+&#x20; modules: `python -m explainability.decision_log` / `explainability.narrator`
+&#x20; / `explainability.query_interface` / `coordinator.emergency_clearance` /
+&#x20; `coordinator.responder_messaging`.
+&#x20; \*\*§11.1's coordinator emits `EmergencyClearanceEvent`s only — it does NOT
+&#x20; move vehicles.\*\* The visible "vehicles part for the ambulance" is Phase 10
+&#x20; frontend animation fed by that event stream; moving vehicles via TraCI
+&#x20; fights SUMO's car-following model. Green onset is per-junction
+&#x20; (`sim_time - time_since_switch_s`, B2's method) — the PHASE 8 WARNING fix
+&#x20; above; if a phase was already green on arrival, `clearance_time_s` floors at
+&#x20; 0.0 with `served_on_arrival=True` rather than reporting a negative latency.
+&#x20; \*\*§11.2's `baseline_clearance_time_s` is a LABELLED MODEL ESTIMATE\*\*
+&#x20; (`baseline_is_estimate: true` in the payload), a conservative
+&#x20; signal-rotation estimate — NOT a measured counterfactual. `clearance_time_s`
+&#x20; itself IS real (per-junction detection -> green).
+&#x20; The three Phase 9 seam items (the backend note above) are CLOSED: `rl_policy`
+&#x20; string final; `starvation_ceiling`/`rl_policy` narration templates final;
+&#x20; empty `score_breakdown`/`alternative_scores` accepted under RL mode by
+&#x20; `DecisionLog.record_step` and exempted from its phase-key structural check.
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops

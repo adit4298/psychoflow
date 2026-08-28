@@ -716,3 +716,475 @@ this entry, no measurement retracted. CLAUDE.md gained the standing rule; master
 
 **Verified:** All comparisons above computed directly from the committed `monitor*.csv`
 files; disjointness figures computed over the 162 Stage 5 Burst C+D episodes.
+
+## 2026-08-28 — §18 Phase 9 (Backend, §13)
+
+Design plan stated and approved before any code (CLAUDE.md §4). Built concurrently
+with Phase 8 (separate session, not yet landed); Phase 9's decision-log / narration
+output is built strictly against §11.1/§11.2/§12.1-12.3's documented JSON shapes as
+a frozen contract, via a thin in-backend adapter that Phase 8's `explainability/`
+modules replace without moving the wire schema. Every spot where Phase 8's contract
+has the final say is marked `# PHASE 8 SEAM` in code.
+
+**Files:** `backend/main.py` (FastAPI app, `/ws` §13.2 stream, `/control/*` §13.1
+router, `/health`), `backend/sim_runner.py` (`SimRunner` — the SUMO/env loop on one
+dedicated thread), `backend/control_api.py` (`ControlState` + the six §13.1
+functions as plain, SUMO/torch-free functions so §14's voice agent imports them
+verbatim), `sim/run_backend_smoke.py` (Phase 9 done-bar harness — outside §6, same
+category as every prior phase's harness). `agents/rule_based.py` edited (additive
+param, below). `backend/voice/` deliberately NOT created — Phase 11.
+
+**Decision:** `Tier0Controller.act()` gained an optional `lane_weights:
+dict[str, float] | None` parameter for §13.1's `set_lane_bias` — a per-lane
+multiplier on that lane's whole §9.1 score contribution (halted + wait + bonus).
+**Why:** put in `agents/rule_based.py`, the single place lane scoring is defined,
+rather than a backend wrapper that would duplicate the scoring loop. `None`
+reproduces the unbiased controller exactly, so every existing caller
+(`run_tier0_episode.py`, `evaluate_stage.py` via `ppo_picker`) is untouched.
+**Deviates from plan?** No — §13.1 specifies `set_lane_bias`'s behaviour ("multiply
+that lane's score by weight"); this supplies where the multiply happens.
+**Verified:** `python -m env.reward` and `python -m safety.validator` still pass
+unchanged; `run_backend_smoke.py`'s no-SUMO check 3b shows `act(lane_weights=
+{"J1_e0":10,"J1_w0":10})` flips J1's chosen phase 0→1 while the unbiased call is
+bit-identical to before.
+
+**Decision:** Auto-mode default checkpoint = `training/checkpoints/
+stage5_graph_attention/psychoflow_stage5_51624_steps_final.zip`, `deterministic=
+True`. **Why:** the §9.5 KEPT `graph_attention` Stage 5 decision checkpoint;
+confirmed genuine local minimum on the flagged j1=3 bottleneck combos (1.64%
+starved, corroborated, not ceiling-masked) vs the longer 154,024-step run's ~30%
+average in the oscillating regime. Deterministic because deployment runs the
+greedy policy (§16). **Flag:** re-evaluate once the D1 persistent-seed-counter run
+completes. **Deviates from plan?** No.
+
+**Decision:** `trigger_emergency(lane_id)` sets `env.forced_emergency_lanes` (the
+hook Phase 3 left "Wired in Phase 9") and auto-clears after `EMERGENCY_HOLD_S =
+20.0` simulated seconds — it has no natural release event since it is
+operator-forced, not a real vehicle. **Deviates from plan?** No — §13.1 gives the
+behaviour, not the lifetime. Revisit once Phase 10 lets an operator see/clear it.
+
+**Decision:** `set_baseline_mode("greedy")` is fully plumbed (switch, state flag,
+stream echo) but returns `{"applied": false, reason: "...Phase 12..."}` — the
+Greedy controller is a Phase 12 deliverable (§18) and CLAUDE.md §3 forbids
+building ahead (same precedent as Phase 4's Greedy note). `"psychoflow"` works.
+**Deviates from plan?** No — the §13.1 endpoint is Phase 9's; the controller it
+would point at is Phase 12's.
+
+**Decision:** Threading model — one `SimRunner` thread owns the env and is the
+only code touching TraCI. Control endpoints enqueue `Command`s drained between
+decision steps; `get_stats()` reads a lock-protected cache; §13.2 frames fan out
+to all WebSocket clients via `loop.call_soon_threadsafe` onto an `asyncio.Queue`
+per client (bounded — slow clients miss frames, never back-pressure the sim).
+Pacing: `realtime_factor` wall-clock sleep per decision step (default 0.3s),
+`--fast` disables it. Episode end → auto-reset and continue (a demo runs
+continuously); per-episode metric counters reset on the boundary.
+**Deviates from plan?** No — §13 specifies the API and stream, not the host
+process structure.
+
+**Decision:** The §13.2 frame's `decision` is one §12.1-shaped entry for a single
+junction each step. Emit-junction rule (approved, with the multi-switch tie-break):
+a junction with a §10 override wins (emergency_override outranks
+starvation_ceiling; ties → lowest corridor index J1<J2<J3) → else the
+lowest-corridor-index junction that switched this step → else rotate J1→J2→J3 by
+step index so the log stays live. `reason` resolution mirrors Phase 8's
+reconciliation order exactly: `emergency_override` / `starvation_ceiling` (checking
+BOTH, per Session 2's required fix — a starvation override under RL control would
+otherwise be mislabeled) → Tier 0's own reason under manual mode → `"rl_policy"`
+(Session 2's stated sixth value) for a no-override RL decision, marked
+`# PHASE 8 SEAM: pending rl_policy confirmation`. §12.2's 4 narration templates
+used verbatim; `starvation_ceiling` / `rl_policy` get placeholder wording (seam).
+`score_breakdown` / `alternative_scores` are `{}` under RL control (seam — Phase
+8's decision log owns that). §11.2 responder messaging is NOT in §13.2's frame and
+is not emitted by Phase 9. **Deviates from plan?** No — resolves ambiguities
+§13.2 leaves open (one decision per frame; which junction; the two reason values
+§12.2 does not list).
+
+**Decision:** CLAUDE.md §8 standing rule added — `backend/` is a hard
+TraCI-single-thread boundary, and `enable_safety_validator` is not referenced
+anywhere under `backend/` except the three comments citing this rule. Verified by
+`grep -rn enable_safety_validator backend/` → only the rule-citation comments.
+The env is always constructed with the default `enable_safety_validator=True`.
+
+**§18 Phase 9 done bar — MET.** "dashboard-less test client can call every control
+function and see the WebSocket stream update." `venv/Scripts/python.exe
+sim/run_backend_smoke.py` → **21 passed, 0 failed** (project venv confirmed,
+`sys.prefix` = `...\GitHub\Test\venv`). All six §13.1 functions called and their
+effect observed on the live §13.2 stream: `set_mode` manual↔auto flips
+`decision.reason` between Tier 0 reasons and `rl_policy`; `set_lane_bias` reaches
+`get_stats().lane_bias` and auto-reverts after `duration_s`; `trigger_emergency`
+produces a §10 `emergency_override` on the decision stream with the emergency
+narration template; `set_topology("222")` rebuilds the network and every
+junction's `lane_count` becomes 2 with the stream still flowing; `get_stats()`
+returns the full §13.1 field set with per-lane wait/counts/starvation;
+`set_baseline_mode` applies `psychoflow` and reports Phase 12 for `greedy`. The
+graph_attention checkpoint loads and drives auto mode
+(`MaskableActorCriticPolicy`). Regression: `python -m env.reward`,
+`python -m safety.validator` still pass after the `rule_based.py` change.
+
+**Note (not mine):** the working tree also shows untracked `coordinator/`,
+`explainability/`, `training/scripts/checkpoint_bakeoff.py` and a one-character
+uncommitted typo in this file's 2026-08-18 entry ("t   his") — those are the
+concurrent Phase 8 session's in-progress work, left untouched.
+
+**Next per §18:** Phase 10 — Frontend (§6's component list). Phase 8 (Coordinator
++ Explainability) must land and its `explainability/` modules be reconciled
+against this backend's PHASE 8 SEAM points before the frontend's Decision Log
+panel can show anything richer than the adapter output.
+
+## 2026-08-28 — Phase 0 close-out: the post-51k collapse curve, the worst_wait threshold artifact, and what the three-way confound has narrowed to
+
+Appended, not edited. This entry records the INTERPRETATION of diagnostics whose raw
+data was already committed (`_sweeps/reward_term_pre51k.json`,
+`_sweeps/reward_term_replay.json`, `_sweeps/j1_curve_burstC.txt`,
+`_sweeps/j1_curve_burstD.txt`, `_sweeps/phase0_baselines.json`). The numbers were on
+disk; the reading of them was not, and would have been lost at the session boundary.
+
+**Decision:** record three findings as settled, and stop treating `worst_wait` as a
+quality signal anywhere in the project.
+
+---
+
+### 1. Training `graph_attention` past 51,624 does not plateau — it COLLAPSES.
+
+Measured on the same 12 pinned (combo, seed) pairs throughout, deterministic,
+validator ON, density pinned, no emergency:
+
+| checkpoint | rew/step | starvation penalty/step | ovrS per run | starved% |
+|---|---|---|---|---|
+| 45,240 | +0.0711 | 1.4528 | 5.42 | 10.26 |
+| **51,624 (kept final)** | **+1.2594** | **0.2778** | **1.42** | **1.64** |
+| 56,624 | +1.1594 | 0.4275 | 2.08 | — |
+| 61,624 | +0.7123 | 0.8733 | 14.83 | — |
+| 144,824 | — | — | — | **27.8–80.5** |
+| 150,824 | — | — | — | 1.7–41.3 |
+| 154,024 (Burst D final) | — | — | 32.67 | — |
+
+`ovrS` (starvation-ceiling overrides, split per the 2026-08-18 correction — never the
+combined count) rises **1.42 → 14.83 → 32.67**. `phase0_baselines.json` confirms this
+independently on a different harness and different seeds: Stage 4 @153,600 fires
+**ovrS=0** across 3 seeds; `graph_attention` @154,024 fires **98**.
+
+**51,624 is not merely the kept checkpoint — it is the best one on the curve, and the
+run degrades monotonically after it.** Burst D's 51,200 additional timesteps made the
+policy materially worse.
+
+**Why this matters for Track A:** it is a second, independent mechanism for "budget
+parity did not close the gap." Burst D added zero new scenarios (2026-08-18 entry), and
+those zero-new-scenario steps did not merely fail to help — they actively destroyed the
+policy. That is the signature of overfitting to a replayed ~81-scenario set, evaluated
+against a structurally disjoint eval config.
+
+### 2. THRESHOLD ARTIFACT CONFIRMED: `worst_wait` saturates and cannot rank policies.
+
+`STARVATION_CEILING_S = 120` means §10 intervenes before any lane can go far past 120s.
+So `worst_wait` — an episode-level MAX — collapses to a near-binary "did the ceiling
+fire at all," landing in a 121–142s band regardless of how bad the policy is underneath.
+
+The `--j1-recheck` harness's spike criterion (`worst_wait > 90s`) reports
+**"4/4 spiked"** at BOTH:
+  - ckpt 51,624 — `starved_pct` 1.11–3.54%, a GOOD policy, and
+  - ckpt 144,824 — `starved_pct` 27.84–80.51%, a CATASTROPHIC one.
+
+A metric that cannot separate 1.6% from 80% is not measuring policy quality. This also
+**resolves the UNVERIFIED side-note** recorded in CLAUDE.md's Stage 5 section: Stage 4's
+spikes sat at 119–120s firing zero overrides, while Stage 5's sit at 121–125s. The
+`ovrS` column now confirms the ceiling is genuinely engaging at Stage 5 — the shift
+across 120 was real, not coincidence.
+
+**Consequence, applied in this session (4b):** `worst_wait` is retired from every
+judge-facing metric and from checkpoint-selection decisions. `starved_pct`,
+`starvation_events_count` and `wait_time_variance_across_lanes` replace it. The one
+legitimate remaining use of `worst_wait` is demonstrating this saturation.
+
+### 3. The three-way confound has NARROWED — but the architecture question is now moot.
+
+The 2026-08-18 entry left the Stage 4 vs Stage 5 cause open between **architecture**,
+**budget**, and **data diversity**. Finding 1 does not fully close it, but it does
+remove budget as an explanation in the helpful direction: more budget on replayed
+scenarios is not neutral, it is harmful. Remaining live candidates are **data
+diversity** (D1 is the test, running at time of writing) and **architecture**.
+
+**However — the practical decision no longer waits on that answer.** §9.5's flip
+question ("does attention earn its complexity over shared_policy?") is ANSWERED and
+untouched: attention wins 12/12. The separate question of which checkpoint to DEPLOY is
+an empirical bake-off between Tier 0, Stage 4 single-agent, and the two
+`graph_attention` finals — settled by measurement (4a, next entry), not by resolving
+the cause. Recording this explicitly so a future session does not block deployment on a
+research question that deployment does not depend on.
+
+---
+
+**Deviates from plan?** No. No locked decision (CLAUDE.md §2) reopened — §9.5's
+`COORDINATION_MODE = "graph_attention"` stands as the MARL-architecture answer. No
+measurement retracted; every number above was already committed as raw data.
+
+**Verified:** All figures read directly from the committed `_sweeps/*.json` and
+`_sweeps/*.txt` artifacts named above. No new runs were required for this entry.
+
+## 2026-08-28 — 4a CHECKPOINT BAKE-OFF (§15.2, §20): the deployed policy is Stage 4 single-agent, not `graph_attention`
+
+**Decision:** `backend/sim_runner.py`'s `DEFAULT_CHECKPOINT` becomes
+`training/checkpoints/stage4/psychoflow_stage4_153600_steps_final.zip`. This SUPERSEDES
+the `ga_51624` default recorded earlier the same day, which was chosen on the existing
+diagnostic history before any head-to-head measurement existed.
+
+**Why:** 48 episodes — 4 controllers x 4 topologies `{(4,3,2),(2,2,2),(4,4,4),(3,2,3)}`
+x seeds `{1,7,42}`, deterministic, validator ON, density pinned 1.0, no emergency
+(matching `evaluate_stage.py::_run_plain_episode` so the fairness comparison is not
+confounded by the other randomisation axes). Harness:
+`training/scripts/checkpoint_bakeoff.py`; raw data `_sweeps/checkpoint_bakeoff.json`.
+
+| controller | starv_ev | wait_var | mean_wait_max | starved% | worst_wait | reward | ovrS | arrived |
+|---|---|---|---|---|---|---|---|---|
+| tier0 | **0.00** | **50.7** | **24.5** | **0.00** | 41.5 | 1.2011 | 0.00 | 4668 |
+| **stage4_153600** | 0.08 | 72.2 | 26.7 | 0.08 | 59.7 | **1.3450** | **0.00** | 4668 |
+| ga_51624 | 3.33 | 109.8 | 31.8 | 1.20 | 114.8 | 1.2347 | 1.08 | 4668 |
+| ga_154024 | 132.75 | 592.9 | 71.0 | 25.82 | 126.4 | 0.2414 | 15.75 | 4668 |
+
+Per-combo `starvation_events_count` / `starved_pct`:
+
+| combo | tier0 | stage4_153600 | ga_51624 | ga_154024 |
+|---|---|---|---|---|
+| (4,3,2) demo | 0.0 / 0.00% | **0.0 / 0.00%** | 4.0 / 1.21% | 159.7 / 22.14% |
+| (2,2,2) | 0.0 / 0.00% | 0.0 / 0.00% | 1.3 / 0.79% | 67.7 / 20.58% |
+| (4,4,4) | 0.0 / 0.00% | 0.0 / 0.00% | 2.3 / 0.85% | 208.7 / 36.26% |
+| (3,2,3) | 0.0 / 0.00% | 0.3 / 0.32% | 5.7 / 1.97% | 95.0 / 24.28% |
+
+**On the demo corridor specifically** — the only topology §19 actually shows — Stage 4
+is 0 starvation events / 0 overrides / 38-42s worst on all three seeds, where ga_51624
+is 4 / 1 / 121-125s on all three. That is the whole decision.
+
+**Budget is controlled, not a confound.** Read off the checkpoints, not assumed:
+stage4 `num_timesteps=153600`, ga_154024 `num_timesteps=154024` — a 424-step
+difference. Extractors self-describe on load (`FlattenExtractor` vs
+`GraphAttentionExtractor`), so the harness is genuinely mode-unaware.
+
+**Four findings worth keeping:**
+
+  1. **Tier 0 still wins the pure fairness metrics.** 0.00 events, `wait_var` 50.7,
+     `mean_wait_max` 24.5 — better than Stage 4 on all three. Stage 4 wins on reward
+     (1.3450 vs 1.2011) at statistically indistinguishable starvation (0.08 vs 0.00
+     events, i.e. one event across twelve episodes). The honest claim is **"the learned
+     policy matches Tier 0's fairness while clearing traffic better,"** not "it beats
+     the rule baseline on fairness." §15.1's demo comparison is against GREEDY, which
+     both beat comfortably — this does not weaken the demo, it just bounds the claim.
+
+  2. **The threshold artifact is reproduced inside this table.** `ga_51624` (3.33
+     events) and `ga_154024` (132.75 events — a ~40x worse policy) sit at 114.8s vs
+     126.4s `worst_wait`, essentially indistinguishable, while
+     `starvation_events_count` separates them by two orders of magnitude. Independent
+     confirmation of the same session's Phase 0 entry, on a different harness.
+
+  3. **The post-51k collapse reproduces on a third harness.** `ga_154024` at 25.82%
+     starved / 15.75 `ovrS` / reward 0.2414 — consistent with `reward_term_replay`'s
+     61,624 figures and `phase0_baselines`' ovrS=98. Three independent measurements now
+     agree that training `graph_attention` past 51,624 destroyed it.
+
+  4. **Every controller clears the corridor.** `arrived=4668` and `terminated=12/12`
+     for all four, episode lengths 628.8-633.5 steps. So `total_throughput` is a
+     sanity check here, not a discriminator — recorded in §15.2 so the dashboard does
+     not present it as one.
+
+**Deviates from plan?** **No locked decision reopened, but one needs stating clearly.**
+§9.5's `COORDINATION_MODE` stays `graph_attention` — that flag answers "which MARL
+extractor," and attention won that A/B 12/12. Which trained CHECKPOINT the backend
+serves is a separate axis, and CLAUDE.md's Stage 5 ESSENTIAL QUALIFIER already recorded
+that single-agent beats both MARL modes. **Demo-honesty consequence (§17, §20): the
+policy running in the live demo is SINGLE-AGENT PPO, not MARL.** The MARL work remains
+a real, measured result (attention vs shared_policy) but must not be described as what
+is driving the corridor on stage.
+
+**Not measured here:** emergency behaviour (config pins `spawn_emergencies=False` to
+isolate fairness). The existing split figures still favour Stage 4 — proposal quality
+0.885 vs `graph_attention`'s 0.778, `ovrE` 5 vs 7 (`_sweeps/phase0_baselines.json`) —
+so this does not cut against the decision, but it is a separate measurement and should
+be cited as one.
+
+**Re-evaluate when D1 finishes.** If the post-51k collapse was data-diversity-driven, a
+re-trained MARL run may overtake Stage 4; the bake-off is a repeatable procedure, not a
+one-off, and should be re-run against any new candidate.
+
+**Verified:** `python -m training.scripts.checkpoint_bakeoff` — 48/48 episodes, 26.5 min.
+Harness cross-checked against the existing record twice: it reproduces Tier 0's B1
+baseline exactly (627 steps / 4668 arrived / 41.0s worst / 0 starved / reward 1.1947 vs
+the logged 1.2) and `ga_51624`'s recorded (4,3,2) seed-7 row exactly (1.2859 / 121.0s /
+1.09%). Post-change backend check: `python sim/run_backend_smoke.py` — **21/21 pass**
+with Stage 4 loaded, auto mode emitting `reason='rl_policy'`.
+
+## 2026-08-28 — §18 Phase 8 (Coordinator + Explainability, §11 / §12)
+
+Design plan stated and approved before any code (CLAUDE.md §4); seven design
+points confirmed, plus `rl_policy` added to the reason enum at Session 3's
+request (Phase 9's RL auto mode has no rule-based justification to render).
+Built concurrently with Session 3's Phase 9 (Backend) and Session 4's Phase 0 /
+4a bake-off.
+
+**Files (6 new). Nothing in `env/`, `env/reward.py` or `safety/validator.py`
+was touched — Phase 8 consumes their outputs only. No `__init__.py` (matches the
+repo's implicit-namespace-package convention).**
+- `explainability/decision_log.py` (§12.1)
+- `explainability/narrator.py` (§12.2)
+- `explainability/query_interface.py` (§12.3)
+- `coordinator/emergency_clearance.py` (§11.1)
+- `coordinator/responder_messaging.py` (§11.2)
+- `sim/run_explainability_episode.py` — done-bar harness, outside §6, same
+  category as every prior phase's `run_*.py`.
+
+**Decision:** the decision log is an AGENT-AGNOSTIC, caller-side recorder.
+`DecisionLog.record_step(sim_time, decisions, info, snapshot, served_lanes)`
+takes the `{junction_id: {phase_selected, score_breakdown, alternative_scores,
+reason}}` dict `Tier0Controller.act()` already returns; Phase 9's RL runner
+builds the same shape with `reason="rl_policy"` and possibly-empty breakdowns.
+Never wired into `PsychoFlowEnv.step()` — the env's scope is frozen (CLAUDE.md
+§3).
+**Why:** the override reconciliation (controller proposal <-> §10 `OverrideRecord`
+<-> what executed) is identical regardless of who produced the proposal, so one
+recorder serves Tier 0 and RL with no branch. Fed caller-side, exactly as the
+Phase 4 B-harnesses already thread `decisions` through `run_episode`.
+**Deviates from plan?** No — §12.1 gives the entry schema, not the plumbing.
+**Verified:** `python -m explainability.decision_log` — 6 hand-scored assertions
+(triggering-lane selection for raw_count vs wait_time_threshold; emergency
+override rewrites `reason` and executed phase; a deferred-min-green ceiling
+leaves the executed phase unchanged; JSONL round-trip drops None fields;
+`entries_for` / `latest` filters).
+
+**Decision:** six reason values, single-sourced. `wait_time_threshold` /
+`raw_count` imported from `agents.rule_based`; `emergency_override` /
+`starvation_ceiling` imported from `safety.validator` (== `RULE_EMERGENCY` /
+`RULE_STARVATION`); `voice_command` (§12.2, producer Phase 9/11); `rl_policy`
+(producer Phase 9 auto mode). Module-level asserts pin the four imported string
+literals so an upstream rename fails loudly here rather than silently dropping a
+narrator template. **`rl_policy` is confirmed and final** — closes item (1) of
+Session 3's Phase 9 seam note (CLAUDE.md §8).
+**Deviates from plan?** No.
+**Verified:** `python -m explainability.decision_log` asserts `len(REASONS) == 6`
+and `REASON_RL_POLICY == "rl_policy"`.
+
+**Decision:** narrator = §12.2's four templates verbatim + two confirmed
+additions: a `starvation_ceiling` template (§12.2 lists four reasons; §10 has two
+rules) and an `rl_policy` template; every template prefixed `Jx · ` (the §12.2
+templates predate §0.1's 3-junction lock, and an operator needs the junction).
+`{lane}` is the within-approach index of the lane the decision turned on
+(`_triggering_lane`: longest-waiting served lane for `wait_time_threshold`,
+most-halted otherwise; `OverrideRecord.lane_id` for an override). An unknown
+reason raises `KeyError`, never a canned string (§12.3). Closes item (2) of
+Session 3's seam note.
+**Deviates from plan?** Two small deviations from §12.2's literal text, flagged
+in the design plan and approved.
+**Verified:** `python -m explainability.narrator` — all 6 templates render
+non-empty; fragment assertions; unknown reason raises.
+
+**Decision:** query interface = deterministic at-or-before lookup + render.
+`why(sim_time=None, junction_id=None, lane_id=None)` returns `{sim_time,
+junction_id, entry, narration}` — the real logged §12.1 entry rendered through
+§12.2, never canned (§12.3), no LLM (§2). `sim_time` omitted -> most recent;
+otherwise the latest entry at-or-before it (queries land between the 5s steps).
+`lane_id` -> junction via the twin topology map, not string parsing. Misses raise
+`DecisionNotFound`.
+**Deviates from plan?** No.
+**Verified:** `python -m explainability.query_interface` — at-or-before
+semantics, latest, lane->junction resolution, real-entry identity check, three
+miss cases raise.
+
+**Decision:** §11.1's coordinator emits events, does NOT move vehicles.
+`EmergencyClearanceCoordinator.observe(...)` tracks a clearance episode PER
+JUNCTION and emits `EmergencyClearanceEvent` (first detection / override onset /
+green onset / close). §11.1's visible "vehicles part to open a path" is a Phase
+10 frontend animation fed by this event stream — moving vehicles via
+`traci.vehicle.moveTo` / `changeLane` fights SUMO's car-following model and risks
+the exact conflicts §10 exists to prevent.
+**Why (per-junction attribution — the CLAUDE.md §8 PHASE 8 WARNING fix):** green
+onset is recovered as `sim_time - time_since_switch_s` (B2's method) at the
+junction the override actually fired at, so a corridor-route ambulance detected
+at J1 then J3 produces two independent episodes with no cross-contamination. If
+the phase was already green on arrival, `green_onset` predates detection;
+`clearance_time_s` floors at 0.0 and `served_on_arrival` is set — the honest
+reading, not a negative latency.
+**Deviates from plan?** No — the animation is explicitly deferred to the frontend
+in the confirmed design plan.
+**Verified:** `python -m coordinator.emergency_clearance` — override case
+(detect->override->green, 5.0s), corridor route (J1 served-on-arrival closes as
+the ambulance reaches J3, J3 opens independently), `finalize()` closes
+stragglers.
+
+**Decision:** §11.2 `clearance_time_s` is real; `baseline_clearance_time_s` is a
+LABELLED MODEL ESTIMATE. `clearance_time_s` = detection -> green at the firing
+junction (from §11.1, per-junction — the known-broken Stage 4 sweep latency is
+NOT inherited). `baseline_clearance_time_s` is a conservative signal-rotation
+estimate (`estimate_baseline_clearance_s`: min-green owed on the current phase +
+every other green phase held for min-green with a yellow between, target phase
+assumed last in rotation) — a true per-event A/B is impossible live and is what
+`run_tier0_episode.py --b3` does offline. Marked `baseline_is_estimate: true` in
+the payload and in the summary text. §11.2's message gains `junction_id` and
+`override_fired` beyond its literal schema.
+**Deviates from plan?** Additions to §11.2's literal JSON schema, flagged in the
+design plan; the estimate-not-measurement treatment was confirmed as design
+point 2.
+**Verified:** `python -m coordinator.responder_messaging` — baseline arithmetic
+(2-phase/age0 = 28.0s, 3-phase/age0 = 42.0s), override message (8.0s vs 28.0s ->
+71.4%), served-on-arrival message (0.0s -> 100%, "already clear"), unresolved
+event raises.
+
+**§18 Phase 8 is COMPLETE.** Done bar — *"full decision log renders correctly for
+a rule-based test run before the RL agent is even wired in"* — verified in the
+project venv (`sys.prefix` = `...\GitHub\Test\venv`) via
+`python sim/run_explainability_episode.py`, an 8-step check over two rule-based
+segments (no trained checkpoint anywhere):
+
+- **Segment 1** — Tier 0, corridor 4/3/2, seed 7, `spawn_emergencies=True`,
+  validator ON, manual ambulance on J2 north @ t>=130s + `forced_emergency_lanes`
+  (§13.1's operator-trigger path): 627 steps, 3145s, terminated, 18 §10 override
+  records, 2 clearance episodes.
+- **Segment 2** — adversarial rule-based controller starving J2 north, seed 31:
+  238 steps, 1200s, 13 `starvation_ceiling` overrides (Tier 0 never trips the
+  ceiling on 4/3/2, §16, so this segment sources real ceiling entries).
+- **Step 3 (structural):** 1881 Tier-0 entries = 627 steps x 3 junctions, + 714
+  adversarial — all carry the §12.1 schema, reasons in the enum, `sim_time`
+  monotonic, phase keys consistent, reason <-> override-block agreement; 18/18
+  overridden entries reconcile (proposed vs executed vs reason vs outcome);
+  override-entry count == raw §10 record count (18); >=1 `emergency_override`
+  (18) and >=1 `starvation_ceiling` (13); `to_jsonl` -> 1881 lines.
+- **Step 4 (narration):** all 6 reasons render one operator line each (4 from
+  real Tier-0 / adversarial entries, `voice_command` via the real `record_voice`
+  API, `rl_policy` synthetic — no rule-based run produces it); unknown reason
+  raises.
+- **Step 5 (query):** mid-episode at-or-before, latest, emergency-window
+  (asserted `entry == logged.to_dict()` — real, not canned), lane->junction
+  resolution.
+- **Step 6 (responder):** 2 messages — J2 `served_on_arrival` (0.0s,
+  `override_fired: true`), J1 proactive (3.0s, `override_fired: false`, the
+  `spawn_emergencies` ambulance Tier 0 served on its own); `improvement_pct`
+  arithmetic re-checked.
+- **Step 7:** 5/5 module self-tests pass.
+- **Step 8 (regression):** `python -m env.reward`, `python -m safety.validator`
+  (11/11), `python sim/run_env_smoke.py` all pass unchanged.
+
+**Three caveats, stated rather than smoothed:**
+1. **The J2 probe resolved `served_on_arrival` (0.0s), not a measured positive
+   override latency** — `forced_emergency_lanes` + Tier 0 already holding J2 north
+   meant the lane was green before the ambulance was physically sensed. The §11.2
+   message reports this truthfully. A measured positive override latency (~3s)
+   already exists in `run_tier0_episode.py --b2`; Phase 8 did not re-derive it.
+   The per-junction attribution + negative-latency flooring the PHASE 8 WARNING
+   actually asked for is verified in `emergency_clearance._selftest`
+   (corridor-route case).
+2. **`baseline_clearance_time_s` is a conservative model estimate, not a measured
+   counterfactual** — flagged in-payload (`baseline_is_estimate: true`) and in
+   the summary text.
+3. **This BUILD_LOG entry and the CLAUDE.md §8 bullet were appended, but the doc
+   files were NOT included in the Phase 8 commit.** At commit time
+   `docs/BUILD_LOG.md` (+294), `CLAUDE.md` (+102), `docs/PsychoFlow_Master_Plan.md`
+   and `agents/rule_based.py` all carried uncommitted Session 3/4 (Phase 9
+   backend / Phase 0 / 4a bake-off) work — HEAD was still `eba9f7a`. `git add`-ing
+   the doc files would have committed ~396 lines of another session's in-flight,
+   unreviewed work under a Phase 8 message. The Phase 8 commit therefore contains
+   only the 6 new code files; these doc appends are left in the working tree for
+   a coordinated doc commit once Session 3/4's changes land.
+
+Session 3's Phase 9 seam note (CLAUDE.md §8) listed three items handed to Phase 8
+— all now closed: (1) `rl_policy` string confirmed / finalised; (2)
+`starvation_ceiling` and `rl_policy` narration templates finalised; (3) empty
+`score_breakdown` / `alternative_scores` under RL mode accepted by `record_step`
+and exempted from the phase-key structural check. Override classification order
+(emergency outranks starvation, then lowest corridor index) matches Phase 9's
+`overrides_by_j` reconciliation.

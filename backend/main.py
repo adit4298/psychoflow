@@ -1,0 +1,223 @@
+"""FastAPI app: WebSocket live-state stream (§13.2) + control API (§13.1).
+
+    uvicorn backend.main:app            # default: auto-mode checkpoint, live pacing
+    python -m backend.main --help       # options
+
+Layout:
+  * one `SimRunner` (backend/sim_runner.py) owns the SUMO/env loop on its own
+    thread and is the only thing that touches TraCI;
+  * `Hub` fans each §13.2 frame out to every connected WebSocket client, off the
+    sim thread via `loop.call_soon_threadsafe`;
+  * the control endpoints are thin wrappers over `backend/control_api.py`'s plain
+    functions — the same functions §14's voice intent agent will import.
+
+STANDING RULE (CLAUDE.md §8): nothing here references `enable_safety_validator`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+
+from backend.control_api import (
+    ControlState,
+    get_stats,
+    set_baseline_mode,
+    set_lane_bias,
+    set_mode,
+    set_topology,
+    trigger_emergency,
+)
+from backend.sim_runner import DEFAULT_CHECKPOINT, SimRunner
+
+
+class Hub:
+    """Broadcast the latest §13.2 frame to all connected WebSocket clients.
+
+    `publish_from_thread` is called from the sim thread; it hops onto the event
+    loop with `call_soon_threadsafe`, so every `asyncio.Queue` touch happens on
+    the loop thread. Slow clients simply miss frames (bounded queue) rather than
+    back-pressuring the simulation.
+    """
+
+    def __init__(self) -> None:
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._clients: set[asyncio.Queue] = set()
+        self._latest: dict | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+
+    def publish_from_thread(self, frame: dict) -> None:
+        if self._loop is None:
+            return
+        self._loop.call_soon_threadsafe(self._broadcast, frame)
+
+    def _broadcast(self, frame: dict) -> None:
+        self._latest = frame
+        for q in list(self._clients):
+            try:
+                q.put_nowait(frame)
+            except asyncio.QueueFull:
+                pass  # slow client — drop this frame for them only
+
+    async def register(self) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=16)
+        self._clients.add(q)
+        if self._latest is not None:
+            q.put_nowait(self._latest)
+        return q
+
+    def unregister(self, q: asyncio.Queue) -> None:
+        self._clients.discard(q)
+
+
+class SetModeBody(BaseModel):
+    mode: str
+
+
+class SetLaneBiasBody(BaseModel):
+    lane_id: str
+    weight: float
+    duration_s: float
+
+
+class TriggerEmergencyBody(BaseModel):
+    lane_id: str
+
+
+class SetTopologyBody(BaseModel):
+    topology_id: str
+
+
+class SetBaselineModeBody(BaseModel):
+    baseline: str
+
+
+def create_app(
+    *,
+    checkpoint: Path | None = DEFAULT_CHECKPOINT,
+    lane_counts: tuple[int, int, int] = (4, 3, 2),
+    randomize_density: bool = True,
+    spawn_emergencies: bool = True,
+    realtime_factor: float = 0.3,
+    fast: bool = False,
+    seed: int = 7,
+) -> FastAPI:
+    state = ControlState()
+    hub = Hub()
+    runner = SimRunner(
+        state,
+        checkpoint=checkpoint,
+        lane_counts=lane_counts,
+        randomize_density=randomize_density,
+        spawn_emergencies=spawn_emergencies,
+        realtime_factor=realtime_factor,
+        fast=fast,
+        seed=seed,
+        frame_sink=hub.publish_from_thread,
+    )
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        hub.bind_loop(asyncio.get_running_loop())
+        runner.start()
+        try:
+            yield
+        finally:
+            runner.stop()
+
+    app = FastAPI(title="PsychoFlow Backend (§13)", lifespan=lifespan)
+    app.state.control = state
+    app.state.hub = hub
+    app.state.runner = runner
+
+    router = APIRouter(prefix="/control")
+
+    @router.post("/set_mode")
+    def _set_mode(body: SetModeBody):
+        return set_mode(state, body.mode)
+
+    @router.post("/set_lane_bias")
+    def _set_lane_bias(body: SetLaneBiasBody):
+        return set_lane_bias(state, body.lane_id, body.weight, body.duration_s)
+
+    @router.get("/get_stats")
+    def _get_stats():
+        return get_stats(state)
+
+    @router.post("/trigger_emergency")
+    def _trigger_emergency(body: TriggerEmergencyBody):
+        return trigger_emergency(state, body.lane_id)
+
+    @router.post("/set_topology")
+    def _set_topology(body: SetTopologyBody):
+        return set_topology(state, body.topology_id)
+
+    @router.post("/set_baseline_mode")
+    def _set_baseline_mode(body: SetBaselineModeBody):
+        return set_baseline_mode(state, body.baseline)
+
+    app.include_router(router)
+
+    @app.get("/health")
+    def _health():
+        return {
+            "sim_ready": runner._started.is_set(),
+            "sim_error": runner.error,
+            "has_checkpoint": state.has_checkpoint,
+            "mode": state.mode,
+            "baseline_mode": state.baseline_mode,
+        }
+
+    @app.websocket("/ws")
+    async def _ws(websocket: WebSocket):
+        await websocket.accept()
+        q = await hub.register()
+        try:
+            while True:
+                frame = await q.get()
+                await websocket.send_json(frame)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            hub.unregister(q)
+
+    return app
+
+
+app = create_app()
+
+
+def _main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
+    parser.add_argument("--no-checkpoint", action="store_true",
+                        help="Run Tier 0 only (auto mode unavailable).")
+    parser.add_argument("--topology", default="432", help="Initial lane counts, e.g. 432.")
+    parser.add_argument("--realtime-factor", type=float, default=0.3,
+                        help="Wall-clock seconds to sleep per decision step.")
+    parser.add_argument("--fast", action="store_true", help="No pacing sleep.")
+    args = parser.parse_args()
+
+    import uvicorn
+
+    lane_counts = tuple(int(d) for d in args.topology)
+    globals()["app"] = create_app(
+        checkpoint=None if args.no_checkpoint else args.checkpoint,
+        lane_counts=lane_counts,
+        realtime_factor=args.realtime_factor,
+        fast=args.fast,
+    )
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    _main()

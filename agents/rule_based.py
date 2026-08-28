@@ -145,6 +145,7 @@ class Tier0Controller:
         runtime: dict[str, dict],
         masks,
         served_lanes: dict[str, dict[int, frozenset[str]]],
+        lane_weights: dict[str, float] | None = None,
     ) -> tuple[tuple[int, ...], dict[str, dict]]:
         """Returns (action, decisions).
 
@@ -152,8 +153,18 @@ class Tier0Controller:
         reason per junction. This is data the controller already computes,
         returned rather than discarded — §12's decision log, narrator and
         query interface are Phase 8 and are NOT built here.
+
+        `lane_weights` is §13.1's `set_lane_bias(lane_id, weight, duration_s)`:
+        a per-lane multiplier applied to that lane's whole §9.1 score
+        contribution (halted + wait + bonus), so an operator can temporarily
+        prioritise or deprioritise an approach. Absent lanes default to 1.0,
+        so `None` reproduces the unbiased controller exactly. The multiplier
+        lives here, in the single place lane scoring is defined, rather than
+        in a backend wrapper that would duplicate this loop. It only has a
+        hook under manual mode — the RL policy has no per-lane score.
         """
         config = self.config
+        weights = lane_weights or {}
         action: list[int] = []
         decisions: dict[str, dict] = {}
 
@@ -177,9 +188,10 @@ class Tier0Controller:
                     reading = lanes.get(lane_id)
                     if reading is None:
                         continue  # not an approach lane the twin senses
-                    halted += config.w_halted * reading["halted_count"]
-                    wait += config.w_wait * reading["wait_time_current"]
-                    bonus += starvation_bonus(
+                    w = float(weights.get(lane_id, 1.0))
+                    halted += w * config.w_halted * reading["halted_count"]
+                    wait += w * config.w_wait * reading["wait_time_current"]
+                    bonus += w * starvation_bonus(
                         reading["wait_time_max_single_vehicle"], config
                     )
                 bases[slot] = halted + wait

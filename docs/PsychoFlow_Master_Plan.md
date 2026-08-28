@@ -510,6 +510,12 @@ On emergency override trigger: vehicles already in the intersection visibly move
 ```
 Decision-support output in the spirit of what a real dispatch coordinator would want to see — not wired into an actual emergency-services system (§17).
 
+🚧 **PHASE 8 BLOCKER — `clearance_time_s` and `baseline_clearance_time_s` have NO working implementation in this repo. Do not ship this message until one exists.** The Stage 4 emergency-latency harness is KNOWN BROKEN and UNFIXED: it produced NEGATIVE latencies (−42.0s to −2.0s) because it tracked detection and green-onset at the FIRST junction the ambulance was seen at, while §10's override can fire at a LATER junction on a corridor-through route (J1→J2→J3) — and green-onset recovered as `sim_time - time_since_switch_s` can predate detection when that junction was already green for unrelated reasons. `training/evaluate_stage.py`'s `--emergency-recheck` deliberately OMITS latency rather than emit a known-bad number.
+
+This field is the one place in the whole system where a wrong number is shown to a **human operator as decision support**, so inheriting the broken measurement silently is the worst available outcome — a negative clearance time on screen is both wrong and obviously wrong.
+
+**Fix before populating:** track detection and green-onset PER JUNCTION and attribute the override to the junction it actually fired at. `sim/run_tier0_episode.py --b2` has a correct SINGLE-junction implementation to model it on (it measures from first detection at a known junction and recovers green onset exactly); only the multi-junction generalisation is missing. Until then, omit the fields or render them as "not measured" — never as 0.0 or a placeholder that reads as real.
+
 ---
 
 ## 12. Explainability / Narrator
@@ -591,6 +597,19 @@ Two controllers runnable on identical live traffic, swappable via `set_baseline_
 { "wait_time_variance_across_lanes": 4.1, "starvation_events_count": 0, "total_throughput": 512, "emergency_clearance_time_s": 4.2 }
 ```
 Comparable across scenarios, seeds, and modes — this is what makes the side-by-side demo moment (§19) show a number, not just a vibe.
+
+⚠️ **`worst_wait` is NOT on this list, and must not be added to it (recorded 2026-08-28, Phase 0 close-out).** It is a SATURATED statistic, not a quality signal: §10's ceiling (`STARVATION_CEILING_S = 120`) intervenes before any lane can run far past 120s, so an episode-level max collapses to a near-binary "did the ceiling fire," landing in a 121–142s band no matter how bad the policy underneath is. Measured: the `--j1-recheck` spike criterion (`worst_wait > 90s`) reports **4/4 spiked** at both ckpt 51,624 (`starved_pct` 1.11–3.54%, good) and ckpt 144,824 (`starved_pct` 27.84–80.51%, catastrophic). Putting it on the dashboard would show judges a number that moves for the wrong reasons — and would make the shield's success look like the policy's failure. See `docs/BUILD_LOG.md`'s 2026-08-28 entry.
+
+**Definitions (the metric names above are not self-defining — pinned here so the dashboard, the eval suite and the bake-off cannot drift apart):**
+
+| metric | definition |
+|---|---|
+| `starvation_events_count` | RISING-EDGE count, per lane, of `wait_time_max_single_vehicle` crossing `DEFAULT_STARVATION_THRESHOLD_S` (90s) from below. A lane already starved does not re-count until it drops back under. An EVENT count — distinct from `starved_pct`, the fraction of *steps* with any lane over the line. |
+| `wait_time_variance_across_lanes` | Population variance ACROSS LANES of `wait_time_max_single_vehicle` at each step, averaged over steps (s²). Deliberately **not** `wait_time_current`, which is a SUM over the vehicles on a lane (see `agents/rule_based.py`'s "§9.1's UNITS" note) and whose variance therefore tracks occupancy and lane count rather than fairness. Comparable BETWEEN CONTROLLERS on one (topology, seed); **not** comparable across topologies with different lane counts. |
+| `total_throughput` | Vehicles arrived. Note this is near-constant across controllers on a pinned scenario (all clear the corridor), so it is a sanity check, not a discriminator. |
+| `emergency_clearance_time_s` | **BLOCKED — see §11.2. Do not populate this field from the Stage 4 harness.** |
+
+Reference implementation of the first three: `training/scripts/checkpoint_bakeoff.py`.
 
 ### 15.3 Emissions estimate
 Derived from the sim's actual vehicle physics (idling time, stop-start frequency per vehicle) — a genuine output of smoother flow, not an assumed constant.
