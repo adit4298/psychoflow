@@ -16,7 +16,10 @@ build (design plan, Phase 8):
      operator has to know WHICH junction a line is about.
 
 And a sixth, `rl_policy`, added for Phase 9's RL auto mode, which has no
-Tier-0-style rule-based justification to render.
+Tier-0-style rule-based justification to render. Its line names the busiest
+served lane as CONTEXT, not as the stated cause — the trained policy's
+actual reason is opaque, and phrasing it "Lane N — selected" would attribute
+a rationale the system cannot attest.
 
 `{lane}` is `entry.lane_slot` — the within-approach index of the lane
 the decision turned on (see decision_log._triggering_lane). `{direction}`
@@ -72,8 +75,10 @@ def narrate(entry: DecisionLogEntry) -> str:
                 f"→ {entry.action_taken}.")
 
     if reason == REASON_RL_POLICY:
-        return (f"{j} · Lane {_lane(entry)}, {_direction(entry)} — learned "
-                f"policy selected phase {entry.phase_selected}.")
+        # The trained policy's actual reason is opaque; the lane is CONTEXT
+        # (the busiest lane the selected phase serves), not the stated cause.
+        return (f"{j} · Learned policy selected phase {entry.phase_selected} "
+                f"(busiest served lane: {_lane(entry)}, {_direction(entry)}).")
 
     raise KeyError(f"no narration template for reason {reason!r}")
 
@@ -124,7 +129,9 @@ def _selftest() -> None:
     assert "Emergency override" in narrate(cases[REASON_EMERGENCY_OVERRIDE])
     assert "131s wait" in narrate(cases[REASON_STARVATION_CEILING])
     assert "give lane 3 more priority" in narrate(cases[REASON_VOICE_COMMAND])
-    assert "learned policy selected phase 2" in narrate(cases[REASON_RL_POLICY])
+    _rl = narrate(cases[REASON_RL_POLICY])
+    assert "Learned policy selected phase 2" in _rl
+    assert "busiest served lane" in _rl   # lane framed as context, not cause
     assert narrate(cases[REASON_WAIT_THRESHOLD]).startswith("J2 · ")
 
     # An unknown reason must raise, not return a canned string (§12.3).

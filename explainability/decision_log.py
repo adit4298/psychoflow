@@ -180,6 +180,25 @@ class DecisionLog:
             for record in info.get("safety_overrides", [])
         }
 
+        # CONTRACT: every junction the controller/policy acted on this step
+        # must be a key in `decisions`. An override recorded for a junction
+        # that `decisions` does not mention would otherwise be dropped
+        # SILENTLY by the loop below (it iterates decisions.items()), and a
+        # §15 "how often did the safety gate have to fire" metric computed
+        # from the resulting log would read the shield as never firing — the
+        # exact §0.3 failure the corrected emergency metric exists to avoid.
+        # RL auto mode must pass a per-junction dict with reason="rl_policy"
+        # (see this module's docstring), not an empty / partial one.
+        unscored = set(overrides_by_j) - set(decisions)
+        if unscored:
+            raise ValueError(
+                f"record_step: §10 override(s) recorded for junction(s) "
+                f"{sorted(unscored)} which are absent from `decisions` "
+                f"(keys: {sorted(decisions)}). Pass a decision entry for "
+                f"every junction acted on this step — for RL auto mode, one "
+                f"per junction with reason={REASON_RL_POLICY!r}."
+            )
+
         new: list[DecisionLogEntry] = []
         for junction_id, decision in decisions.items():
             reason = decision["reason"]
@@ -387,6 +406,52 @@ def _selftest() -> None:
     assert len(log.entries_for(upto_sim_time=20.0)) == 4
     assert log.latest("J1").sim_time == 30.0
     print(f"  [OK] entries_for / latest filters")
+
+    # -- 7: auto-mode contract (Finding 1) ----------------------------
+    # An override at a junction the caller scored only as a bare rl_policy
+    # row must still be reconciled; an override at a junction ABSENT from
+    # `decisions` (the pre-fix backend behaviour, decisions == {}) must RAISE.
+    amb_snap = {"junctions": {
+        jid: {"lanes": {f"L_{jid}_0": {"approach": "north", "halted_count": 2,
+                                       "wait_time_max_single_vehicle": 8.0}}}
+        for jid in ("J1", "J2", "J3")
+    }}
+    amb_served = {jid: {0: frozenset({f"L_{jid}_0"}), 1: frozenset()}
+                  for jid in ("J1", "J2", "J3")}
+    # Exact shape backend/sim_runner._pick_action now emits in auto mode.
+    rl_decisions = {
+        jid: {"junction_id": jid, "phase_selected": 0, "score_breakdown": {},
+              "alternative_scores": {}, "reason": REASON_RL_POLICY}
+        for jid in ("J1", "J2", "J3")
+    }
+    rl_info = {"safety_overrides": [{
+        "junction_id": "J2", "rule": REASON_EMERGENCY_OVERRIDE,
+        "from_slot": 0, "to_slot": 1, "lane_id": "L_J2_0",
+        "wait_s": 3.0, "outcome": "applied",
+    }]}
+    made = DecisionLog().record_step(2000.0, rl_decisions, rl_info, amb_snap, amb_served)
+    assert len(made) == 3
+    j2 = next(e for e in made if e.junction_id == "J2")
+    assert j2.reason == REASON_EMERGENCY_OVERRIDE
+    assert j2.proposed == {"phase": 0, "reason": REASON_RL_POLICY}
+    assert j2.override is not None and j2.override["lane_id"] == "L_J2_0"
+    assert j2.phase_selected == 1                       # executed, post-override
+    print(f"  [OK] auto-mode override reconciled: J2 {REASON_RL_POLICY} -> "
+          f"{j2.reason} (proposed phase {j2.proposed['phase']}, executed "
+          f"{j2.phase_selected})")
+
+    for bad in ({}, {"J1": rl_decisions["J1"], "J3": rl_decisions["J3"]}):
+        try:
+            DecisionLog().record_step(2005.0, bad, rl_info, amb_snap, amb_served)
+        except ValueError as exc:
+            assert "J2" in str(exc), exc
+        else:
+            raise AssertionError(
+                f"record_step must raise when an override's junction (J2) is "
+                f"absent from decisions={sorted(bad)}"
+            )
+    print(f"  [OK] override at an unscored junction raises ValueError "
+          f"(decisions={{}} and partial dict both)")
 
     print(f"\nAll decision_log self-tests passed.")
 

@@ -98,6 +98,51 @@ def check_tier0_bias_param() -> None:
           base_action == ctrl.act(snap, runtime, masks, served)[0])
 
 
+# ---------------------------------------------------------------------------
+# Finding 1 (b/c) — the backend's auto-mode decisions dict must carry EVERY
+# junction, or Phase 8's DecisionLog silently drops a §10 override for the
+# deployed (RL) policy. Pure, no SUMO — the Phase 8 harness could not see
+# this because it only ever ran Tier 0.
+# ---------------------------------------------------------------------------
+def check_automode_decisionlog_contract() -> None:
+    from backend.sim_runner import SimRunner
+    from explainability.decision_log import REASON_RL_POLICY, DecisionLog
+    from twin.digital_twin import CORRIDOR_JUNCTIONS
+
+    class _StubModel:
+        def predict(self, obs, action_masks=None, deterministic=True):
+            return np.array([0, 1, 0]), None
+
+    class _StubEnv:
+        def action_masks(self):
+            return np.array([1, 1, 0] * 3, dtype=bool)
+
+    r = SimRunner.__new__(SimRunner)          # bypass __init__ (no thread, no state)
+    r._mode, r._model, r._env, r._obs = "auto", _StubModel(), _StubEnv(), None
+    action, decisions = r._pick_action()
+    check("1b sim_runner auto-mode returns a full per-junction decisions dict",
+          set(decisions) == set(CORRIDOR_JUNCTIONS)
+          and all(d["reason"] == REASON_RL_POLICY for d in decisions.values()),
+          f"keys={sorted(decisions)}")
+
+    snap = {"junctions": {j: {"lanes": {f"L_{j}_0": {
+        "approach": "north", "halted_count": 1,
+        "wait_time_max_single_vehicle": 5.0}}} for j in CORRIDOR_JUNCTIONS}}
+    served = {j: {0: frozenset({f"L_{j}_0"}), 1: frozenset()}
+              for j in CORRIDOR_JUNCTIONS}
+    info = {"safety_overrides": [{
+        "junction_id": "J2", "rule": "emergency_override", "from_slot": 1,
+        "to_slot": 0, "lane_id": "L_J2_0", "wait_s": 4.0, "outcome": "applied"}]}
+    entries = DecisionLog().record_step(100.0, decisions, info, snap, served)
+    j2 = next(e for e in entries if e.junction_id == "J2")
+    check("1c auto-mode §10 override survives DecisionLog.record_step "
+          "(proposed reason preserved as rl_policy)",
+          j2.reason == "emergency_override"
+          and j2.proposed == {"phase": 1, "reason": REASON_RL_POLICY}
+          and j2.phase_selected == 0,
+          f"J2 reason={j2.reason} proposed={j2.proposed} exec={j2.phase_selected}")
+
+
 def main() -> None:
     print(RULE)
     print("PHASE 9 BACKEND SMOKE  —  checkpoint:",
@@ -105,6 +150,7 @@ def main() -> None:
     print(RULE)
 
     check_tier0_bias_param()
+    check_automode_decisionlog_contract()
 
     app = create_app(
         checkpoint=DEFAULT_CHECKPOINT,

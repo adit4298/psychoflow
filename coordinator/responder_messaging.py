@@ -21,25 +21,28 @@ override fired at, measured by §11.1 (`sim/run_tier0_episode.py` B2's
 method, generalised per junction). The known-broken Stage 4 sweep latency
 is NOT inherited.
 
-`baseline_clearance_time_s` is a STATED MODEL ESTIMATE, not a measured
-counterfactual — a true per-event A/B would need to re-run the episode
-with the override disabled, which is impossible live and is what
-`run_tier0_episode.py --b3` does offline instead. The estimate is the
-time until the ambulance's phase would next come up under normal signal
-rotation: the min-green still owed on the current phase, plus every other
-green phase held for its min-green with a yellow between. It is labelled
-as an estimate in the payload and in the summary text.
+`baseline_clearance_time_s` is a STATED WORST-CASE MODEL ESTIMATE, not a
+measured counterfactual — a true per-event A/B would need to re-run the
+episode with the override disabled, which is impossible live and is what
+`run_tier0_episode.py --b3` does offline instead. The estimate assumes the
+target phase is LAST in rotation and sums: the min-green still owed on the
+current phase, one yellow per phase-change on the way to the target
+(n_green - 1 of them), and the full min-green of each phase STRICTLY
+between here and the target (n_green - 2 of them). The target's own
+min-green is not waited — service begins the instant it goes green. It is
+labelled `baseline_is_estimate` AND `baseline_is_worst_case` in the
+payload, and "worst-case" in the summary text.
 """
 
 from __future__ import annotations
 
 from coordinator.emergency_clearance import EmergencyClearanceEvent
+from env.psychoflow_env import MIN_GREEN_S as _MIN_GREEN_S
 
-# Rotation-model constants. MIN_GREEN_S / DECISION_INTERVAL_S mirror
-# env.psychoflow_env; a fixed yellow estimate is used because the exact
-# per-phase yellow is a TLS-program detail this decision-support estimate
-# does not need to be precise about.
-_MIN_GREEN_S = 10.0
+# Imported, not re-typed, so it cannot drift from the env's anti-flicker
+# constant (CLAUDE.md §8 discipline). Yellow stays a fixed nominal — the
+# exact per-phase yellow is a TLS-program detail this decision-support
+# estimate does not need to be precise about.
 _YELLOW_S_EST = 4.0
 
 
@@ -50,21 +53,24 @@ def estimate_baseline_clearance_s(
     min_green_s: float = _MIN_GREEN_S,
     yellow_s_est: float = _YELLOW_S_EST,
 ) -> float:
-    """Model estimate: time to next natural service of the target phase.
+    """WORST-CASE estimate: time until the target phase would next be served
+    under normal rotation, assuming it is LAST in rotation.
 
-    Worst case within the model — the target phase is last in rotation:
+    From the current phase to the target green you traverse:
+      - the remainder of the current phase's min-green      (remaining_current)
+      - one yellow off each of the (n_green - 1) phase-changes on the way
+      - the full min-green of each of the (n_green - 2) phases STRICTLY between
 
-        remaining min-green on the current phase
-      + (n_green_phases - 1) other phases, each (min_green + one yellow)
-      + one yellow to leave the current phase
+    The target phase's own min-green is NOT included — you are served the
+    instant it goes green. (An earlier revision double-counted: it charged
+    (min_green + yellow) for every phase including the target and added a
+    spurious trailing yellow, roughly doubling the 2-phase estimate.)
     """
-    remaining_current = max(0.0, min_green_s - float(time_since_switch_s))
-    other_phases = max(0, int(n_green_phases) - 1)
-    return (
-        remaining_current
-        + other_phases * (min_green_s + yellow_s_est)
-        + yellow_s_est
-    )
+    remaining_current = max(0.0, float(min_green_s) - float(time_since_switch_s))
+    n = max(1, int(n_green_phases))
+    yellows = (n - 1) * yellow_s_est
+    intervening_min_greens = max(0, n - 2) * min_green_s
+    return remaining_current + yellows + intervening_min_greens
 
 
 def build_responder_message(
@@ -85,13 +91,13 @@ def build_responder_message(
         summary = (
             f"{event.junction_id}: lane {event.lane_id} ({event.direction}) was "
             f"already clear for the emergency vehicle on arrival — no signal "
-            f"delay (vs. ~{baseline:.1f}s estimated under normal rotation)."
+            f"delay (vs. ~{baseline:.1f}s worst-case under normal rotation)."
         )
     else:
         summary = (
             f"{event.junction_id}: lane {event.lane_id} ({event.direction}) "
             f"cleared for emergency vehicle in {clearance:.1f}s "
-            f"(vs. ~{baseline:.1f}s estimated without override) — normal "
+            f"(vs. ~{baseline:.1f}s worst-case without override) — normal "
             f"operation resumed immediately after."
         )
 
@@ -103,6 +109,7 @@ def build_responder_message(
         "clearance_time_s": round(clearance, 1),
         "baseline_clearance_time_s": round(baseline, 1),
         "baseline_is_estimate": True,
+        "baseline_is_worst_case": True,
         "improvement_pct": round(improvement, 1),
         "override_fired": event.override_fired,
         "summary": summary,
@@ -115,20 +122,37 @@ def build_responder_message(
 def _selftest() -> None:
     print("§11.2 responder_messaging self-test\n")
 
-    # -- baseline estimate arithmetic --------------------------------
-    # 2-green junction, current phase just switched (age 0):
-    #   remaining_current = 10
-    #   other_phases (1) * (10 + 4) = 14
-    #   + one yellow = 4
-    #   = 28.0
-    b = estimate_baseline_clearance_s(0.0, 2)
-    assert b == 28.0, b
-    # age 6s into min-green -> remaining_current = 4 -> 4 + 14 + 4 = 22.0
-    assert estimate_baseline_clearance_s(6.0, 2) == 22.0
-    # 3-green junction, age 0 -> 10 + 2*14 + 4 = 42.0
-    assert estimate_baseline_clearance_s(0.0, 3) == 42.0
-    print(f"  [OK] baseline estimate: 2-phase/age0 = {b:.1f}s, "
-          f"3-phase/age0 = {estimate_baseline_clearance_s(0.0, 3):.1f}s")
+    # -- baseline estimate: expectations DERIVED FROM FIRST PRINCIPLES here,
+    #    not read back from the function under test (closes the "a wrong model
+    #    passes its own test" gap). Worst case = target phase last in rotation:
+    #    wait the current phase's remaining min-green, one yellow per
+    #    phase-change on the way (n-1), and the full min-green of each phase
+    #    STRICTLY between here and the target (n-2). The target's own min-green
+    #    is NOT waited.
+    MIN_G, YEL = _MIN_GREEN_S, _YELLOW_S_EST
+
+    def independently_expected(age: float, n: int) -> float:
+        remaining = max(0.0, MIN_G - age)
+        return remaining + (n - 1) * YEL + max(0, n - 2) * MIN_G
+
+    for age, n in [(0.0, 2), (6.0, 2), (0.0, 3), (0.0, 4), (15.0, 3), (0.0, 1)]:
+        got = estimate_baseline_clearance_s(age, n)
+        want = independently_expected(age, n)
+        assert got == want, f"n={n} age={age}: {got} != {want}"
+
+    # Hand-computed anchors (MIN_GREEN=10, YELLOW=4) — if MIN_GREEN_S changes
+    # in the env these fail deliberately so the numbers get re-derived, not
+    # silently drift.
+    assert estimate_baseline_clearance_s(0.0, 2) == 14.0   # 10 + 1*4 + 0
+    assert estimate_baseline_clearance_s(6.0, 2) == 8.0    #  4 + 1*4 + 0
+    assert estimate_baseline_clearance_s(0.0, 3) == 28.0   # 10 + 2*4 + 1*10
+    assert estimate_baseline_clearance_s(0.0, 4) == 42.0   # 10 + 3*4 + 2*10
+    assert estimate_baseline_clearance_s(15.0, 3) == 18.0  #  0 + 2*4 + 1*10
+    print(f"  [OK] worst-case baseline: 2-phase/age0 = "
+          f"{estimate_baseline_clearance_s(0.0, 2):.1f}s, 3-phase/age0 = "
+          f"{estimate_baseline_clearance_s(0.0, 3):.1f}s, 4-phase/age0 = "
+          f"{estimate_baseline_clearance_s(0.0, 4):.1f}s "
+          f"(prior double-counted revision gave 28/42/56)")
 
     # -- message from a real override event -------------------------
     ev = EmergencyClearanceEvent(
@@ -141,13 +165,15 @@ def _selftest() -> None:
     assert msg["event"] == "emergency_clearance"
     assert msg["junction_id"] == "J2" and msg["lane_id"] == "N2_J2_0"
     assert msg["clearance_time_s"] == 8.0
-    assert msg["baseline_clearance_time_s"] == 28.0
+    assert msg["baseline_clearance_time_s"] == 14.0
     assert msg["baseline_is_estimate"] is True
-    # 100 * (1 - 8/28) = 71.4285... -> 71.4
-    assert msg["improvement_pct"] == 71.4, msg["improvement_pct"]
+    assert msg["baseline_is_worst_case"] is True
+    # 100 * (1 - 8/14) = 42.857... -> 42.9   (was 71.4 against the inflated 28s)
+    assert msg["improvement_pct"] == 42.9, msg["improvement_pct"]
     assert msg["override_fired"] is True
     assert "cleared for emergency vehicle in 8.0s" in msg["summary"]
-    print(f"  [OK] override message: clearance 8.0s vs 28.0s est -> "
+    assert "worst-case without override" in msg["summary"]
+    print(f"  [OK] override message: clearance 8.0s vs 14.0s worst-case -> "
           f"{msg['improvement_pct']}% improvement")
     print(f"       summary: {msg['summary']}")
 
@@ -162,7 +188,9 @@ def _selftest() -> None:
     assert msg2["clearance_time_s"] == 0.0
     assert msg2["improvement_pct"] == 100.0
     assert msg2["override_fired"] is False
+    assert msg2["baseline_is_worst_case"] is True
     assert "already clear" in msg2["summary"]
+    assert "worst-case under normal rotation" in msg2["summary"]
     print(f"  [OK] served-on-arrival message: clearance 0.0s, "
           f"summary: {msg2['summary']}")
 

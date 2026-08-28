@@ -14,8 +14,16 @@ stays off it. The loop each iteration:
     7. sleep to pace wall-clock
 
 The §13.2 frame's `decision` / `narration` fields are Phase 8's territory
-(§12.1 / §12.2). Phase 8 is being built in a separate session and has not landed;
-until it does, `_decision_entry` / `_narrate` below are a thin adapter that
+(§12.1 / §12.2).
+
+STATUS (updated 2026-08-28): PHASE 8 HAS NOW LANDED (commit 9cf19af) — this
+docstring previously said it "has not landed", which is no longer true. The real
+`explainability/{decision_log,narrator,query_interface}.py` modules exist and
+their done-bar passes. The adapter below has NOT yet been swapped out for them;
+that reconciliation is the remaining work at this seam. The wire schema does not
+move when it happens.
+
+Until that swap, `_decision_entry` / `_narrate` below are a thin adapter that
 produces the frozen §12.1 / §12.2 shapes from data that already exists today
 (`Tier0Controller.act`'s `decisions`, `info["safety_overrides"]`,
 `info["reward_breakdown"]`). Every spot where Phase 8's contract has the final
@@ -89,7 +97,10 @@ _NARRATION = {
     "voice_command": "Voice command received: '{transcript}' -> {action_taken}.",
     # PHASE 8 SEAM: not in §12.2; placeholder wording.
     RULE_STARVATION: "Lane {lane}, {direction} — forced green. Starvation ceiling reached.",
-    "rl_policy": "Lane {lane}, {direction} — selected by the trained policy.",
+    # Lane is CONTEXT (busiest served lane), not the stated cause — the
+    # trained policy's actual reason is opaque. Mirrors explainability/narrator.
+    "rl_policy": "Trained policy selected phase {phase} "
+                 "(busiest served lane: {lane}, {direction}).",
 }
 
 
@@ -304,7 +315,26 @@ class SimRunner:
             action, _ = self._model.predict(
                 self._obs, action_masks=masks, deterministic=True
             )
-            return np.asarray(action, dtype=int), {}
+            action = np.asarray(action, dtype=int)
+            # A per-junction decision row for EVERY junction, even though the
+            # trained policy has no Tier-0-style score breakdown. Phase 8's
+            # decision_log.record_step drops (now: raises on) any §10 override
+            # whose junction is missing from this dict, so an empty/partial
+            # dict here would lose the shield's overrides for the deployed
+            # policy. reason == decision_log.REASON_RL_POLICY (kept a literal,
+            # consistent with _reason_for / _NARRATION in this file; that
+            # module asserts the string).
+            decisions = {
+                jid: {
+                    "junction_id": jid,
+                    "phase_selected": int(action[i]),
+                    "score_breakdown": {},
+                    "alternative_scores": {},
+                    "reason": "rl_policy",
+                }
+                for i, jid in enumerate(CORRIDOR_JUNCTIONS)
+            }
+            return action, decisions
 
         snap = self._env.twin.snapshot
         runtime = self._env._runtime()
@@ -448,7 +478,7 @@ class SimRunner:
         try:
             return tmpl.format(
                 lane=lane, direction=str(direction).capitalize(),
-                transcript="", action_taken="",
+                phase=entry["phase_selected"], transcript="", action_taken="",
             )
         except Exception:
             return f"{entry['junction_id']}: phase {entry['phase_selected']} selected."
