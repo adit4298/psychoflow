@@ -145,8 +145,17 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Tier 1 SUMO beacon (sim/sumo_activity.py): refuse to launch
-    # concurrent SUMO while a training run or the backend is live.
-    from sim.sumo_activity import require_free
-    require_free('stage 4 contamination check')
+    # NO Tier 1 SUMO beacon guard here, DELIBERATELY — do not "fix" this by
+    # adding `require_free()`. This script never starts SUMO: it constructs a
+    # PsychoFlowEnv but only sets `env._rng` and calls `_draw_scenario()`,
+    # never `reset()`, which is where `traci.start()` lives. Guarding it would
+    # protect nothing and would make the contamination check un-runnable while
+    # a training run is live — exactly when you most want to ask whether an
+    # eval seed collides with the training draw. Same rationale, same shape as
+    # `evaluation/heldout.py`. If this script ever grows a mode that actually
+    # runs episodes, the guard belongs on THAT mode, not on the module.
+    #
+    # (The guard was added here in 49e621b by a classifier that matched the
+    # `PsychoFlowEnv` import rather than an actual SUMO launch, and removed
+    # once that was caught.)
     main()

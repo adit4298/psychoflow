@@ -1288,9 +1288,20 @@ Pause and ask the user rather than proceeding when:
 &#x20; Every SUMO-launching harness calls `require_free("<label>")` as the FIRST
 &#x20; statement inside its `if __name__ == "__main__":` guard — inside the guard
 &#x20; on purpose, because several harnesses import each other and the check must
-&#x20; fire on invocation, never on import. \*\*15 harnesses are instrumented\*\*
+&#x20; fire on invocation, never on import. \*\*14 harnesses are instrumented\*\*
 &#x20; (`training/scripts/*.py`, `training/evaluate_stage.py`, `sim/run_*.py`);
 &#x20; \*\*any new harness that launches SUMO must add the same two lines.\*\*
+&#x20; \*\*"Launches SUMO" means it calls `env.reset()`\*\* — that is where
+&#x20; `traci.start()` lives. Merely importing or CONSTRUCTING a `PsychoFlowEnv`
+&#x20; starts nothing. Two scripts deliberately have NO guard and must keep none:
+&#x20; `training/scripts/stage4_contamination.py` and `evaluation/heldout.py`,
+&#x20; which set `env._rng` and call `_draw_scenario()` only. Guarding them would
+&#x20; protect nothing AND make them un-runnable during training — exactly when
+&#x20; you most want to ask whether an eval seed collides with the training draw.
+&#x20; Both carry a NOTE block saying so, because the obvious "fix" is to add the
+&#x20; guard back. (One WAS wrongly guarded in 49e621b by a classifier that
+&#x20; matched the `PsychoFlowEnv` import rather than a real launch; caught and
+&#x20; stripped the same evening.)
 &#x20; \*\*Self-clearing\*\*, so a stale beacon can never block work: ignored if the
 &#x20; PID is dead OR the file is older than `STALE_AFTER_S` (300s). Override with
 &#x20; `PSYCHOFLOW_IGNORE_SUMO_BEACON=1` — it proceeds but prints what it ignored.
