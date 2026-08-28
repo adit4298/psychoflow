@@ -558,9 +558,11 @@ Answers "why did you do that?" by pulling the actual decision log entry (§12.1)
   "digital_twin": { ...§7.6 shape... },
   "decision": { ...§12.1 shape... },
   "narration": "Lane 3, North — selected. Wait threshold crossed.",
-  "metrics_snapshot": { "avg_wait": 22.4, "starvation_events_total": 1, "throughput_total": 340 }
+  "metrics_snapshot": { "wait_time_variance_across_lanes": 41.2, "mean_wait_max": 33.6, "starvation_events_total": 1, "throughput_total": 340 }
 }
 ```
+
+**`metrics_snapshot` field set updated 2026-08-28 to match §15.2's pinned definitions.** `avg_wait` was **removed**: it was computed from `wait_time_current` (TraCI `lane.getWaitingTime()`, a SUM over the vehicles on a lane — see `agents/rule_based.py`'s "§9.1's UNITS" note), so it scaled with occupancy and lane count rather than fairness, and would confound the §19 Greedy-vs-PsychoFlow side-by-side. `wait_time_variance_across_lanes` and `mean_wait_max` are computed from `wait_time_max_single_vehicle`, verbatim per `training/scripts/checkpoint_bakeoff.py::LaneMetricProbe`, so the live dashboard, the eval suite and the bake-off share one implementation. `backend/sim_runner.py::_update_metrics` is the reference for the live stream; `get_stats()` (§13.1) carries the same field set.
 
 ---
 
@@ -640,8 +642,10 @@ Phase 12 must therefore:
 | 2 | + lane-count variation (2/3/4-lane, `randomize_lane_counts=True`) | 50k-100k |
 | 3 | + density/traffic-mix randomization (`randomize_density=True`) | 50k-100k |
 | 4 | + emergency-vehicle events (`spawn_emergencies=True`) | 50k-100k |
-| 5 | MARL coordination (attention or fallback per §9.5's checkpoint rule) | 50k-100k+ |
+| 5 | MARL coordination (attention or fallback per §9.5's checkpoint rule) | 50k-100k+ — ⚠️ **this target range brackets a known collapse zone; see the warning below the table** |
 | 6 *(only with slack, §3)* | Y-merge topology | — |
+
+⚠️ **STAGE 5's TARGET RANGE IS A TRAP — "50k-100k+" brackets a measured collapse zone (recorded 2026-08-28).** `graph_attention` PEAKS at `num_timesteps=51,624` and degrades from there: by 61,624 its starvation penalty has tripled and `ovrS` has gone 1.4 → 14.8 per run; by 154,024 it is at 25.82% starved / `ovrS` 15.75 / reward 0.2414, against 1.20% / 1.08 / 1.2347 at the peak. **Following this row's stated target and training to 100k lands you in the degraded regime.** The mechanism is that every burst replays the same ~81 scenarios (§15.4), so extra timesteps are extra passes, not extra data. Do not read the target range as "more is better" — read the curve, keep the peak checkpoint, and see `docs/BUILD_LOG.md`'s 2026-08-28 Phase 0 close-out.
 
 **Stage 1 fixed by `docs/BUILD_LOG.md`'s Phase 3 entry** ("`reset()` is curriculum-parameterized via a `ScenarioConfig` dataclass... defaulting to §16 Stage 1 (fixed 4/3/2, fixed density, no emergencies)") to mean the corridor's own locked 4/3/2 lane-count combination held fixed, not a uniform 4-lane topology — the original wording here ("4-way, 4-lane") predated that decision and was never updated to match it. Stages 2-4 are cumulative additions on top of Stage 1's `ScenarioConfig`, not independent configurations.
 
@@ -651,8 +655,8 @@ Phase 12 must therefore:
 | After Stage 1, ~10k steps | Reward trending up (plot it) | Flat or declining |
 | After Stage 1 complete | Beats random-action baseline on wait time | No improvement |
 | After Stage 2 | Consistent across all 3 lane-counts | Great on 4-lane, terrible on 2-lane |
-| After Stage 4 | Near-100% emergency priority in test episodes | Agent sometimes ignores emergencies |
-| After Stage 5 (MARL checkpoint) | Graph-attention reward trending up cleanly | Flat/unstable → flip the config flag to shared-policy (§9.5), don't debug further under time pressure |
+| After Stage 4 | ⚠️ **"Near-100% emergency priority" IS AN INVALID METRIC — see footnote 1.** It measures §10's validator, not the policy, and reads ~100% for *any* agent including a random one. Use the **validator override-firing rate** (`evaluate_stage.py --emergency-recheck`) instead. | Agent sometimes ignores emergencies |
+| After Stage 5 (MARL checkpoint) | ✅ **THIS DECISION IS ALREADY MADE AND CLOSED (2026-08-16) — DO NOT RE-TRIGGER THIS RULE.** `graph_attention` was kept; it beat `shared_policy` 12/12 on `starved_pct` (1.64% vs 86.60%). `COORDINATION_MODE` is settled. | ⚠️ **Do NOT apply the flip rule to the post-51,624 curve.** `graph_attention`'s reward *does* go flat and then collapse after 51,624 — a reader following the original rule mechanically would flip to `shared_policy`, which is **measurably far worse** (86.60% starved). The collapse is a data-diversity/overfitting artifact, not an architecture verdict. |
 
 **Measured baselines (corridor 4/3/2, seed 7).** All actual numbers, not estimates.
 
@@ -737,7 +741,8 @@ Each phase below is a self-contained Claude Code session. Don't start phase N+1 
 - [ ] No Claude API calls anywhere in `backend/voice/` or any other per-decision runtime path
 - [ ] Tier 0 confirmed working standalone (§18 phase 4)
 - [ ] Full pipeline wired end-to-end (§4), not standalone scripts
-- [ ] MARL config flag confirmed swappable; know which mode you're actually demoing
+- [ ] **The demo runs SINGLE-AGENT PPO — say so out loud, do not call it multi-agent.** The deployed policy is `psychoflow_stage4_153600_steps_final.zip` (Stage 4 single-agent), selected by measurement in the 4a bake-off. `COORDINATION_MODE = "graph_attention"` remains the answer to §9.5's *architecture* question (attention beat shared-policy 12/12), but that is **not** what is driving the corridor on stage. Both statements are true and both are defensible; conflating them is not.
+- [ ] MARL config flag confirmed swappable (relevant to §9.5's result, not to what the demo runs)
 - [ ] Trained checkpoint(s) saved and loading correctly in the backend
 - [ ] All §16 checkpoints passed and recorded
 - [ ] Voice layer tested with real background noise; fallback message confirmed to trigger

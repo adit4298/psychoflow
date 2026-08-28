@@ -686,10 +686,19 @@ Pause and ask the user rather than proceeding when:
 &#x20; shared_policy decisively, so §9.5's flip decision is unaffected. What
 &#x20; does NOT stand: any claim the `j1=3` gap is solved. The honest framing is
 &#x20; \*\*"attention meaningfully narrowed the gap between ARCHITECTURES, not the
-&#x20; gap to single-agent performance."\*\* Most likely cause — PLAUSIBLE BUT
-&#x20; UNCONFIRMED — is Stage 4's ~3x training budget (153,600 vs ~51-53k) plus
-&#x20; the MARL modes starting from scratch; testing it needs a Stage 5 mode
-&#x20; trained to ~153,600, which has not been done. Do not assert it.
+&#x20; gap to single-agent performance."\*\*
+&#x20; \*\*BUDGET HYPOTHESIS — TESTED AND REFUTED (2026-08-28). This line previously
+&#x20; read "testing it needs a Stage 5 mode trained to ~153,600, which has not
+&#x20; been done. Do not assert it." That test HAS been done and the hypothesis is
+&#x20; dead.\*\* `graph_attention` WAS trained to 154,024 (budget-matched to Stage
+&#x20; 4's 153,600 within 424 steps). It did not close the gap — it made things
+&#x20; dramatically worse: 25.82% starved vs Stage 4's 0.08% on the 4a bake-off,
+&#x20; `ovrS` 15.75 vs 0.00. So the residual gap is NOT explained by training
+&#x20; budget; more budget on a replayed scenario set is actively harmful. The
+&#x20; live candidate is DATA DIVERSITY (D1 tests it) — see BUILD_LOG's
+&#x20; 2026-08-18 burst-replay entry and its 2026-08-28 Phase 0 close-out.
+&#x20; \*\*Note this line was already stale on 2026-08-18\*\*, when the Burst D
+&#x20; parity run was recorded; it went uncorrected for ten days.
 &#x20; Original follow-up note, superseded by the above:
 &#x20; re-check `(3,2,3)`/`(3,2,4)` specifically at the Stage 5 MARL checkpoint —
 &#x20; this is exactly the kind of localized, demand-skew-sensitive gap
@@ -734,8 +743,23 @@ Pause and ask the user rather than proceeding when:
 &#x20; corroboration, but n=1 and confounded with cold-start noise, so it does not
 &#x20; upgrade the item's status on its own. Logged, not investigated further.
 
-\- \*\*STANDING GOTCHA: `mean_reward` is NOT a valid axis for cross-density
-&#x20; comparison — always use `worst_wait`/`starved_pct` instead.\*\* `env/reward.py`'s
+\- \*\*STANDING GOTCHA: `mean_reward` is NOT a valid axis for CROSS-DENSITY
+&#x20; comparison — use `starved_pct` / `starvation_events_count` instead.\*\*
+&#x20; \*\*AMENDED 2026-08-28, two ways — read both before applying this rule.\*\*
+&#x20; (i) This bullet originally said "always use `worst_wait`/`starved_pct`
+&#x20; instead". \*\*`worst_wait` is no longer an acceptable alternative\*\* — it is
+&#x20; itself a saturated statistic (see the `worst_wait` standing rule below, and
+&#x20; master plan §15.2). Recommending it here was a contradiction introduced by
+&#x20; the 4b metric change; `starved_pct` and `starvation_events_count` are the
+&#x20; valid alternatives.
+&#x20; (ii) \*\*The prohibition is CROSS-DENSITY specifically, not blanket.\*\* When
+&#x20; density is PINNED and vehicles-arrived is identical across the compared
+&#x20; runs, `throughput_bonus` is held constant and `mean_reward` IS a legitimate
+&#x20; discriminator. That is exactly the 4a bake-off's condition — density pinned
+&#x20; at 1.0 and `arrived = 4668` in all 48 episodes — so its reward column is
+&#x20; valid and this gotcha does not invalidate it. Check the condition before
+&#x20; invoking the rule, rather than discarding every reward comparison.
+&#x20; `env/reward.py`'s
 &#x20; `throughput_bonus` term scales with vehicles arrived, which itself scales
 &#x20; with traffic density, so EVERY combo's mean_reward rises predictably with
 &#x20; density level regardless of policy quality (Stage 3's sweep: `(4,3,2)`
@@ -751,8 +775,22 @@ Pause and ask the user rather than proceeding when:
 &#x20; caught at design time. Apply this to any future eval work that varies
 &#x20; density (Stage 4/5's own checkpoints included).
 
-\- \*\*Current status (2026-08-15): Stage 3 complete, Stage 4 design plan
-&#x20; pending.\*\* Stage 3 (`+ randomize_density=True`) resumed from Stage 2's
+\- \*\*CURRENT STATUS (2026-08-28): Phases 1-9 COMPLETE. Next is §18 Phase 10 —
+&#x20; Frontend.\*\* Read this line before any of the stage history below it.
+&#x20; Training (Phase 6/7) is DONE: Stages 1-5 all trained, §9.5's MARL A/B
+&#x20; decided (`graph_attention` beat `shared_policy` 12/12). Phase 8
+&#x20; (coordinator + explainability, commit `9cf19af`) and Phase 9 (backend §13,
+&#x20; commit `f062eb1`) have both LANDED with their done-bars verified.
+&#x20; \*\*The deployed policy is Stage 4 SINGLE-AGENT PPO\*\*
+&#x20; (`psychoflow_stage4_153600_steps_final.zip`), chosen by the 4a bake-off —
+&#x20; see the "Backend auto-mode checkpoint" bullet below. Still unbuilt:
+&#x20; Phase 10 (frontend), Phase 11 (voice), Phase 12 (evaluation suite).
+&#x20; One background run is live: D1 (persistent-seed-counter), which tests
+&#x20; whether the post-51k collapse was data-diversity-driven.
+
+\- \*\*Stage-3-era status note (2026-08-15), kept for history — SUPERSEDED by the
+&#x20; CURRENT STATUS bullet above; do not read this as the project's state.\*\*
+&#x20; Stage 3 (`+ randomize_density=True`) resumed from Stage 2's
 &#x20; final checkpoint (`num_timesteps≈51200`) rather than starting fresh — the
 &#x20; first stage to do so; Stage 1→2 was discovered to have been two
 &#x20; disconnected fresh-model runs, not a continuous curriculum (see
@@ -794,9 +832,17 @@ Pause and ask the user rather than proceeding when:
 &#x20; (`evaluate_stage.py --j1-recheck` / `--emergency-recheck`, which take only
 &#x20; a checkpoint path), so the budget is the one axis that has to be
 &#x20; controlled by hand.
-&#x20; \*\*INTERIM MEASUREMENTS on `graph_attention` @ 51,624 — these are readings
-&#x20; from an UNDERTRAINED checkpoint (1/3 of Stage 4's 153,600 budget, trained
-&#x20; from scratch), NOT new watch-items and NOT verdicts on attention.\*\*
+&#x20; \*\*INTERIM MEASUREMENTS on `graph_attention` @ 51,624 — NOT new watch-items
+&#x20; and NOT verdicts on attention.\*\*
+&#x20; \*\*CORRECTED 2026-08-28 — these were originally described as readings "from
+&#x20; an UNDERTRAINED checkpoint (1/3 of Stage 4's 153,600 budget)". That framing
+&#x20; was WRONG and is retracted. 51,624 is the PEAK of this run, not a waypoint
+&#x20; toward a better one.\*\* The run was subsequently trained to 154,024 and
+&#x20; COLLAPSED: `starved_pct` 1.20% -> 25.82%, `ovrS` 1.08 -> 15.75, reward
+&#x20; 1.2347 -> 0.2414 (4a bake-off; corroborated by `reward_term_replay.json`
+&#x20; at 61,624 and by `phase0_baselines.json`'s ovrS=98). \*\*Do not read
+&#x20; "undertrained" as "train it longer" — that has been measured three times
+&#x20; and makes it worse.\*\* See BUILD_LOG's 2026-08-28 Phase 0 close-out entry.
 &#x20; (a) \*\*`--j1-recheck`: uniform regression; the gap is currently
 &#x20; UNMEASURABLE.\*\* All four combos now land in a narrow 121-125s band —
 &#x20; `(3,2,3)` 4/4 seeds spiking (was 2/8 at Stage 4), `(3,2,4)` 4/4 (was 1/8),
@@ -806,11 +852,17 @@ Pause and ask the user rather than proceeding when:
 &#x20; because `j1=3` improved — because `j1=4` degraded and everything converged
 &#x20; to one bad band. Nothing can be concluded about the original gap from this;
 &#x20; re-test once `shared_policy` provides a budget-matched comparator.
-&#x20; UNVERIFIED side-note worth checking later: Stage 4's spikes sat at 119-120s,
-&#x20; just BELOW `STARVATION_CEILING_S = 120` (and were confirmed then to fire
-&#x20; zero overrides), whereas these sit at 121-125s, just ABOVE it — consistent
-&#x20; with the ceiling now actually engaging, but the `--j1-recheck` harness does
-&#x20; not capture override counts so this has not been confirmed.
+&#x20; Side-note: Stage 4's spikes sat at 119-120s, just BELOW
+&#x20; `STARVATION_CEILING_S = 120` (and were confirmed then to fire zero
+&#x20; overrides), whereas these sit at 121-125s, just ABOVE it — consistent with
+&#x20; the ceiling now actually engaging.
+&#x20; \*\*NOW CONFIRMED (2026-08-28) — this was recorded here as "UNVERIFIED /
+&#x20; has not been confirmed"; it is neither any more.\*\* The `--j1-recheck`
+&#x20; harness genuinely does not capture override counts, but
+&#x20; `reward_term_pre51k.json` does: at 51,624 the same 12 pinned pairs fire
+&#x20; `ovrS` 1.42 per run (vs 0.00 for Stage 4). The ceiling IS engaging at
+&#x20; Stage 5 and was not at Stage 4. Confirmed answer lives in BUILD_LOG's
+&#x20; 2026-08-28 Phase 0 close-out entry, section 2.
 &#x20; (b) \*\*`--emergency-recheck`: first non-zero proactive handling ever
 &#x20; recorded.\*\* 11/15 override-firing, against Stage 4's 15/15 baseline.
 &#x20; Of the 4 non-firing runs, \*\*2 are confirmed clean\*\* (`(4,3,2)` seed 42,
@@ -1003,8 +1055,18 @@ Pause and ask the user rather than proceeding when:
 &#x20; `Tier0Controller.act()`'s `decisions` return + `info["safety_overrides"]`
 &#x20; + `info["reward_breakdown"]`, emitting the frozen §12.1 / §12.2 shapes.
 &#x20; Phase 8's `explainability/{decision_log,narrator,query_interface}.py`
-&#x20; replace the adapter; the wire schema does not move. Open items for the
-&#x20; Phase 8 session, each marked `# PHASE 8 SEAM` in code: (1) the sixth
+&#x20; replace the adapter; the wire schema does not move.
+&#x20; \*\*STATUS UPDATE (2026-08-28): PHASE 8 HAS LANDED (commit `9cf19af`).\*\* This
+&#x20; bullet was written while it was still in flight and described it as pending.
+&#x20; The three `explainability/` modules and `coordinator/` now exist with their
+&#x20; done-bar verified, and item (1) below is CLOSED — `"rl_policy"` is confirmed
+&#x20; final and asserted in `decision_log._selftest`. Items (2) and (3) remain
+&#x20; open. The adapter in `backend/sim_runner.py` has NOT yet been swapped out for
+&#x20; the real modules — that reconciliation is still to do, and is the actual
+&#x20; remaining work behind this seam. §11.2's `clearance_time_s` was BUILT
+&#x20; correctly by Phase 8 (per-junction attribution, generalised from B2) — the
+&#x20; PHASE 8 WARNING below is satisfied, not outstanding.
+&#x20; Original open items, each marked `# PHASE 8 SEAM` in code: (1) the sixth
 &#x20; `reason` value for a no-override RL decision is used as `"rl_policy"`
 &#x20; (Session 2's stated string) — confirm and finalise; (2) §12.2 defines
 &#x20; only 4 narration templates — `starvation_ceiling` and `rl_policy` have

@@ -748,6 +748,11 @@ unchanged; `run_backend_smoke.py`'s no-SUMO check 3b shows `act(lane_weights=
 {"J1_e0":10,"J1_w0":10})` flips J1's chosen phase 0→1 while the unbiased call is
 bit-identical to before.
 
+> **[SUPERSEDED — see the 2026-08-28 "4a CHECKPOINT BAKE-OFF" entry below.]** The
+> checkpoint named in the Decision immediately following is no longer the deployed
+> default; it is now `stage4/psychoflow_stage4_153600_steps_final.zip`. Pointer only —
+> the original entry text is unedited and records what was decided at the time.
+
 **Decision:** Auto-mode default checkpoint = `training/checkpoints/
 stage5_graph_attention/psychoflow_stage5_51624_steps_final.zip`, `deterministic=
 True`. **Why:** the §9.5 KEPT `graph_attention` Stage 5 decision checkpoint;
@@ -820,6 +825,13 @@ returns the full §13.1 field set with per-lane wait/counts/starvation;
 graph_attention checkpoint loads and drives auto mode
 (`MaskableActorCriticPolicy`). Regression: `python -m env.reward`,
 `python -m safety.validator` still pass after the `rule_based.py` change.
+
+> **[SUPERSEDED — see the 2026-08-28 "4a CHECKPOINT BAKE-OFF" entry below.]** "The
+> graph_attention checkpoint loads and drives auto mode" was true when this was
+> verified; auto mode now loads and drives the Stage 4 SINGLE-AGENT checkpoint
+> (`FlattenExtractor`, not `GraphAttentionExtractor`). The 21/21 done-bar result
+> above still stands — it was independently re-run against the new default and
+> passed unchanged. Pointer only; the original entry text is unedited.
 
 **Note (not mine):** the working tree also shows untracked `coordinator/`,
 `explainability/`, `training/scripts/checkpoint_bakeoff.py` and a one-character
