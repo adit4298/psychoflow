@@ -66,14 +66,20 @@ TOL = 1e-9
 # -------------------------------------------------------------------------
 # contamination screen
 # -------------------------------------------------------------------------
-def training_key_set() -> set[str]:
+def training_key_set(monitor_dir: Path | None = None) -> set[str]:
+    """Every scenario the checkpoint under test actually trained on.
+
+    Reads EVERY monitor*.csv in the directory, not a hardcoded pair — a
+    resumed run writes one per burst (graph_attention has five), and missing
+    one would under-report contamination, which fails in the dangerous
+    direction.
+    """
     keys = set()
-    for f in ("monitor.csv", "monitor_burstB.csv.monitor.csv"):
-        p = STAGE4_DIR / f
-        if not p.exists():
-            continue
+    for p in sorted((monitor_dir or STAGE4_DIR).glob("monitor*.csv*")):
         lines = [ln for ln in p.open() if not ln.startswith("#")]
         for row in csv.DictReader(lines):
+            if not row.get("emergency_route"):
+                continue  # pre-Stage-4 logging: no emergency columns
             keys.add(f"{row['lane_counts']}|{float(row['density_mult_corridor']):.9f}"
                      f"|{float(row['density_mult_cross']):.9f}|{row['emergency_route']}"
                      f"|{float(row['emergency_depart_s']):.6f}")
@@ -90,8 +96,8 @@ def eval_key(seed: int) -> str:
             f"|{env._emergency_depart_s:.6f}")
 
 
-def screen(seeds: list[int]) -> dict[int, bool]:
-    train = training_key_set()
+def screen(seeds: list[int], monitor_dir: Path | None = None) -> dict[int, bool]:
+    train = training_key_set(monitor_dir)
     return {s: (eval_key(s) in train) for s in seeds}
 
 
@@ -167,13 +173,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", default="1,2,3,5,7,10,13,21,42,99,123,777")
     ap.add_argument("--random-reps", type=int, default=2)
+    ap.add_argument("--checkpoint", default=str(CKPT))
+    ap.add_argument("--monitor-dir", default=str(STAGE4_DIR),
+                    help="the checkpoint's OWN training record, for the screen")
+    ap.add_argument("--label", default="STAGE4 153600")
+    ap.add_argument("--skip-random", action="store_true",
+                    help="reuse an already-committed control on the same seeds")
+    ap.add_argument("--out", default=str(OUT))
     args = ap.parse_args()
     seeds = [int(s) for s in args.seeds.split(",")]
 
     print("=" * 92)
     print("CONTAMINATION SCREEN (§15.4: assert disjointness programmatically)")
     print("=" * 92)
-    flags = screen(seeds)
+    flags = screen(seeds, Path(args.monitor_dir))
     for sd, hit in flags.items():
         print(f"  seed {sd:>4}: {'*** TRAINING SCENARIO — will be reported apart ***' if hit else 'held-out'}")
     clean = [s for s in seeds if not flags[s]]
@@ -181,36 +194,48 @@ def main():
     print(f"\n  held-out seeds: {clean}")
     print(f"  contaminated  : {dirty}")
 
-    model = MaskablePPO.load(str(CKPT))
-    results = {}
+    print(f"\n  screened against: {args.monitor_dir}")
+    print(f"  checkpoint under test: {args.checkpoint}")
 
-    rows_all = run_condition("STAGE4 153600", lambda: ppo_picker(model), seeds)
+    model = MaskablePPO.load(args.checkpoint)
+    results = {}
+    lab = args.label
+
+    rows_all = run_condition(lab, lambda: ppo_picker(model), seeds)
     by_seed = {r["seed"]: r for r in rows_all}
-    results["stage4_all"] = summarize("STAGE4", rows_all, " [ALL SEEDS]")
+    results["stage4_all"] = summarize(lab, rows_all, " [ALL SEEDS]")
     results["stage4_heldout"] = summarize(
-        "STAGE4", [by_seed[s] for s in clean], " [HELD-OUT ONLY]")
+        lab, [by_seed[s] for s in clean], " [HELD-OUT ONLY]")
     if dirty:
         results["stage4_contaminated"] = summarize(
-            "STAGE4", [by_seed[s] for s in dirty], " [CONTAMINATED ONLY]")
+            lab, [by_seed[s] for s in dirty], " [CONTAMINATED ONLY]")
 
     rnd_rows = []
-    for rep in range(args.random_reps):
+    for rep in range(0 if args.skip_random else args.random_reps):
         rng = random.Random(5000 + rep)
         rnd_rows += run_condition(f"RANDOM control rep{rep + 1}",
                                   lambda r=rng: random_picker(r), seeds)
     rnd_by = {}
     for r in rnd_rows:
         rnd_by.setdefault(r["seed"], []).append(r)
+    if args.skip_random:
+        prev = json.loads(Path(str(OUT)).read_text())
+        rnd_rows = prev["random_rows"]
+        rnd_by = {}
+        for r in rnd_rows:
+            rnd_by.setdefault(r["seed"], []).append(r)
+        print("\n--- RANDOM control: REUSED from stage4_proposal.json "
+              "(same 12 seeds, same STAGES[4] config) ---")
     results["random_all"] = summarize("RANDOM", rnd_rows, " [ALL SEEDS]")
     results["random_heldout"] = summarize(
         "RANDOM", [r for s in clean for r in rnd_by.get(s, [])], " [HELD-OUT ONLY]")
 
     print("\n" + "=" * 92)
-    print("SIGNIFICANCE — Stage 4 vs the random control, held-out seeds only")
+    print(f"SIGNIFICANCE — {args.label} vs the random control, held-out seeds only")
     print("=" * 92)
     a, b = results["stage4_heldout"], results["random_heldout"]
     z, p = ztest(a["served"], a["decidable"], b["served"], b["decidable"])
-    print(f"  stage4 {a['served']}/{a['decidable']} = {a['pooled_quality']:.4f}   "
+    print(f"  {args.label} {a['served']}/{a['decidable']} = {a['pooled_quality']:.4f}   "
           f"random {b['served']}/{b['decidable']} = {b['pooled_quality']:.4f}")
     print(f"  two-proportion z = {z:+.3f}   p = {p:.4f}   "
           f"{'SIGNIFICANT at 0.05' if p < 0.05 else 'NOT significant at 0.05'}")
@@ -220,7 +245,7 @@ def main():
     print("\n  RECORDED FOR COMPARISON: pooled 0.885 on 26 decidable, 3 seeds,")
     print("  11 of which came from the contaminated seed 7.")
 
-    OUT.write_text(json.dumps(
+    Path(args.out).write_text(json.dumps(
         {"summary": results, "stage4_rows": rows_all, "random_rows": rnd_rows,
          "contaminated_seeds": dirty}, indent=2))
     print(f"\nwrote {OUT}")

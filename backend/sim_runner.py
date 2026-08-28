@@ -68,8 +68,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 #
 # On the DEMO CORRIDOR (4,3,2) specifically, Stage 4 is 0 starvation events /
 # 0 overrides / 38-42s worst on all 3 seeds, where ga_51624 is 4 events /
-# 1 override / 121-125s worst. Stage 4 also leads §8's emergency proposal
-# quality (0.885 vs 0.778, _sweeps/phase0_baselines.json).
+# 1 override / 121-125s worst. THAT fairness grid is the whole deployment case.
+#
+# EMERGENCY PROPOSAL QUALITY — CORRECTED 2026-08-28, and it is NOT a pillar of
+# this decision. An earlier version of this comment cited "0.885 vs 0.778" from
+# _sweeps/phase0_baselines.json; those figures are CONTAMINATED (that harness
+# runs STAGES[4], the TRAINING config, so eval seed 7 replays Stage 4 training
+# episode 1). Re-measured held-out on 11 clean seeds of 12, same methodology
+# both sides: Stage 4 = 39/47 = 0.8298, graph_attention @154,024 = 49/64 =
+# 0.7656. The gap (0.0642) is NOT significant: z = +0.824, p = 0.410. Both do
+# beat a matched random control (z = +3.388 / p = 0.0007 and +2.904 / 0.0037).
+# Contamination inflated STAGE 4 ~8x more than graph_attention (+0.2176 vs
+# +0.0264), so cleaning narrows the gap. Treat as a non-significant directional
+# edge. Data: _sweeps/{stage4,ga154,ga102}_proposal.json.
 #
 # §9.5 IS NOT REOPENED: COORDINATION_MODE stays `graph_attention` as the MARL
 # architecture answer (attention beat shared_policy 12/12). This constant picks

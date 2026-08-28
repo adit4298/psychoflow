@@ -635,8 +635,12 @@ Pause and ask the user rather than proceeding when:
 &#x20; firmly normal (56-61s, 0% starved). This confirms the `j1=3` vs `j1=4`
 &#x20; split causally, not just correlationally: identical demand draws produce
 &#x20; opposite outcomes depending on J1's own lane count.
-&#x20; \*\*FINAL READ: CONFIRMED, narrowly scoped to `(3,2,3)` and `(3,2,4)`
-&#x20; specifically — do NOT generalize to "`j1=3` combos" as a category.\*\*
+&#x20; \*\*DOWNGRADED 2026-08-28 — the `j1=3` framing was a SAMPLING ARTIFACT.
+&#x20; Read the correction at the end of this bullet BEFORE acting on the
+&#x20; "FINAL READ" paragraph below, which is retained for history but is no
+&#x20; longer the current reading.\*\*
+&#x20; \*\*FINAL READ \[SUPERSEDED\]: CONFIRMED, narrowly scoped to `(3,2,3)` and
+&#x20; `(3,2,4)` specifically — do NOT generalize to "`j1=3` combos" as a category.\*\*
 &#x20; The same-seed causal test (identical demand draw, opposite outcome on
 &#x20; `j1=3` vs `j1=4`) confirms this is a genuine j1-capacity effect for
 &#x20; THESE TWO combos, not coincidence, not an isolated seed-1 draw, and not
@@ -706,6 +710,153 @@ Pause and ask the user rather than proceeding when:
 &#x20; the shared-policy fallback, making it a real test of whether attention
 &#x20; earns its complexity, not just a box to check. Not investigating further
 &#x20; before Stage 5 — bounded to the two checks above by design.
+&#x20; \*\*CORRECTION (2026-08-28, Stage 4 audit) — the `j1=3` FRAMING IS A
+&#x20; SAMPLING ARTIFACT AND IS WITHDRAWN. The measurements above all stand;
+&#x20; the CATEGORY they were read as evidence for does not.\*\*
+&#x20; What the record said: "`(3,2,3)` is CONFIRMED REPEATABLE (2/8 seeds)"
+&#x20; and "a confirmed `j1=3`-specific vulnerability". What refutes it: a
+&#x20; sweep of \*\*ALL 27 lane-count combos × seeds {1,7,42} = 81 episodes\*\*
+&#x20; against `psychoflow_stage4_153600_steps_final.zip`
+&#x20; (`training/scripts/stage4_scrutiny.py --topology`, raw data
+&#x20; `_sweeps/stage4_topology_*.json`). Episodes containing at least one
+&#x20; starvation event, split by `j1`:
+&#x20; | `j1`=2 | `j1`=3 | `j1`=4 |
+&#x20; |---|---|---|
+&#x20; | \*\*4/27\*\* | 3/27 | 2/27 |
+&#x20; \*\*`j1=3` is not the worst — `j1=2` is.\*\* Why the earlier reading went
+&#x20; wrong is structural, not arithmetic: every prior test of this item ran
+&#x20; through `evaluate_stage.py --j1-recheck`, whose matrix is four combos
+&#x20; (`(3,2,3)`/`(3,2,4)` + `j1=4` controls) chosen because `graph_attention`
+&#x20; struggled on them. That matrix contains no `j1=2` combo at all, so it
+&#x20; \*\*could not have detected a `j1=2` effect\*\* however strong. The
+&#x20; 27-combo sweep is the first measurement with the coverage to answer the
+&#x20; question. Independently corroborated by test-d0's 2026-08-28 docs audit,
+&#x20; which flagged the same coverage gap in the harness from the other end.
+&#x20; \*\*What is actually there instead — a MILD gradient in `j3`, not `j1`:\*\*
+&#x20; mean p99 of the across-lane max wait runs 41.7s / 54.1s / 63.0s for
+&#x20; `j3` = 2/3/4, and event-episodes 1/3/5. All 9 event-episodes have
+&#x20; `j3 >= j1` and 0/27 `j3 < j1` episodes have any (Fisher p=0.0257) — but
+&#x20; \*\*do not quote that split as a clean interaction\*\*: stratifying within
+&#x20; each `j3` level shows the `j1` effect holds at `j3`∈{2,3} and vanishes
+&#x20; at `j3`=4, so it is largely the `j3` effect repackaged, at n=9 per cell.
+&#x20; \*\*Magnitude is small and must be stated with the finding\*\*: worst combo
+&#x20; `(4,3,4)` is 0.67 events/episode, 0.58% starved, p99 75.7s against a 90s
+&#x20; threshold; 81/81 episodes terminate with all 4668 vehicles arrived; only
+&#x20; 3/81 fire any §10 override. \*\*Status: NOT a confirmed hard finding —
+&#x20; a mild directional gradient, ~1 event/episode, thin per-cell n.\*\* Do not
+&#x20; re-promote it to a "confirmed vulnerability" without a wider seed set.
+&#x20; \*\*The harness reproduces the historical record exactly\*\*, so this
+&#x20; corrects the INTERPRETATION and not the data: all 8
+&#x20; `STAGE4_J1_REFERENCE` `worst_wait` values reproduce with delta +0.0, and
+&#x20; the 4a `stage4_153600 (4,3,2)` seed-7 row reproduces bit-for-bit on all
+&#x20; 9 fields.
+
+\- \*\*Stage 4 @153,600 has NO weak topology shape, does NOT collapse late,
+&#x20; and deterministic is the right deployment setting (2026-08-28 audit,
+&#x20; 290 episodes).\*\* Ran because Stage 4 became the deployed checkpoint on a
+&#x20; 4-combo, density-pinned, no-emergency grid and had never been stressed.
+&#x20; Commands: `python -m training.scripts.stage4_scrutiny --topology |
+&#x20; --tier0 | --curve | --density | --emergency | --detstoch` (shardable via
+&#x20; `--shard i/n`; `--ckpt` swaps the checkpoint under test).
+&#x20; \*\*(a) Topology\*\*: all 27 combos clean — see the correction above.
+&#x20; \*\*(b) Density\*\* {0.7,1.0,1.3}: events 0.00/0.11/0.44 per episode, p99
+&#x20; 44.2/46.4/53.7s, \*\*ovrS=0 at every level\*\*, 27/27 terminate. The demo
+&#x20; corridor `(4,3,2)` is 0.00 events at ALL three densities.
+&#x20; \*\*(c) Emergencies ON\*\* (`spawn_emergencies=True`, which 4a pinned off):
+&#x20; 11/12 cells zero events, 12/12 terminate. Fairness does not degrade when
+&#x20; emergencies are enabled.
+&#x20; \*\*(d) NO post-peak collapse\*\* — unlike `graph_attention` after 51,624.
+&#x20; Stage 4's own curve 107,400 -> 153,600 trends UP in reward (1.226 ->
+&#x20; 1.354). A full 81-episode paired re-run of `137640` against the deployed
+&#x20; `153600` gives 137640 better on `starved_pct`/p90/p99/`worst_wait`/reward
+&#x20; and worse on mean event count, \*\*paired sign test p=0.58 — not
+&#x20; significant\*\*. No evidence the deployment choice is wrong; no
+&#x20; established better alternative. Do not swap on this data alone.
+&#x20; \*\*(e) Deterministic beats stochastic on BOTH reward AND tails\*\* (reward
+&#x20; 1.358 vs 1.258; p99 33.7s vs 45.5s, model loaded once and looped). So
+&#x20; \*\*Stage 4 has no reward/fairness tension\*\* — the opposite of the
+&#x20; `graph_attention` det/stoch entry, where the two disagreed. The
+&#x20; `deterministic=True` deployment setting is correct on both axes.
+&#x20; \*\*(f) NOT a knife-edge\*\* — the inverse of the `worst_wait` threshold
+&#x20; artifact was specifically hunted (a policy scoring a clean 0.00 only
+&#x20; because its waits sit just UNDER 90s). Median p99 is 50s, only 8/81
+&#x20; episodes reach p99 >= 80s, and \*\*0.106% of steps\*\* fall in the 70-90s
+&#x20; approach band. The near-zero starvation counts reflect genuine margin,
+&#x20; not luck. `RichProbe` in `stage4_scrutiny.py` carries this
+&#x20; instrumentation; keep reporting it alongside any threshold metric.
+
+\- \*\*BOUNDED CAVEAT on 4a's "matches Tier 0's fairness while clearing
+&#x20; traffic better" — TRUE on 4a's four combos, FALSE on six others. Does
+&#x20; NOT reopen the deployment decision.\*\* Tier 0 was run on the six combos
+&#x20; where Stage 4 showed the most starvation, same seeds, identical
+&#x20; scenarios (`--tier0`, raw data `_sweeps/stage4_tier0_control.json`):
+&#x20; | | Stage 4 | Tier 0 |
+&#x20; |---|---|---|
+&#x20; | episodes with an event | \*\*7/18\*\* | \*\*0/18\*\* |
+&#x20; | mean events/episode | 0.50 | \*\*0.00\*\* |
+&#x20; | mean p99 wait | 67.0s | \*\*35.4s\*\* |
+&#x20; | mean reward | \*\*1.3450\*\* | 1.2042 |
+&#x20; So on `(2,3,2)`, `(2,3,3)`, `(2,4,3)`, `(3,2,4)`, `(3,3,4)`, `(4,3,4)`
+&#x20; \*\*Tier 0 is strictly fairer and Stage 4 strictly faster\*\* — the two
+&#x20; metrics genuinely disagree, and "matches Tier 0's fairness" is too
+&#x20; strong outside 4a's own matrix. This ALSO settles the "inherently hard
+&#x20; topology vs policy gap" question the same way Stage 2 settled `(4,2,4)`:
+&#x20; Tier 0 solves all six cleanly, so these are \*\*not\*\* hard topologies —
+&#x20; it is a real, mild policy gap. \*\*Why it does not reopen 4a:\*\* Stage 4
+&#x20; still wins reward on all six, Tier 0 was already fairer than Stage 4 on
+&#x20; 4a's own dispersion metrics (0.00 events, `wait_var` 50.7 vs 72.2), and
+&#x20; the deployment case rests on the demo corridor where Stage 4 is 0.00
+&#x20; events. \*\*Tier 0 remains an extremely strong fairness floor\*\* — say so
+&#x20; plainly rather than implying the learned policy dominates it.
+
+\- \*\*CONTAMINATION: `phase0_baselines.py` EVALUATES ON TRAINING SCENARIOS.
+&#x20; Every proposal-quality figure it produced is partly a memorisation
+&#x20; score. Corrected 2026-08-28; this is the real-world proof that §15.4's
+&#x20; held-out set must actually be BUILT before Phase 12.\*\*
+&#x20; \*\*The mechanism:\*\* `phase0_baselines.py` runs `STAGES[4]` — the full
+&#x20; TRAINING config — and calls `reset(seed=s)`, which does
+&#x20; `self._rng = random.Random(s)`. Training used `--seed 7` with the same
+&#x20; config, so \*\*eval seed 7 reproduces TRAINING EPISODE 1 exactly\*\* — same
+&#x20; lane counts, both density multipliers to 16 digits, same ambulance route
+&#x20; and depart time. Verified without SUMO (`_draw_scenario()` is rng-pure)
+&#x20; by `python -m training.scripts.stage4_contamination`. \*\*Both Stage 4 and
+&#x20; `graph_attention` are hit, on the same seed\*\* — they share a scenario
+&#x20; sequence (the 2026-08-18 burst-replay entry). Seed 7 supplied \*\*11 of
+&#x20; the 26 decidable steps (42%)\*\* behind the recorded 0.885.
+&#x20; \*\*Re-measured on 12 seeds, screened, held-out only\*\*
+&#x20; (`python -m training.scripts.stage4_proposal --checkpoint ... --monitor-dir ...`;
+&#x20; raw data `_sweeps/stage4_proposal.json`, `ga154_proposal.json`,
+&#x20; `ga102_proposal.json`):
+&#x20; | checkpoint | recorded (contaminated, 3 seeds) | \*\*held-out (11 seeds)\*\* | lift over own chance |
+&#x20; |---|---|---|---|
+&#x20; | Stage 4 @153,600 | 0.885 (26 decidable) | \*\*0.8298\*\* (47) | +0.1915 |
+&#x20; | `graph_attention` @154,024 | 0.778 (27) | \*\*0.7656\*\* (64) | +0.1641 |
+&#x20; | `graph_attention` @102,824 | 0.767 | \*\*0.7143\*\* (56) | +0.0893 |
+&#x20; \*\*What survives:\*\* both beat the matched random control — Stage 4
+&#x20; z=+3.388 p=0.0007, `graph_attention` z=+2.904 p=0.0037 — so "meaningfully
+&#x20; above chance" holds for both, and the random control's own lift is
+&#x20; −0.0155 ≈ 0, revalidating the analytic chance baseline.
+&#x20; \*\*What does NOT survive — the Stage-4-vs-`graph_attention` GAP.\*\*
+&#x20; Recorded +0.107; clean \*\*+0.0642, z=+0.824, p=0.4099 — NOT
+&#x20; SIGNIFICANT.\*\* \*\*Stop citing "0.885 vs 0.778" as though it separates the
+&#x20; two checkpoints\*\*; at this n it cannot. 4a's deployment decision is
+&#x20; unaffected — it rested on the fairness grid, not on this metric.
+&#x20; \*\*Contamination was NOT symmetric in effect, so do not call the residual
+&#x20; gap "conservative".\*\* Lift on the contaminated seed minus lift held-out:
+&#x20; Stage 4 \*\*+0.2176\*\*, `graph_attention` \*\*+0.0264\*\* — contamination
+&#x20; inflated Stage 4 roughly 8x more, i.e. the recorded gap was inflated in
+&#x20; Stage 4's favour. (The containment premise itself IS confirmed by exact
+&#x20; tuple comparison — Stage 4's 64 training scenarios are a strict subset of
+&#x20; `graph_attention`'s 81 — but containment says nothing about which policy
+&#x20; benefits more, and measurement says Stage 4 did.)
+&#x20; \*\*Second-order caveat, worth keeping:\*\* `proposal_quality`'s denominator
+&#x20; is ENDOGENOUS — a policy that clears an ambulance fast collects FEWER
+&#x20; decidable steps. Stage 4 drew 1-14 per episode where the random control
+&#x20; drew up to 36 on identical scenarios, so pooled quality weights episodes
+&#x20; by how badly the policy did. The analytic `chance_quality` handles this
+&#x20; (it is computed at the policy's own visited states); raw pooled
+&#x20; comparisons across conditions do not. Report pooled AND mean-of-seeds;
+&#x20; violent disagreement between them is a sample-size symptom.
 
 \- \*\*WATCH-ITEM (Phase 6, added Stage 3): `(2,4,2)` density-sensitive
 &#x20; degradation at high load.\*\* Distinct from the `(4,2,4)` bottleneck item
@@ -1007,7 +1158,17 @@ Pause and ask the user rather than proceeding when:
 &#x20; | ga_154024 | 132.75 | 592.9 | 25.82 | 0.2414 | 15.75 |
 &#x20; On the DEMO CORRIDOR (4,3,2) Stage 4 is 0 events / 0 overrides / 38-42s
 &#x20; worst on all 3 seeds, vs ga_51624's 4 / 1 / 121-125s. Stage 4 also leads
-&#x20; §8.2 emergency proposal quality (0.885 vs 0.778).
+&#x20; §8.2 emergency proposal quality — but see the correction immediately below
+&#x20; before citing a number for it.
+&#x20; \*\*CORRECTED 2026-08-28 — this bullet previously cited "0.885 vs 0.778".
+&#x20; That pair is CONTAMINATED; do not cite it.\*\* Clean held-out figures are
+&#x20; Stage 4 \*\*0.8298\*\* vs `graph_attention` @154,024 \*\*0.7656\*\*, and the gap
+&#x20; between them is \*\*NOT significant\*\* (z = +0.824, p = 0.410). \*\*This metric is
+&#x20; a non-significant directional edge and was never a reason Stage 4 was
+&#x20; deployed\*\* — 4a rests on the fairness grid above. Full derivation, the
+&#x20; three-checkpoint table and the asymmetric-contamination finding live in the
+&#x20; proposal-quality contamination bullet earlier in this section; deliberately
+&#x20; NOT duplicated here, so the two cannot drift apart.
 &#x20; \*\*§9.5 IS NOT REOPENED\*\* — `COORDINATION_MODE` stays `graph_attention` as
 &#x20; the MARL-architecture answer (attention beat shared_policy 12/12). Which
 &#x20; CHECKPOINT the backend serves is a separate axis from which MARL extractor

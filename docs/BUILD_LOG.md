@@ -1006,6 +1006,27 @@ policy running in the live demo is SINGLE-AGENT PPO, not MARL.** The MARL work r
 a real, measured result (attention vs shared_policy) but must not be described as what
 is driving the corridor on stage.
 
+> **[CORRECTED 2026-08-28 — the two proposal-quality figures in the paragraph below are
+> CONTAMINATED; do not cite them.]** `phase0_baselines.py` runs `STAGES[4]`, the TRAINING
+> config, so eval seed 7 reproduces Stage 4 training episode 1 exactly and supplied 11 of
+> the 26 decidable steps behind 0.885 (test-be's `stage4_contamination.py`). Re-measured
+> held-out, 11 clean seeds of 12 run, contamination-screened, same methodology both sides:
+> **Stage 4 = 39/47 = 0.8298** (lift +0.1915), **`graph_attention` @154,024 = 49/64 =
+> 0.7656** (lift +0.1641); `graph_attention` @102,824 = 40/56 = 0.7143.
+> **The gap is NOT statistically significant** — 0.0642, two-proportion z = +0.824,
+> p = 0.410 (independently recomputed). Both still beat the matched random control
+> (Stage 4 z = +3.388 p = 0.0007; GA154024 z = +2.904 p = 0.0037), so "both are
+> meaningfully above chance" stands for both.
+> **The direction survives; the magnitude drops ~40% and the ranking is not established.**
+> Contamination measurably favoured STAGE 4, not `graph_attention`: inflation over
+> held-out was **+0.2176 for Stage 4 vs +0.0264 for `graph_attention`**, ~8x. So the
+> recorded gap was inflated in Stage 4's favour and cleaning it NARROWS the gap.
+> This does not reopen 4a — the deployment case rests on the fairness grid, not on
+> proposal quality — but "Stage 4 also leads emergency proposal quality" must be stated
+> as a **non-significant directional edge, not a supporting pillar.** Raw data:
+> `_sweeps/{stage4,ga154,ga102}_proposal.json`. Pointer only — the original text below is
+> unedited and records what was believed at the time.
+
 **Not measured here:** emergency behaviour (config pins `spawn_emergencies=False` to
 isolate fairness). The existing split figures still favour Stage 4 — proposal quality
 0.885 vs `graph_attention`'s 0.778, `ovrE` 5 vs 7 (`_sweeps/phase0_baselines.json`) —
@@ -1200,3 +1221,169 @@ Session 3's Phase 9 seam note (CLAUDE.md §8) listed three items handed to Phase
 and exempted from the phase-key structural check. Override classification order
 (emergency outranks starvation, then lowest corridor index) matches Phase 9's
 `overrides_by_j` reconciliation.
+
+## 2026-08-28 — STAGE 4 ADVERSARIAL AUDIT: the `j1=3` vulnerability is a sampling artifact, and every `phase0_baselines` proposal-quality figure is partly a memorisation score
+
+Stage 4 @153,600 became the deployed checkpoint (4a) on a 4-combo, density-pinned,
+no-emergency grid, having never received the scrutiny `graph_attention` got. This
+entry records that audit: **290 episodes across 9 sweeps**. Harnesses and raw data
+committed in `d91c308` (`training/scripts/stage4_{scrutiny,proposal,contamination}.py`,
+`_sweeps/stage4_*.json`, `_sweeps/ga{154,102}_proposal.json`). Measurement only —
+env / reward / validator imported read-only, `LaneMetricProbe` imported from
+`checkpoint_bakeoff` rather than reimplemented.
+
+**Harness trust established BEFORE any claim was drawn**, because a rewritten harness
+that silently disagrees would invalidate every comparison while printing plausible
+numbers (CLAUDE.md §8's named failure mode). Three exact cross-checks: the 4a
+`stage4_153600 (4,3,2)` seed-7 row reproduces **bit-for-bit on all 9 fields**
+(`mean_reward=1.369126205607078`, `wait_var=35.71695758757162`); **all 8**
+`STAGE4_J1_REFERENCE` `worst_wait` values reproduce with **delta +0.0**; and
+`phase0_baselines`' Stage 4 seed-1 row reproduces (13/13, chance 0.692).
+
+---
+
+### 1. The `j1=3` vulnerability is a SAMPLING ARTIFACT. Measurements stand; the category does not.
+
+**Decision:** downgrade the Stage-2 watch-item's "CONFIRMED REPEATABLE `j1=3`
+vulnerability" to a mild, unconfirmed `j3` gradient.
+**Why:** a sweep of **all 27 lane-count combos x seeds {1,7,42} = 81 episodes** —
+the first measurement with the coverage to answer the question. Episodes containing
+at least one starvation event, by `j1`: **`j1=2` -> 4/27, `j1=3` -> 3/27,
+`j1=4` -> 2/27**. `j1=3` is not the worst; `j1=2` is. The earlier reading failed
+structurally, not arithmetically: every prior test ran through
+`evaluate_stage.py --j1-recheck`, whose four-combo matrix was chosen *because
+`graph_attention` struggled on it* and contains no `j1=2` combo at all, so it could
+not have detected a `j1=2` effect however strong. test-d0's same-day docs audit
+independently flagged the same coverage gap from the other end.
+
+What is actually present is a **mild gradient in `j3`**: mean p99 of the across-lane
+max wait 41.7 / 54.1 / 63.0s for `j3` = 2/3/4, event-episodes 1/3/5. All 9
+event-episodes have `j3 >= j1` and 0/27 `j3 < j1` episodes have any (Fisher
+p=0.0257) — but that split is **not** quoted as a clean interaction: stratifying
+within each `j3` level shows the `j1` effect holds at `j3` in {2,3} and vanishes at
+`j3`=4, so it is largely the `j3` effect repackaged, at n=9 per cell.
+
+**Magnitude, stated with the finding:** worst combo `(4,3,4)` is 0.67
+events/episode, 0.58% starved, p99 75.7s against a 90s threshold; **81/81 episodes
+terminate with all 4668 vehicles arrived**; only 3/81 fire any §10 override.
+Status: a mild directional gradient, NOT a confirmed hard finding.
+**Deviates from plan?** No. Corrects an interpretation, not a measurement or a
+locked decision.
+
+### 2. Tier 0 is strictly fairer on six combos — a bounded caveat on 4a, not a reopening.
+
+Tier 0 on the six combos where Stage 4 showed most starvation, identical scenarios:
+**Tier 0 0/18 event-episodes, Stage 4 7/18**; mean p99 35.4s vs 67.0s; mean reward
+1.2042 vs **1.3450**. So on `(2,3,2)`, `(2,3,3)`, `(2,4,3)`, `(3,2,4)`, `(3,3,4)`,
+`(4,3,4)` Tier 0 is strictly fairer and Stage 4 strictly faster. This also settles
+"inherently hard topology vs policy gap" the way Stage 2 settled `(4,2,4)`: Tier 0
+solves all six cleanly, so it is a real (mild) policy gap.
+4a's "matches Tier 0's fairness while clearing traffic better" is **true on 4a's own
+four combos and too strong outside them**. Does not reopen the deployment decision —
+Stage 4 wins reward on all six, Tier 0 was already fairer on 4a's own dispersion
+metrics, and the demo corridor is 0.00 events for Stage 4. Tier 0 remains an
+extremely strong fairness floor.
+
+### 3. `phase0_baselines.py` evaluates on TRAINING scenarios. Both checkpoints affected.
+
+**Decision:** every proposal-quality figure that harness produced is partly a
+memorisation score, and the Stage-4-vs-`graph_attention` gap does not survive
+cleaning.
+**Why:** `phase0_baselines.py` runs `STAGES[4]` — the full TRAINING config — and
+calls `reset(seed=s)`, which sets `self._rng = random.Random(s)`. Training used
+`--seed 7` with the same config, so **eval seed 7 reproduces TRAINING EPISODE 1
+exactly** (lane counts, both density multipliers to 16 digits, ambulance route and
+depart time). Verified without SUMO — `_draw_scenario()` is rng-pure. Both Stage 4
+and `graph_attention` are hit on the same seed, since they share a scenario sequence
+(2026-08-18 burst-replay entry). Seed 7 supplied **11 of the 26 decidable steps
+(42%)** behind the recorded 0.885.
+
+Re-measured on 12 seeds, screened, held-out only, matched random control:
+
+| checkpoint | recorded (contaminated, 3 seeds) | held-out (11 seeds) | lift over own chance |
+|---|---|---|---|
+| Stage 4 @153,600 | 0.885 (26 decidable) | **0.8298** (47) | +0.1915 |
+| `graph_attention` @154,024 | 0.778 (27) | **0.7656** (64) | +0.1641 |
+| `graph_attention` @102,824 | 0.767 | **0.7143** (56) | +0.0893 |
+
+**Survives:** both beat the random control (Stage 4 z=+3.388 p=0.0007;
+`graph_attention` z=+2.904 p=0.0037), and the control's own lift is -0.0155 ~ 0,
+revalidating the analytic chance baseline.
+**Does not survive — the GAP.** Recorded +0.107; clean **+0.0642, z=+0.824,
+p=0.4099, NOT significant.** "0.885 vs 0.778" must stop being cited as separating
+the two checkpoints.
+**Contamination was not symmetric in effect.** Lift on the contaminated seed minus
+lift held-out: Stage 4 **+0.2176**, `graph_attention` **+0.0264** — it inflated
+Stage 4 ~8x more, so the recorded gap was inflated *in Stage 4's favour* and
+cleaning it NARROWS the gap. An earlier cross-session framing that a surviving Stage
+4 lead would therefore be "conservative" is **refuted by this measurement** and must
+not be used. The containment premise under it IS separately confirmed by exact tuple
+comparison — Stage 4's 64 training scenarios are a strict subset of
+`graph_attention`'s 81 — but containment says nothing about which policy benefits
+more, and measurement says Stage 4 did.
+**Deviates from plan?** No. 4a's deployment decision is untouched: it rested on the
+fairness grid, not on this metric.
+
+**Also superseded, flagged here rather than by editing that entry (append-only):**
+the 2026-08-18 "CORRECTION to the Stage 4 §16 emergency-priority entry" cites 0.885
+in three places — its results table, its "coarse metric INVERTS the ranking"
+paragraph, and its "HONEST LIMIT" paragraph. All three are contaminated figures and
+should be read against the held-out table above. That entry's own closing
+instruction was *"the claim supported at this n is only the one against RANDOM...
+widen the seed set before ranking the two policies."* **This audit did exactly that,
+and the result vindicates the caution: widened to 12 screened seeds, the Stage 4 vs
+`graph_attention` ranking is NOT established (p=0.410), while both remain
+significant against RANDOM.** The self-limit was correct and is now discharged.
+
+### 4. Clean bill on everything else that was checked
+
+  - **Density** {0.7,1.0,1.3}: 0.00/0.11/0.44 events per episode, p99 44.2/46.4/53.7s,
+    **ovrS=0 at every level**, 27/27 terminate. Demo corridor 0.00 events at all three.
+  - **Emergencies ON** (4a pinned them off): 11/12 cells zero events, 12/12 terminate.
+  - **No post-peak collapse** — unlike `graph_attention` after 51,624. Stage 4's own
+    curve 107,400 -> 153,600 trends UP in reward (1.226 -> 1.354). A full 81-episode
+    paired re-run of `137640` vs the deployed `153600` favours 137640 on
+    `starved_pct`/p90/p99/`worst_wait`/reward and not on event count, **paired sign
+    test p=0.58 — not significant**. No evidence the deployment choice is wrong and no
+    established better alternative.
+  - **Deterministic beats stochastic on BOTH reward and tails** (1.358 vs 1.258; p99
+    33.7s vs 45.5s). **Stage 4 has no reward/fairness tension** — the opposite of the
+    `graph_attention` det/stoch finding. `deterministic=True` is correct on both axes.
+  - **Not a knife-edge.** The inverse threshold artifact was specifically hunted — a
+    policy scoring a clean 0.00 only because its waits sit just under 90s. Median p99
+    is 50s, only 8/81 episodes reach p99 >= 80s, and 0.106% of steps fall in the
+    70-90s band. The near-zero counts reflect genuine margin.
+
+### 5. Process failure recorded: this audit killed the D1 training run.
+
+The concurrent multi-SUMO sweeps caused D1 to die at 17:09:55 with
+`FatalTraCIError: Could not connect` from `psychoflow_env.py:457`, at
+`num_timesteps` 132,640 of 155,168. **Cost: ~2,640 steps.** D1 was subsequently
+restarted by another operator, resumed from its 130,000 checkpoint and **COMPLETED
+at `num_timesteps=156,624`** (final checkpoint 17:59:54, intact), so the
+data-diversity hypothesis remains testable and no result was lost.
+
+*Both this session and test-d0 initially reported this as "~37k steps lost, last
+checkpoint 95,000" — the identical error, made independently: `ls` sorts
+`psychoflow_stage5_100000_steps.zip` BEFORE `..._50000_steps.zip`, so an
+alphabetically-sorted listing ends at 95,000 while the run had actually reached
+130,000. Verified here numerically (`sort -n`): checkpoints run continuously
+5,000 -> 156,624. **Never read a numbered checkpoint series from a default
+directory listing** — sort numerically or the most recent work is invisible.*
+I did check for a running trainer first and **misread the evidence twice**: the
+process check showed a live SUMO process at 7.97 CPU which I recorded as "a stray
+sumo process", and I had separately noticed `d1_resume_train.log` with a live mtime
+and explicitly wondered whether D1 was running before talking myself out of it.
+**Rule going forward: a live `sumo` process is evidence of a running trainer until
+proven otherwise; check `_sweeps/*_train.log` mtimes, and announce multi-SUMO sweeps
+cross-session before launching.** Not restarting D1 — that is the user's call.
+
+**Verified:** all figures from the committed `_sweeps/stage4_*.json` and
+`_sweeps/ga*_proposal.json`. Harness cross-checks above are exact, not approximate.
+CLAUDE.md §8 updated in place (its own §9 invites this; BUILD_LOG stays append-only):
+the `j1=3` bullet downgraded with the superseded text retained, plus three new
+bullets — the Stage 4 audit summary, the Tier 0 fairness caveat, and the
+contamination correction. The three existing "0.885" citations (4a's "Not measured
+here" paragraph, CLAUDE.md's backend-checkpoint bullet, `backend/sim_runner.py`'s
+comment block) were deliberately NOT edited here — test-d0 owns that text and is
+correcting them.
