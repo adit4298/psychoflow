@@ -185,9 +185,22 @@ def main() -> None:
                   {"sim_time", "junction_id", "phase_selected", "score_breakdown",
                    "alternative_scores", "reason"} <= set(dec),
                   f"reason={dec['reason']!r} junction={dec['junction_id']}")
-            check("1  metrics_snapshot is §13.2-shaped",
-                  set(f["metrics_snapshot"]) ==
-                  {"avg_wait", "starvation_events_total", "throughput_total"})
+            ms = f["metrics_snapshot"]
+            check("1  metrics_snapshot is §13.2/§15.2-shaped (no avg_wait)",
+                  set(ms) == {"wait_time_variance_across_lanes", "mean_wait_max",
+                              "starvation_events_total", "throughput_total"},
+                  f"keys={sorted(ms)}")
+            check("1  §15.2 metrics populated & plausible on a live frame",
+                  isinstance(ms["wait_time_variance_across_lanes"], (int, float))
+                  and ms["wait_time_variance_across_lanes"] >= 0.0
+                  and isinstance(ms["mean_wait_max"], (int, float))
+                  and ms["mean_wait_max"] >= 0.0
+                  and ms["throughput_total"] >= 0
+                  and ms["starvation_events_total"] >= 0,
+                  f"wait_var={ms['wait_time_variance_across_lanes']} "
+                  f"mean_wait_max={ms['mean_wait_max']} "
+                  f"starv_ev={ms['starvation_events_total']} "
+                  f"thru={ms['throughput_total']}")
 
             # ---- 7: baseline swap (before we touch mode) --------------
             r_ok = client.post("/control/set_baseline_mode",
@@ -219,7 +232,8 @@ def main() -> None:
             # ---- 6: get_stats field set -----------------------------
             st = client.get("/control/get_stats").json()
             required = {"ready", "sim_time", "mode", "baseline_mode", "lanes",
-                        "avg_wait", "starvation_events_total", "throughput_total",
+                        "wait_time_variance_across_lanes", "mean_wait_max",
+                        "starvation_events_total", "throughput_total",
                         "lane_bias", "forced_emergency_lanes"}
             check("6  get_stats() returns the §13.1 field set",
                   st["ready"] and required <= set(st),

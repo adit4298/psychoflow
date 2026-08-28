@@ -35,6 +35,7 @@ STANDING RULE (CLAUDE.md §8): the env is constructed with the default
 
 from __future__ import annotations
 
+import statistics
 import threading
 import time
 import traceback
@@ -161,7 +162,11 @@ class SimRunner:
         self._step_idx = 0
         self._starved_lanes: set[str] = set()
         self._starvation_events = 0
-        self._avg_wait = 0.0
+        # §15.2 metrics — per-step samples, averaged over the episode.
+        self._step_vars: list[float] = []      # pvariance across lanes / step
+        self._step_maxes: list[float] = []     # across-lane max wait / step
+        self._wait_var = 0.0
+        self._mean_wait_max = 0.0
         self._last_voice = None  # reserved for Phase 11
 
     # ------------------------------------------------------------------
@@ -220,7 +225,10 @@ class SimRunner:
     def _reset_counters(self) -> None:
         self._starved_lanes = set()
         self._starvation_events = 0
-        self._avg_wait = 0.0
+        self._step_vars = []
+        self._step_maxes = []
+        self._wait_var = 0.0
+        self._mean_wait_max = 0.0
         self._step_idx = 0
 
     # ------------------------------------------------------------------
@@ -355,14 +363,34 @@ class SimRunner:
 
     def _update_metrics(self, info: dict) -> None:
         snap = self._env.twin.snapshot
-        waits = [r["wait_time_current"] for _j, _l, r in self._all_lanes(snap)]
-        self._avg_wait = (sum(waits) / len(waits)) if waits else 0.0
+        # §15.2 metrics — definitions verbatim from
+        # training/scripts/checkpoint_bakeoff.py::LaneMetricProbe, so the live
+        # dashboard, the eval suite and the bake-off share ONE implementation.
+        # Deliberately wait_time_max_single_vehicle, NOT wait_time_current
+        # (a per-lane SUM over vehicles, whose mean/variance track occupancy
+        # and lane count rather than fairness — see §15.2's definitions and
+        # agents/rule_based.py's "§9.1's UNITS" note).
+        waits = [r["wait_time_max_single_vehicle"]
+                 for _j, _l, r in self._all_lanes(snap)]
+        if waits:
+            self._step_maxes.append(max(waits))
+            self._step_vars.append(
+                statistics.pvariance(waits) if len(waits) > 1 else 0.0
+            )
+        self._wait_var = (
+            sum(self._step_vars) / len(self._step_vars) if self._step_vars else 0.0
+        )
+        self._mean_wait_max = (
+            sum(self._step_maxes) / len(self._step_maxes) if self._step_maxes else 0.0
+        )
 
         now_starved = {
             lane_id for _j, lane_id, r in self._all_lanes(snap)
             if r["wait_time_max_single_vehicle"] > DEFAULT_STARVATION_THRESHOLD_S
         }
-        # count each lane's ENTRY into starvation as one event (§15.2)
+        # RISING-EDGE: count each lane's ENTRY into starvation as one event
+        # (§15.2 starvation_events_count) — a lane already starved does not
+        # re-count until it drops back under the 90s threshold.
         self._starvation_events += len(now_starved - self._starved_lanes)
         self._starved_lanes = now_starved
 
@@ -385,7 +413,8 @@ class SimRunner:
                 }
                 for jid, lane_id, r in self._all_lanes(snap)
             },
-            "avg_wait": round(self._avg_wait, 4),
+            "wait_time_variance_across_lanes": round(self._wait_var, 4),
+            "mean_wait_max": round(self._mean_wait_max, 4),
             "starvation_events_total": self._starvation_events,
             "throughput_total": info["arrived_total"],
             "lane_bias": {
@@ -492,7 +521,11 @@ class SimRunner:
             "decision": decision,
             "narration": self._narrate(decision),
             "metrics_snapshot": {
-                "avg_wait": round(self._avg_wait, 4),
+                # §15.2's pinned set. avg_wait dropped (2026-08-28): it was
+                # computed from wait_time_current, a per-lane SUM, which
+                # scales with occupancy rather than fairness.
+                "wait_time_variance_across_lanes": round(self._wait_var, 4),
+                "mean_wait_max": round(self._mean_wait_max, 4),
                 "starvation_events_total": self._starvation_events,
                 "throughput_total": info["arrived_total"],
             },
