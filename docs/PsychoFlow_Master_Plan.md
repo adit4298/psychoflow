@@ -563,9 +563,12 @@ Answers "why did you do that?" by pulling the actual decision log entry (§12.1)
   "digital_twin": { ...§7.6 shape... },
   "decision": { ...§12.1 shape... },
   "narration": "Lane 3, North — selected. Wait threshold crossed.",
-  "metrics_snapshot": { "wait_time_variance_across_lanes": 41.2, "mean_wait_max": 33.6, "starvation_events_total": 1, "throughput_total": 340 }
+  "metrics_snapshot": { "wait_time_variance_across_lanes": 41.2, "mean_wait_max": 33.6, "starvation_events_total": 1, "throughput_total": 340 },
+  "responder_messages": [ { ...§11.2 shape... } ]   // ADDITIVE, key omitted entirely when empty
 }
 ```
+
+**`responder_messages` added 2026-08-29 — live since `ad9e4df`, previously undocumented here.** A list of §11.2 responder-coordination message payloads, one per emergency-clearance episode that resolved on this step. **ADDITIVE and present only when non-empty** — on the vast majority of frames the key is omitted entirely, so the frozen five-key shape above is unchanged and no consumer has to handle an empty list. `backend/sim_runner.py::_responder_messages` is the reference implementation.
 
 **`metrics_snapshot` field set updated 2026-08-28 to match §15.2's pinned definitions.** `avg_wait` was **removed**: it was computed from `wait_time_current` (TraCI `lane.getWaitingTime()`, a SUM over the vehicles on a lane — see `agents/rule_based.py`'s "§9.1's UNITS" note), so it scaled with occupancy and lane count rather than fairness, and would confound the §19 Greedy-vs-PsychoFlow side-by-side. `wait_time_variance_across_lanes` and `mean_wait_max` are computed from `wait_time_max_single_vehicle`, verbatim per `training/scripts/checkpoint_bakeoff.py::LaneMetricProbe`, so the live dashboard, the eval suite and the bake-off share one implementation. `backend/sim_runner.py::_update_metrics` is the reference for the live stream; `get_stats()` (§13.1) carries the same field set.
 
