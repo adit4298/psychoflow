@@ -936,8 +936,14 @@ Pause and ask the user rather than proceeding when:
 &#x20; (`psychoflow_stage4_153600_steps_final.zip`), chosen by the 4a bake-off —
 &#x20; see the "Backend auto-mode checkpoint" bullet below. Still unbuilt:
 &#x20; Phase 10 (frontend), Phase 11 (voice), Phase 12 (evaluation suite).
-&#x20; One background run is live: D1 (persistent-seed-counter), which tests
-&#x20; whether the post-51k collapse was data-diversity-driven.
+&#x20; D1 (persistent-seed-counter), which tests whether the post-51k collapse
+&#x20; was data-diversity-driven, has FINISHED TRAINING — it completed
+&#x20; 2026-08-28 17:59:54 at `num_timesteps=156624`
+&#x20; (`training/checkpoints/stage5_graph_attention_d1/`). No background run is
+&#x20; live. \*\*Its checkpoint has NOT yet been evaluated\*\*, so the
+&#x20; data-diversity hypothesis is still open and the three "re-evaluate once D1
+&#x20; completes" flags (this file's backend-checkpoint bullet,
+&#x20; `backend/sim_runner.py`, BUILD_LOG's 4a entry) are now actionable.
 
 \- \*\*Stage-3-era status note (2026-08-15), kept for history — SUPERSEDED by the
 &#x20; CURRENT STATUS bullet above; do not read this as the project's state.\*\*

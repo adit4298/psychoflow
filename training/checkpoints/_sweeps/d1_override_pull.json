@@ -1,0 +1,3060 @@
+{
+  "(3, 2, 4)_seed42": {
+    "worst_wait": 171.0,
+    "peak_at_sim_time": 1110.0,
+    "steps": 628,
+    "arrived": 4668,
+    "starved_pct": 46.17834394904459,
+    "n_overrides": 85,
+    "by_rule": {
+      "starvation_ceiling": 85
+    },
+    "by_outcome": {
+      "applied": 61,
+      "deferred_min_green": 24
+    },
+    "n_deferred": 24,
+    "n_above_ceiling": 85,
+    "records": [
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 145.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 145.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 425.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 510.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_0",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 895.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 945.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_1",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 965.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1000.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1005.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_1",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1010.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1015.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1020.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1035.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1040.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1040.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1045.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 1050.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 129.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1055.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 1070.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 0,
+        "lane_id": "S3_J3_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1105.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1115.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 144.0,
+        "outcome": "applied",
+        "sim_time": 1130.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1135.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 136.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1140.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 141.0,
+        "outcome": "applied",
+        "sim_time": 1145.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1150.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 1160.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 1165.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1165.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 1170.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 1185.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 1190.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 1195.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_0",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1195.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 1200.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 1205.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_2",
+        "wait_s": 137.0,
+        "outcome": "applied",
+        "sim_time": 1215.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1220.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1225.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1230.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_0",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 1255.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 122.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1285.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1290.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1290.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1295.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1295.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1305.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1310.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1315.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1315.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1320.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1330.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1340.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1345.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1350.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_0",
+        "wait_s": 138.0,
+        "outcome": "applied",
+        "sim_time": 1355.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1375.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S2_J2_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1380.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 132.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1385.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 124.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1385.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 132.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1390.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 126.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1390.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1410.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1415.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1420.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1425.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1430.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1435.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1465.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1485.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1490.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1505.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1510.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2310.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_1",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2350.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 2400.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 2490.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N1_J1_1",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2570.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J3_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2710.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2725.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2730.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 2765.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2770.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 3110.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 3120.0
+      }
+    ]
+  },
+  "(3, 2, 4)_seed1": {
+    "worst_wait": 150.0,
+    "peak_at_sim_time": 2845.0,
+    "steps": 640,
+    "arrived": 4668,
+    "starved_pct": 60.78125,
+    "n_overrides": 217,
+    "by_rule": {
+      "starvation_ceiling": 217
+    },
+    "by_outcome": {
+      "applied": 166,
+      "deferred_min_green": 51
+    },
+    "n_deferred": 51,
+    "n_above_ceiling": 217,
+    "records": [
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "S1_J1_0",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 270.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 845.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 865.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 870.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 875.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 128.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 880.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 135.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 885.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 905.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 905.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 910.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 915.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 920.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 925.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 930.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 930.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 935.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 935.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 935.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 940.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 940.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 965.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 985.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 1000.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1035.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1050.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1050.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1055.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1060.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1065.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1085.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1110.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1135.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 1140.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1145.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 132.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1155.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1160.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1165.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1175.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1180.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1185.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1185.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1190.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 1195.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1200.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1205.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1210.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1215.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1220.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1225.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1225.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 1230.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1230.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1245.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 1245.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1250.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1250.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 1255.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1255.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1260.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1260.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1265.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 1265.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1275.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1275.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1280.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1280.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 1280.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 1285.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1315.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1315.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N3_J3_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 1315.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1320.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1325.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1330.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1335.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 1340.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 2020.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2060.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2075.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2080.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2100.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 126.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2105.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2150.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2155.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 2155.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 2160.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2170.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 125.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2185.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 2190.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 2205.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 2205.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 2210.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 2225.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2235.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2240.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2240.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 126.0,
+        "outcome": "applied",
+        "sim_time": 2250.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2260.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2265.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2270.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2270.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2275.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2275.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2280.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2280.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2285.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 124.0,
+        "outcome": "applied",
+        "sim_time": 2285.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2290.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2295.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 0,
+        "lane_id": "N1_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 2300.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2305.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2310.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 2315.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2325.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 123.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2330.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2335.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 128.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2335.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2340.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2340.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2345.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2350.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 136.0,
+        "outcome": "applied",
+        "sim_time": 2350.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2355.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 136.0,
+        "outcome": "applied",
+        "sim_time": 2365.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 121.0,
+        "outcome": "applied",
+        "sim_time": 2370.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 136.0,
+        "outcome": "applied",
+        "sim_time": 2375.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 128.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2380.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 136.0,
+        "outcome": "applied",
+        "sim_time": 2390.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2395.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2400.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2405.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2410.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2410.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2415.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 127.0,
+        "outcome": "applied",
+        "sim_time": 2415.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2420.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 122.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2420.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2425.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 122.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2425.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2425.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 128.0,
+        "outcome": "applied",
+        "sim_time": 2430.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2430.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2435.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2450.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2455.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2460.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2465.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2480.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 2480.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 131.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2485.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 130.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2485.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2490.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 130.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2490.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 2510.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 2515.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 2520.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 135.0,
+        "outcome": "applied",
+        "sim_time": 2525.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2540.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 2540.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2545.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2550.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2555.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 127.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2565.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2570.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 137.0,
+        "outcome": "applied",
+        "sim_time": 2575.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2605.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2690.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_0",
+        "wait_s": 130.0,
+        "outcome": "applied",
+        "sim_time": 2720.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2725.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2730.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2740.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 124.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2755.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2760.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 131.0,
+        "outcome": "applied",
+        "sim_time": 2770.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 124.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2775.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2775.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 136.0,
+        "outcome": "applied",
+        "sim_time": 2775.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2780.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_0",
+        "wait_s": 133.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2780.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 141.0,
+        "outcome": "applied",
+        "sim_time": 2780.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 142.0,
+        "outcome": "applied",
+        "sim_time": 2785.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 142.0,
+        "outcome": "applied",
+        "sim_time": 2790.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 142.0,
+        "outcome": "applied",
+        "sim_time": 2795.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 2800.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_1",
+        "wait_s": 141.0,
+        "outcome": "applied",
+        "sim_time": 2800.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 132.0,
+        "outcome": "applied",
+        "sim_time": 2805.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 2805.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2810.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2810.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 133.0,
+        "outcome": "applied",
+        "sim_time": 2815.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 142.0,
+        "outcome": "applied",
+        "sim_time": 2815.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2815.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 143.0,
+        "outcome": "applied",
+        "sim_time": 2820.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 142.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2825.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 142.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2830.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 130.0,
+        "outcome": "applied",
+        "sim_time": 2840.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 144.0,
+        "outcome": "applied",
+        "sim_time": 2850.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 125.0,
+        "outcome": "applied",
+        "sim_time": 2855.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 147.0,
+        "outcome": "applied",
+        "sim_time": 2865.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 150.0,
+        "outcome": "applied",
+        "sim_time": 2870.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 150.0,
+        "outcome": "applied",
+        "sim_time": 2875.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 150.0,
+        "outcome": "applied",
+        "sim_time": 2880.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 124.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2880.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_1",
+        "wait_s": 134.0,
+        "outcome": "applied",
+        "sim_time": 2885.0
+      },
+      {
+        "junction_id": "J3",
+        "rule": "starvation_ceiling",
+        "from_slot": 2,
+        "to_slot": 1,
+        "lane_id": "E3_J3_2",
+        "wait_s": 129.0,
+        "outcome": "applied",
+        "sim_time": 2885.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 150.0,
+        "outcome": "applied",
+        "sim_time": 2890.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 130.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2890.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 147.0,
+        "outcome": "applied",
+        "sim_time": 2895.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J3_J2_1",
+        "wait_s": 132.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2895.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 147.0,
+        "outcome": "applied",
+        "sim_time": 2900.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 147.0,
+        "outcome": "applied",
+        "sim_time": 2910.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_1",
+        "wait_s": 139.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2920.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 139.0,
+        "outcome": "deferred_min_green",
+        "sim_time": 2925.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_2",
+        "wait_s": 139.0,
+        "outcome": "applied",
+        "sim_time": 2930.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 2935.0
+      },
+      {
+        "junction_id": "J1",
+        "rule": "starvation_ceiling",
+        "from_slot": 0,
+        "to_slot": 1,
+        "lane_id": "J2_J1_0",
+        "wait_s": 123.0,
+        "outcome": "applied",
+        "sim_time": 2960.0
+      },
+      {
+        "junction_id": "J2",
+        "rule": "starvation_ceiling",
+        "from_slot": 1,
+        "to_slot": 0,
+        "lane_id": "N2_J2_0",
+        "wait_s": 122.0,
+        "outcome": "applied",
+        "sim_time": 3110.0
+      }
+    ]
+  }
+}

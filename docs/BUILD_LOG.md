@@ -1387,3 +1387,409 @@ contamination correction. The three existing "0.885" citations (4a's "Not measur
 here" paragraph, CLAUDE.md's backend-checkpoint bullet, `backend/sim_runner.py`'s
 comment block) were deliberately NOT edited here — test-d0 owns that text and is
 correcting them.
+
+## 2026-08-29 — CONSOLIDATING AUDIT ENTRY: deployment decision, two 08-28 corrections, the D1 saga (one conclusion written and withdrawn), the beacon gap now closed
+
+Appended, not edited (append-only). Consolidates four threads settled or advanced
+across the parallel sessions of 2026-08-27/28 and a 2026-08-29 forensic audit.
+Sections 1–3 point at existing entries and state the current reading crisply
+rather than re-deriving them; sections 4–7 add new material — the full D1
+timeline, `keep_awake.py`'s corrected role, the `train.py` beacon gap and its
+fix, and a 3-point re-check of the D1 checkpoints.
+
+---
+
+### 1. The deployed policy is Stage 4 single-agent PPO (4a bake-off). §9.5 is NOT reopened.
+
+Settled in the 2026-08-28 "4a CHECKPOINT BAKE-OFF" entry; restated because it is
+the single most consequential current fact. `backend/sim_runner.py`'s
+`DEFAULT_CHECKPOINT` = `training/checkpoints/stage4/psychoflow_stage4_153600_steps_final.zip`,
+deterministic. 48 episodes, 4 controllers × 4 topologies × 3 seeds, pinned config:
+
+| controller | starv_ev | wait_var | starved% | reward | ovrS |
+|---|---|---|---|---|---|
+| tier0 | 0.00 | 50.7 | 0.00 | 1.2011 | 0.00 |
+| **stage4_153600** | **0.08** | 72.2 | **0.08** | **1.3450** | **0.00** |
+| ga_51624 | 3.33 | 109.8 | 1.20 | 1.2347 | 1.08 |
+| ga_154024 | 132.75 | 592.9 | 25.82 | 0.2414 | 15.75 |
+
+On the demo corridor (4,3,2) Stage 4 is 0 events / 0 overrides / 38–42s worst on
+all three seeds. **Why this does not reopen §9.5:** `COORDINATION_MODE =
+"graph_attention"` answers *which MARL extractor* — attention beat `shared_policy`
+12/12 on `starved_pct` (1.64% vs 86.60%), and that A/B is untouched. *Which
+trained checkpoint the backend serves* is a separate axis, and single-agent Stage
+4 measures better than both MARL modes on it. **Demo-honesty consequence (§17,
+§20): the live demo runs SINGLE-AGENT PPO — say so out loud, do not call it
+multi-agent.** The MARL result stands as a measured architecture comparison; it
+is not what drives the corridor on stage.
+
+### 2. The `j1=3` vulnerability is a sampling artifact — WITHDRAWN as a category.
+
+Settled in the 2026-08-28 "STAGE 4 ADVERSARIAL AUDIT" entry §1. A 27-combo sweep ×
+seeds {1,7,42} = 81 episodes against `psychoflow_stage4_153600_steps_final.zip`.
+Episodes with ≥1 starvation event, by j1: **j1=2 → 4/27, j1=3 → 3/27,
+j1=4 → 2/27**. j1=3 is not the worst; j1=2 is. The earlier reading failed
+structurally: every prior test ran through `evaluate_stage.py --j1-recheck`,
+whose four-combo matrix ((3,2,3)/(3,2,4) + j1=4 controls) contains no j1=2 combo,
+so it could not have detected a j1=2 effect however strong. What is actually
+present is a **mild j3 gradient** (mean p99 of across-lane max wait 41.7 / 54.1 /
+63.0s for j3 = 2/3/4; event-episodes 1/3/5), ~1 event/episode, thin per-cell n —
+**NOT a confirmed hard finding.** Worst combo (4,3,4) = 0.67 events/episode,
+0.58% starved, p99 75.7s against a 90s threshold; 81/81 episodes terminate with
+all 4668 vehicles arrived; 3/81 fire any §10 override. All 8
+`STAGE4_J1_REFERENCE` `worst_wait` values reproduce with delta +0.0 — the
+correction is to the interpretation, not the data.
+
+### 3. `phase0_baselines.py` evaluated on training scenarios. The proposal-quality gap does not survive cleaning.
+
+Settled in the 2026-08-28 "STAGE 4 ADVERSARIAL AUDIT" entry §3.
+`phase0_baselines.py` runs `STAGES[4]` (the training config) and calls
+`reset(seed=s)`; training used `--seed 7` with the same config, so **eval seed 7
+reproduces training episode 1 exactly** and supplied 11 of the 26 decidable steps
+(42%) behind the recorded 0.885. Re-measured held-out on 11 clean screened seeds:
+
+| checkpoint | recorded (contaminated) | held-out (11 seeds) |
+|---|---|---|
+| Stage 4 @153,600 | 0.885 | **0.8298** |
+| `graph_attention` @154,024 | 0.778 | **0.7656** |
+| `graph_attention` @102,824 | 0.767 | **0.7143** |
+
+Both still beat the matched random control (z=+3.388 p=0.0007; z=+2.904
+p=0.0037). **The GAP does not survive:** +0.107 → +0.0642, z=+0.824, p=0.4099 —
+NOT significant. Contamination was asymmetric — it inflated Stage 4 ~8× more than
+`graph_attention` (+0.2176 vs +0.0264), so cleaning it NARROWS the gap. 4a's
+deployment decision is unaffected (it rested on the fairness grid, not this
+metric). "0.885 vs 0.778" must stop being cited as separating the two
+checkpoints; the three prior citations are corrected in CLAUDE.md and
+`backend/sim_runner.py` (commit `83dbefd`), with the append-only BUILD_LOG
+originals left in place under correction pointers.
+
+### 4. The D1 saga — one clean timeline.
+
+D1 is the persistent-seed-counter Stage 5 `graph_attention` run, testing whether
+the post-51k collapse is data-diversity-driven. It ran in four legs, three of
+which died:
+
+| leg | log / pid | start | end | num_timesteps | exit |
+|---|---|---|---|---|---|
+| 1 | `d1_train.log` / 15372 | 2026-08-18 10:53:29 | 2026-08-18 11:16:30 | 0 → 20,480 | `Socket reset by peer` |
+| 2 | `d1_resume_train.log` / 18188 | 2026-08-28 15:18:49 | 2026-08-28 17:09:55 | 20,000 → 132,640 | `FatalTraCIError: Could not connect` |
+| 3 | `d1_resume2_train.log` / 21820 | 2026-08-28 17:25:13 | 2026-08-28 17:59:54 | 130,000 → **156,624** | ✅ COMPLETED |
+| 4 | `d1_resume3_train.log` / 25340 | 2026-08-28 17:35:45 | 2026-08-28 18:02:42 | 130,000 → 150,480 | `Socket reset by peer` |
+
+Times from each Monitor CSV's `t_start`, cross-checked against four TensorBoard
+event files (one per `train.py` process) and the four logs.
+
+**Leg 2 died from the concurrent multi-SUMO Stage 4 adversarial-audit sweeps** —
+recorded in the 2026-08-28 audit's §5. Cost: ~2,640 steps (130,000 checkpoint
+intact).
+
+**Legs 3 and 4 are the "leg3/leg4 collision" `sim/sumo_activity.py` references.**
+Byte-identical PRE-FLIGHT lines — same `--timesteps 25168`, same source
+checkpoint `psychoflow_stage5_130000_steps.zip`, same target 156,624, same TB dir
+`tb/MaskablePPO_1` — and **overlapped from 17:35:45 to 17:59:38 (~24 minutes)**,
+two `train.py` processes driving SUMO at once (leg 3 fps 18→15, leg 4 fps 11→9).
+Trigger, from file timestamps: `keep_awake.py` written 17:33:56 → launched
+17:34:36 → **leg 4 started 17:35:45, 69 seconds later** — a session diagnosed the
+sleep problem, armed the workaround, and relaunched the D1 resume without knowing
+leg 3 had already been running ten minutes. Leg 3 won (wrote the 156,624 final at
+17:59:54); leg 4 died at 150,480 three minutes later.
+
+**The checkpoint directory is confusing but NOT corrupted.** Legs 3 and 4 resumed
+from the same checkpoint with the same seed and — scenario sequences being pinned
+per burst — computed bit-identical updates: `approx_kl` agrees to 9 decimal
+places across all 9 paired rollouts, `value_loss` and `entropy_loss` identical.
+Leg 4 wrote `135000/140000/145000/150000` on top of leg 3's identical files; only
+`150000` (written 18:01:31, after leg 3's `155000` @ 17:57:49 and the final @
+17:59:54) trips an mtime-ordering check. Read-back of every checkpoint ≥ 130,000:
+`num_timesteps` == filename in all seven, seed 7, `GraphAttentionExtractor`
+throughout. `psychoflow_stage5_130000_steps.zip` and
+`psychoflow_stage5_156624_steps_final.zip` specifically: both load clean, both
+`num_timesteps` == filename, both `GraphAttentionExtractor`, neither mtime touched
+after finalisation (130,000 written by leg 2 at 17:00:29, before either colliding
+leg started; the final written by leg 3 at 17:59:54, and leg 4 never reached
+156,624). The final survived on timing luck — leg 4 was targeting the identical
+filename and died 6,144 steps short.
+
+**The beacon design gap, now closed.** `training/train.py` EMITS a SUMO-activity
+beacon (via `_SumoBeaconCallback`) but historically never CHECKED for one — all
+14 `require_free()` call sites are sweeps/harnesses, none a trainer. Two
+concurrent `train.py` invocations both pass straight through with no check to
+race. **Fix (this session, commit `1d974a2`) — two halves, both needed:**
+
+  1. `require_free('train.py (stage training run)')` as the first statement
+     inside `train.py`'s `if __name__ == "__main__":` guard, matching the
+     14-harness convention exactly (local import inside the guard).
+  2. `_sumo_beat()` moved EARLIER — ownership is claimed immediately after the
+     pre-flight print and **before `build_env()` and `MaskablePPO.load()`**.
+     Half 1 alone would have left a real TOCTOU window: `require_free()` only
+     READS the beacon, and the first WRITE previously came from
+     `_SumoBeaconCallback` at `_on_training_start`, so for the several seconds
+     to a minute of env construction plus checkpoint load, neither of two
+     trainers had claimed anything and both would pass. That is the same
+     failure shape as the bug being fixed, just narrower — and worth closing
+     while the code was open rather than documenting as residual.
+
+`beat()`/`clear()` semantics unchanged; `_SumoBeaconCallback` still refreshes
+against `STALE_AFTER_S=300`, and `beat()` preserves `started` for the same pid so
+elapsed time stays accurate from process start.
+`PSYCHOFLOW_IGNORE_SUMO_BEACON=1` still overrides for deliberate parallelism.
+**Verified:** parses and imports; `require_free` raises `SystemExit` with the
+standard refusal against a planted live beacon (driven from Python via
+`subprocess.Popen(...).pid`, per CLAUDE.md's note that Git Bash's `$!` is an MSYS
+pid `psutil` cannot see); and with `build_env` monkeypatched to inspect the
+beacon at its own call site, the beacon is present and owned by this pid before
+`build_env()` runs. **Remaining window** is now the few imports between the guard
+and the claim — not closable without a real lock, which Tier 2 deliberately
+defers.
+
+### 5. `keep_awake.py`'s corrected role.
+
+`training/scripts/keep_awake.py` is a standalone companion process (NOT a repo
+module): it holds `SetThreadExecutionState(ES_CONTINUOUS|ES_SYSTEM_REQUIRED|ES_AWAYMODE_REQUIRED)`
+to keep Windows Modern Standby from idle-suspending the machine during a
+genuinely-solo long run, then sleeps re-arming until killed. Touches no repo
+code, no SUMO, no TraCI. Written 2026-08-28 17:33:56; committed 2026-08-29 as the
+one-word `3203c14 "scripts"`.
+
+**Docstring corrected this session (commit `7f430ed`).** It had asserted that
+Kernel-Power Id=506 "Modern Standby, Idle Timeout" events killed two D1 resumes
+("leg 2 at ~17:00–17:05, leg 3 at ~17:10:56"). The record refutes that: two SUMO
+sweeps (`_sweeps/detstoch.log` ending 17:08:47 "wall clock: 9.9 min",
+`_sweeps/emerg.log` ending 17:09:27 "10.5 min") ran to completion straight
+through that window — a machine actually in Modern Standby could not have let them
+finish. Those D1 legs died from concurrent multi-SUMO TraCI-port contention (§4),
+not sleep. The "leg 2 / leg 3" numbering in that docstring also maps onto no
+log/monitor/tb artifact in the repo. The tool is kept — idle suspend on a
+genuinely-solo overnight run is a real risk — but the causal claim is removed.
+
+### 6. `evaluation/heldout.py` — the §15.4 held-out set exists as infrastructure.
+
+Committed 2026-08-28 as `45dbccc`: `evaluation/heldout.py` (399 lines) +
+`evaluation/heldout_manifest.json` (90 scenario TUPLES from 30 frozen seeds = the
+first 30 primes ≥ 100; `BURNED_SEEDS` = the 12 already spent, including training
+seed 7). The manifest is drawn offline under `STAGES[4]` — `_draw_scenario()` is
+rng-pure and touches no TraCI — so the module never launches SUMO and is
+deliberately runnable during a live training run (and deliberately carries no
+`require_free` guard). `--verify <ckpt_dir>` screens the manifest against exactly
+that directory's `monitor*.csv` training scenarios, asserts zero collisions PER
+CHECKPOINT (not globally — stage4 trained on 64 scenarios, stage5 graph_attention
+on 81, a strict superset), and runs a gate self-check that re-derives seed-7
+episode-1's key and confirms it IS in the training set — proving the check can
+catch contamination and guarding against key-format drift vs `stage4_proposal.py`.
+
+Verified this session:
+
+```
+=== training\checkpoints\stage4 ===                   64 training scenarios, 0 collisions, self-check PASS, GATE PASS
+=== training\checkpoints\stage5_graph_attention ===   81 training scenarios, 0 collisions, self-check PASS, GATE PASS
+=== training\checkpoints\stage5_graph_attention_d1 == 179 training scenarios, 0 collisions, self-check PASS, GATE PASS
+```
+
+**Does it satisfy §15.4?** §15.4's three stated requirements — (1) held-out set
+defined explicitly (reserved seeds / disjoint index range) recorded in the repo;
+(2) disjointness asserted programmatically, not by inspection; (3) training-set
+distinct-scenario count stated alongside any generalization claim — are all met
+as **infrastructure**: `HELDOUT_SEEDS` is frozen, the manifest committed,
+`verify()`/`assert_disjoint_at_runtime()` are the programmatic gate, and
+`training_set_size()` is exported and printed by `--verify`. What does NOT yet
+exist: any eval harness that USES it. Wiring `HELDOUT_SEEDS` into the eval
+harnesses and running `--verify` before publishing a generalization number is
+Phase 12's job, and the generalization evaluation §15.4 ultimately calls for is
+still unbuilt. The mechanism §15.4 requires exists and is verified; the
+evaluation is not done.
+
+### 7. D1 final status: two evaluation passes, the first withdrawn.
+
+**D1 finished training** at `num_timesteps=156,624` on 2026-08-28 17:59:54
+(`training/checkpoints/stage5_graph_attention_d1/psychoflow_stage5_156624_steps_final.zip`,
+`GraphAttentionExtractor`, seed 7). No background run is live. Its training set is
+**179 distinct `STAGES[4]` scenarios** — 2.2× the standard `graph_attention`
+run's 81 — so the persistent-seed-counter mechanism did produce more scenario
+diversity. Per-burst: leg 1 contributed 33, leg 2's burstB brought the union to
+179, and **legs 3 and 4 (burstC, burstD) each added ZERO new scenarios** — the
+collision legs contributed only passes, no diversity.
+
+**D1 was evaluated in two passes this session, and the FIRST PASS'S CONCLUSION IS
+WITHDRAWN. It is recorded here in full rather than deleted, because the way it
+failed is the same way the `j1=3` and `0.885` claims failed and is the reusable
+lesson.**
+
+**Pass 1 — 3 checkpoints (20,000 / 130,000 / 156,624), 12 pinned (combo, seed)
+pairs each, deterministic, validator ON, no emergency, density pinned 1.0:**
+
+| checkpoint | mean starved% | worst_wait band |
+|---|---|---|
+| 20,000 | 87.2% | 126–129s |
+| 130,000 | 38.0% | 125–135s |
+| 156,624 (final) | 31.5% | 123–171s |
+
+**What was written from that, and is now WITHDRAWN:** *"D1's final checkpoint is
+in the same collapsed regime as standard `graph_attention` @154,024 ... more
+scenario diversity did not prevent the post-51k collapse."*
+
+**Why it was wrong — a coverage gap, not an arithmetic error.** A "collapse"
+claim requires exhibiting a peak that was fallen from. The standard
+`graph_attention` run peaks at **51,624**. Of the three points sampled, none lies
+within ±25,000 of that; the draft compared D1's *late* checkpoints against the
+standard run's *peak* and read the difference as a collapse. This is structurally
+the `--j1-recheck` mistake a third time: a sampling matrix that could not contain
+the answer being read as though it had. It is also refuted by its own three
+numbers, which run 87.2% → 38.0% → 31.5%, i.e. monotonically *improving* — the
+opposite shape from the standard run's 1.6% → 31%.
+
+**Pass 2 — the peak region actually sampled.** Five more checkpoints across
+45,000–65,000 (the region containing the standard run's peak), same 12 pairs,
+same harness, **60 further episodes**. Raw data:
+`_sweeps/d1_peak_region.json`.
+
+| ckpt | mean starved% | mean reward | mean ovrS | mean worst_wait | flagged (j1=3) | controls (j1=4) |
+|---|---|---|---|---|---|---|
+| 45,000 | 19.71% | +0.4271 | 7.8 | 125.0s | 20.16% | 18.81% |
+| 50,000 | 47.70% | −0.3207 | 33.9 | 126.2s | 50.13% | 42.82% |
+| 55,000 | 45.91% | −0.2925 | 29.2 | 127.0s | 45.77% | 46.18% |
+| **60,000** | **7.42%** | **+0.9360** | **4.3** | 126.7s | 5.76% | 10.74% |
+| 65,000 | 46.78% | −0.1922 | 34.0 | 125.8s | 46.76% | 46.83% |
+
+60/60 episodes terminate with all 4668 vehicles arrived.
+
+**THE ACTUAL FINDING — D1 is VIOLENTLY UNSTABLE ACROSS CHECKPOINTS, and neither
+"collapse" nor "steady improvement" describes it.** The full eight-point series
+is 87.2 / 19.7 / 47.7 / 45.9 / **7.4** / 46.8 / 38.0 / 31.5. Adjacent checkpoints
+**5,000 steps apart differ by up to 39 percentage points** (60,000 = 7.42% vs
+65,000 = 46.78%), and 45,000 → 50,000 jumps 19.7% → 47.7% in the other
+direction. There is no trend; the three pass-1 points were three draws from an
+oscillating run, not samples of a curve.
+
+**The load-bearing consequence: any single-checkpoint claim about D1 is close to
+meaningless** — including the one pass 1 built on 156,624. The between-neighbour
+variance exceeds the difference between the readings the two passes disagreed
+over. Eight of ~31 available checkpoints are now sampled.
+
+**What this does to the data-diversity hypothesis — the direction survives, the
+reasoning does not.** D1's *best sampled* point (60,000: 7.42% starved, reward
++0.9360, ovrS 4.3) is still worse than standard `graph_attention`'s recorded peak
+on these same 12 pinned pairs (51,624: **1.64%** starved, reward **+1.2594**,
+ovrS 1.42). So 2.2× the scenario diversity did not produce a better policy — but
+the mechanism is **"never got stably good," not "peaked then collapsed."** Two
+honest limits: with 23 checkpoints unsampled on a run that swings 39 points
+between neighbours, 7.42% is a **floor on D1's best, not a measurement of it**;
+and no same-session A/B against standard `graph_attention` on identical pairs was
+run, so the cross-run comparison leans on the recorded 51,624 figures.
+
+**The j1=4 control asymmetry at 156,624 is NOT a finding — the peak sweep is what
+shows why.** At 156,624 the controls read 2.70%/3.02% against 15–61% for the
+j1=3 combos, which in isolation looks like a real split. Across the sweep the
+flagged-vs-control gap **flips sign**: controls better at 45,000 and 50,000,
+tied at 55,000 and 65,000, and **worse** at 60,000 (10.74% vs 5.76%). It is one
+draw from an unstable run, n=2 on the control arm, with neighbouring checkpoints
+disagreeing. Recorded explicitly so it is not later promoted to a pattern —
+that promotion is exactly what happened to `j1=3`.
+
+**Incidental third confirmation of the `worst_wait` saturation rule.** Across all
+60 peak-region episodes `worst_wait` sits in a 122–139s band while `starved_pct`
+ranges **3.97%–68.84%**. A metric that cannot separate 4% from 69% is not
+measuring policy quality — independent reproduction, on a fourth harness, of the
+2026-08-28 Phase 0 finding and §15.2's ban.
+
+**The two long-wait episodes (150s, 171s) are DOCUMENTED §10.1 BEHAVIOUR, not a
+new defect.** Both exceed the 121–142s band recorded anywhere else in this
+project, so the override log was pulled (`_sweeps/d1_override_pull.json`):
+
+| | (3,2,4) seed 42 | (3,2,4) seed 1 |
+|---|---|---|
+| worst_wait | 171.0s | 150.0s |
+| overrides | 85 | 217 |
+| by rule | 100% `starvation_ceiling` | 100% `starvation_ceiling` |
+| applied / deferred | 61 / 24 (28.2%) | 166 / 51 (23.5%) |
+| override `wait_s` max | 144.0s | 150.0s |
+| fired above the 120s ceiling | 85/85 | 217/217 |
+| episode | 628 steps, 4668 arrived, terminated | 640 steps, 4668 arrived, terminated |
+
+Zero emergency overrides (config pins `spawn_emergencies=False`), so this is
+purely the starvation ceiling. Three things settle it as known behaviour.
+(1) Every override fires above the 120s ceiling — the gate is working, not
+missing. (2) The deferral fraction (23.5–28.2%, `outcome=deferred_min_green`) is
+the documented `MIN_GREEN_S` deferral §10.1 specifies, not an unhandled path.
+(3) Decisively, seed 1's records show the ceiling firing on the **same lanes
+repeatedly with the wait not falling** — `J2_J1_1` at t=2870/2875/2880 all
+`applied` at 150.0s, then `J2_J1_0` at t=2890/2895/2900/2910 `applied` at
+147–150s. Green was granted and the queue did not drain. That is verbatim
+§10.1's stated genuine limit: *"if a lane is starved because of downstream
+gridlock rather than its own signal, giving it green does not discharge it and
+the wait keeps climbing. The ceiling guarantees the signal has stopped being the
+cause of that lane's starvation. It does not guarantee the lane drains."*
+Seed 42 makes the same point from the other side: its peak (171.0s on `J2_J1_2`
+at t=1110) is **27s above the highest wait any override ever fired at** (144.0s),
+i.e. at the peak instant J1's ceiling did not need to fire — the served phase
+already covered that lane.
+
+**One record update this does force, small but real:** §10.1 quotes a measured
+overshoot of **124–141s** against the 120s ceiling, from Phase 4's B3/B4 on
+corridor 4/3/2. These runs measure **up to 171s** on (3,2,4) under a policy
+starving 46–61% of steps. That is not a contradiction — §10.1 already says *"the
+overshoot is scenario-dependent and will grow under heavier load"* — but the
+quoted range is now known to be a 4/3/2-specific figure, not a corridor-wide
+bound, and should be cited that way. **No change to §10, the validator, or the
+ceiling constant is warranted:** every override fired correctly, and both
+episodes still cleared all 4668 vehicles.
+
+**Net status of the data-diversity thread.** The three "re-evaluate once D1
+completes" flags (CLAUDE.md's backend-checkpoint bullet,
+`backend/sim_runner.py`, BUILD_LOG's 4a entry) are answered to the extent this
+audit can answer them: **D1 does not produce a checkpoint that would displace
+Stage 4 as the deployed policy** — its best sampled point is worse than standard
+`graph_attention`'s peak, which the 4a bake-off already placed well behind
+Stage 4 (0.08% starved, reward 1.3450). 4a is not reopened. What is NOT settled
+is *why* more diverse data failed, and the instability finding is the more
+interesting lead — a run that swings 39 points between adjacent checkpoints at
+fixed hyperparameters points at optimisation dynamics, not data. **Per the
+scope set for this pass, the D1 thread is CLOSED here.** Reopening it needs a
+specific reason, and if it is reopened the first move is checkpoint-density
+sampling (all ~31 points, not 8), because that is the axis this audit showed is
+load-bearing and under-measured.
+
+**Deviates from plan?** No locked decision (CLAUDE.md §2) touched. `train.py`
+gained a `require_free` guard at startup AND an early `_sumo_beat()` claim before
+`build_env()` (§4, commit `1d974a2`); `keep_awake.py`'s docstring corrected (§5,
+commit `7f430ed`); CLAUDE.md's CURRENT STATUS bullet updated to reflect D1
+completion (one factual line, no separate entry). No reward, validator, or env
+code changed. No training run started. §10.1's quoted overshoot range is flagged
+in §7 as 4/3/2-specific rather than corridor-wide; the master plan is not edited
+here, since the correction is a scoping note on an existing measured figure.
+
+**METHOD NOTE — this entry contains a conclusion this same session wrote and then
+withdrew (§7, pass 1 vs pass 2).** That is the third time in this project a
+confident interim reading has been overturned by re-examining coverage rather
+than arithmetic: `j1=3` (a matrix with no `j1=2` combo), `0.885 vs 0.778`
+(seeds that replayed training episodes), and now D1 "collapse" (three points
+none of which sampled the peak region). All three shared one shape — **the
+measurement could not have detected the alternative, and that was not checked
+before the conclusion was written.** The cheap defence is to ask, before writing
+any comparative claim, which regions the sampling would have had to cover for the
+opposite conclusion to be visible.
+
+**Verified:** every figure is read from a committed artifact (`_sweeps/*.log`,
+Monitor CSVs, TensorBoard event files, checkpoint zips) or produced this session
+and named inline. `train.py` beacon fix: parse + import + positive refusal test.
+`keep_awake.py`: parse + commit `7f430ed`. `heldout.py`: `--verify` on all three
+stage dirs, GATE PASS + self-check PASS. `--j1-recheck`:
+`training/evaluate_stage.py --j1-recheck` on the three D1 checkpoints, exit 0,
+raw output retained. Peak-region sweep: 60 episodes via
+`evaluate_stage._run_plain_episode` + `ppo_picker` (the same harness the recorded
+j1 rows came from, not a re-implementation), persisted to
+`_sweeps/d1_peak_region.json`. Override pull: 2 episodes with a `run_episode`
+`on_step` hook tagging each `OverrideRecord` with `sim_time`, persisted to
+`_sweeps/d1_override_pull.json`.
+
+**Two harness errors of my own, recorded because this file's standing rule is
+that a run which passes while proving nothing is the failure mode to watch.**
+(1) The first override-pull script indexed `OverrideRecord` fields that do not
+exist (`sim_time`, `trigger_wait_s`; the real fields are `junction_id, rule,
+from_slot, to_slot, lane_id, wait_s, outcome`, `safety/validator.py:93`). It
+raised `TypeError` on the print AFTER producing seed 42's aggregate, so seed 1
+never ran — a loud failure, correctly. Rewritten and both episodes re-run.
+(2) That crash sat upstream of the peak-region JSON write, so those 60 episodes
+were briefly held only in stdout; recovered by parsing the captured output rather
+than re-running, and the parsed table was checked against the raw lines before
+being written.

@@ -1,0 +1,907 @@
+{
+  "purpose": "D1 peak-region j1-recheck sweep (2026-08-29). 5 checkpoints x 12 pinned (combo,seed) pairs.",
+  "harness": "training/evaluate_stage.py::_run_plain_episode + ppo_picker, deterministic, validator ON, density pinned 1.0, no emergency",
+  "checkpoint_dir": "training/checkpoints/stage5_graph_attention_d1",
+  "checkpoints": {
+    "45000": {
+      "n": 12,
+      "mean_starved_pct": 19.7117,
+      "mean_worst_wait": 125.0,
+      "mean_reward": 0.4271,
+      "mean_ovrS": 7.75,
+      "flagged_mean_starved_pct": 20.1638,
+      "control_mean_starved_pct": 18.8075,
+      "all_terminated": true,
+      "rows": [
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 18.96,
+          "mean_reward": 0.4312,
+          "ovrS": 9,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 22.94,
+          "mean_reward": 0.3708,
+          "ovrS": 13,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 7,
+          "worst_wait": 125.0,
+          "starved_pct": 25.08,
+          "mean_reward": 0.2308,
+          "ovrS": 12,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 17.67,
+          "mean_reward": 0.3831,
+          "ovrS": 7,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 127.0,
+          "starved_pct": 14.83,
+          "mean_reward": 0.5082,
+          "ovrS": 7,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 11.27,
+          "mean_reward": 0.5554,
+          "ovrS": 3,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 7,
+          "worst_wait": 125.0,
+          "starved_pct": 33.55,
+          "mean_reward": -0.035,
+          "ovrS": 9,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 17.01,
+          "mean_reward": 0.389,
+          "ovrS": 7,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 19.37,
+          "mean_reward": 0.6238,
+          "ovrS": 8,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 22.73,
+          "mean_reward": 0.4986,
+          "ovrS": 7,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 124.0,
+          "starved_pct": 16.3,
+          "mean_reward": 0.6033,
+          "ovrS": 6,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 124.0,
+          "starved_pct": 16.83,
+          "mean_reward": 0.566,
+          "ovrS": 5,
+          "terminated": true
+        }
+      ]
+    },
+    "50000": {
+      "n": 12,
+      "mean_starved_pct": 47.6958,
+      "mean_worst_wait": 126.1667,
+      "mean_reward": -0.320742,
+      "mean_ovrS": 33.917,
+      "flagged_mean_starved_pct": 50.1325,
+      "control_mean_starved_pct": 42.8225,
+      "all_terminated": true,
+      "rows": [
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 44.64,
+          "mean_reward": -0.2363,
+          "ovrS": 36,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 49.84,
+          "mean_reward": -0.2882,
+          "ovrS": 33,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 7,
+          "worst_wait": 125.0,
+          "starved_pct": 47.44,
+          "mean_reward": -0.362,
+          "ovrS": 35,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 47.15,
+          "mean_reward": -0.1869,
+          "ovrS": 35,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 44.79,
+          "mean_reward": -0.3406,
+          "ovrS": 32,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 135.0,
+          "starved_pct": 46.46,
+          "mean_reward": -0.3681,
+          "ovrS": 33,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 7,
+          "worst_wait": 127.0,
+          "starved_pct": 68.84,
+          "mean_reward": -1.0613,
+          "ovrS": 44,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 51.9,
+          "mean_reward": -0.5478,
+          "ovrS": 36,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 126.0,
+          "starved_pct": 37.88,
+          "mean_reward": 0.0401,
+          "ovrS": 26,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 41.08,
+          "mean_reward": 0.0295,
+          "ovrS": 30,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 126.0,
+          "starved_pct": 46.6,
+          "mean_reward": -0.2754,
+          "ovrS": 35,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 45.73,
+          "mean_reward": -0.2519,
+          "ovrS": 32,
+          "terminated": true
+        }
+      ]
+    },
+    "55000": {
+      "n": 12,
+      "mean_starved_pct": 45.9058,
+      "mean_worst_wait": 127.0,
+      "mean_reward": -0.29255,
+      "mean_ovrS": 29.167,
+      "flagged_mean_starved_pct": 45.7675,
+      "control_mean_starved_pct": 46.1825,
+      "all_terminated": true,
+      "rows": [
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 128.0,
+          "starved_pct": 41.52,
+          "mean_reward": -0.1886,
+          "ovrS": 28,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 127.0,
+          "starved_pct": 64.82,
+          "mean_reward": -0.9532,
+          "ovrS": 46,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 7,
+          "worst_wait": 125.0,
+          "starved_pct": 43.59,
+          "mean_reward": -0.2525,
+          "ovrS": 30,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 41.85,
+          "mean_reward": -0.0813,
+          "ovrS": 27,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 36.67,
+          "mean_reward": -0.0599,
+          "ovrS": 25,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 132.0,
+          "starved_pct": 56.05,
+          "mean_reward": -0.3973,
+          "ovrS": 31,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 7,
+          "worst_wait": 133.0,
+          "starved_pct": 40.0,
+          "mean_reward": -0.1719,
+          "ovrS": 27,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 42,
+          "worst_wait": 129.0,
+          "starved_pct": 41.64,
+          "mean_reward": -0.2669,
+          "ovrS": 22,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 44.08,
+          "mean_reward": -0.1857,
+          "ovrS": 26,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 59.14,
+          "mean_reward": -0.7261,
+          "ovrS": 36,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 33.65,
+          "mean_reward": 0.1102,
+          "ovrS": 24,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 47.86,
+          "mean_reward": -0.3374,
+          "ovrS": 28,
+          "terminated": true
+        }
+      ]
+    },
+    "60000": {
+      "n": 12,
+      "mean_starved_pct": 7.4208,
+      "mean_worst_wait": 126.6667,
+      "mean_reward": 0.935992,
+      "mean_ovrS": 4.333,
+      "flagged_mean_starved_pct": 5.7625,
+      "control_mean_starved_pct": 10.7375,
+      "all_terminated": true,
+      "rows": [
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 3.97,
+          "mean_reward": 1.0484,
+          "ovrS": 2,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 124.0,
+          "starved_pct": 7.26,
+          "mean_reward": 0.8769,
+          "ovrS": 4,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 7,
+          "worst_wait": 122.0,
+          "starved_pct": 5.99,
+          "mean_reward": 0.9722,
+          "ovrS": 2,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 42,
+          "worst_wait": 124.0,
+          "starved_pct": 5.49,
+          "mean_reward": 0.9783,
+          "ovrS": 3,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 134.0,
+          "starved_pct": 5.71,
+          "mean_reward": 0.9607,
+          "ovrS": 6,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 130.0,
+          "starved_pct": 5.74,
+          "mean_reward": 1.0182,
+          "ovrS": 4,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 7,
+          "worst_wait": 139.0,
+          "starved_pct": 8.12,
+          "mean_reward": 0.8925,
+          "ovrS": 9,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 42,
+          "worst_wait": 124.0,
+          "starved_pct": 3.82,
+          "mean_reward": 1.0202,
+          "ovrS": 3,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 4.76,
+          "mean_reward": 0.9798,
+          "ovrS": 3,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 124.0,
+          "starved_pct": 6.84,
+          "mean_reward": 0.9704,
+          "ovrS": 4,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 15.24,
+          "mean_reward": 0.7734,
+          "ovrS": 7,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 124.0,
+          "starved_pct": 16.11,
+          "mean_reward": 0.7409,
+          "ovrS": 5,
+          "terminated": true
+        }
+      ]
+    },
+    "65000": {
+      "n": 12,
+      "mean_starved_pct": 46.785,
+      "mean_worst_wait": 125.8333,
+      "mean_reward": -0.192242,
+      "mean_ovrS": 34.0,
+      "flagged_mean_starved_pct": 46.7613,
+      "control_mean_starved_pct": 46.8325,
+      "all_terminated": true,
+      "rows": [
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 128.0,
+          "starved_pct": 40.79,
+          "mean_reward": -0.0106,
+          "ovrS": 29,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 47.72,
+          "mean_reward": -0.2531,
+          "ovrS": 34,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 7,
+          "worst_wait": 128.0,
+          "starved_pct": 43.38,
+          "mean_reward": -0.1439,
+          "ovrS": 34,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            3
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 51.03,
+          "mean_reward": -0.3374,
+          "ovrS": 40,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 126.0,
+          "starved_pct": 48.34,
+          "mean_reward": -0.296,
+          "ovrS": 35,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 49.6,
+          "mean_reward": -0.3486,
+          "ovrS": 34,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 7,
+          "worst_wait": 125.0,
+          "starved_pct": 47.76,
+          "mean_reward": -0.2577,
+          "ovrS": 37,
+          "terminated": true
+        },
+        {
+          "kind": "flagged",
+          "combo": [
+            3,
+            2,
+            4
+          ],
+          "seed": 42,
+          "worst_wait": 125.0,
+          "starved_pct": 45.47,
+          "mean_reward": -0.3036,
+          "ovrS": 32,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 56.35,
+          "mean_reward": -0.2608,
+          "ovrS": 38,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            3
+          ],
+          "seed": 3,
+          "worst_wait": 128.0,
+          "starved_pct": 45.79,
+          "mean_reward": -0.0574,
+          "ovrS": 32,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 1,
+          "worst_wait": 125.0,
+          "starved_pct": 42.11,
+          "mean_reward": -0.0872,
+          "ovrS": 33,
+          "terminated": true
+        },
+        {
+          "kind": "control",
+          "combo": [
+            4,
+            2,
+            4
+          ],
+          "seed": 3,
+          "worst_wait": 125.0,
+          "starved_pct": 43.08,
+          "mean_reward": 0.0494,
+          "ovrS": 30,
+          "terminated": true
+        }
+      ]
+    }
+  }
+}
