@@ -15,12 +15,32 @@ thread starts), connects a WebSocket client, and runs a 7-point checklist:
   6. get_stats()  returns the §13.1 field set
   7. set_baseline_mode  psychoflow applies; greedy reports "Phase 12" and does not
 
+Plus, since the Phase 8 adapter swap (2026-08-29), five checks that each pin a
+SPECIFIC regression rather than a general shape:
+
+  1d/1e/1f  _reset_counters() REPLACES the per-episode DecisionLog (no SUMO)
+  2b        narration renders {lane} as an index, not a raw SUMO lane id
+  4a        the forced lane is chosen OUTSIDE the junction's current green
+            set, so 4b/4c actually exercise the failing condition
+  4b/4c     a forced-emergency decision names the FORCED lane and its real
+            compass direction — the East/West bug the old adapter had, where
+            the lane came from the EXECUTED PHASE's served set instead
+            (right after an override that set is tied at zero wait across
+            BOTH of the phase's approaches, so the direction it printed was
+            an arbitrary tie-break)
+  4d        an overridden entry carries both `proposed` and `override`
+  4e        a §11.2 responder message rides the frame once EMERGENCY_HOLD_S
+            expires, with trigger_source="operator"
+  5c        sim_time crosses a live episode boundary backwards and the sim
+            thread survives it
+
 Not part of §6's folder structure — verification scaffolding, same category as
 sim/run_tier0_episode.py and sim/run_prediction_episode.py.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 from pathlib import Path
@@ -31,8 +51,10 @@ sys.path.insert(0, str(REPO_ROOT))
 import numpy as np  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from backend.control_api import EMERGENCY_HOLD_S  # noqa: E402
 from backend.main import create_app  # noqa: E402
 from backend.sim_runner import DEFAULT_CHECKPOINT  # noqa: E402
+from twin.digital_twin import CORRIDOR_JUNCTIONS  # noqa: E402
 
 RULE = "=" * 78
 _passed = 0
@@ -143,6 +165,60 @@ def check_automode_decisionlog_contract() -> None:
           f"J2 reason={j2.reason} proposed={j2.proposed} exec={j2.phase_selected}")
 
 
+# ---------------------------------------------------------------------------
+# Phase 8 swap — the per-episode DecisionLog lifecycle. env.reset() sends
+# sim_time back to ~0 and DecisionLog refuses a backwards sim_time, so a log
+# REUSED across a reset raises on the first post-reset step and kills the sim
+# thread. _reset_counters() must REPLACE it, not clear it. Pure, no SUMO;
+# the live counterpart is check 5c, which drives a real reset.
+# ---------------------------------------------------------------------------
+def check_reset_replaces_log() -> None:
+    from backend.sim_runner import SimRunner
+    from coordinator.emergency_clearance import EmergencyClearanceCoordinator
+    from explainability.decision_log import DecisionLog
+    from explainability.query_interface import QueryInterface
+
+    class _Twin:
+        topology = {"J1": {"lane_approach_map": {"L_J1_0": "north"}}}
+
+    class _Env:
+        twin = _Twin()
+
+    r = SimRunner.__new__(SimRunner)          # bypass __init__ (no thread)
+    r._env, r._served = _Env(), {"J1": {0: frozenset({"L_J1_0"})}}
+    r._reset_counters()
+    log1, query1, coord1 = r._log, r._query, r._coord
+    r._reset_counters()
+
+    check("1d _reset_counters() REPLACES the per-episode DecisionLog / "
+          "QueryInterface / clearance coordinator",
+          isinstance(log1, DecisionLog)
+          and isinstance(query1, QueryInterface)
+          and isinstance(coord1, EmergencyClearanceCoordinator)
+          and r._log is not log1 and r._query is not query1
+          and r._coord is not coord1,
+          f"log {id(log1)}->{id(r._log)}")
+    check("1e the rebuilt QueryInterface is bound to the NEW log",
+          r._query._log is r._log and r._query._log is not log1)
+
+    # And the guard the lifecycle exists for actually bites: the OLD log,
+    # having seen a late sim_time, rejects a post-reset one.
+    snap = {"junctions": {"J1": {"lanes": {"L_J1_0": {
+        "approach": "north", "halted_count": 1,
+        "wait_time_max_single_vehicle": 5.0}}}}}
+    d = {"J1": {"junction_id": "J1", "phase_selected": 0, "score_breakdown": {},
+                "alternative_scores": {}, "reason": "raw_count"}}
+    log1.record_step(3145.0, d, {"safety_overrides": []}, snap, r._served)
+    reused_raises = False
+    try:
+        log1.record_step(15.0, d, {"safety_overrides": []}, snap, r._served)
+    except ValueError:
+        reused_raises = True
+    r._log.record_step(15.0, d, {"safety_overrides": []}, snap, r._served)   # fresh: fine
+    check("1f a REUSED log rejects the post-reset sim_time; the fresh one accepts it",
+          reused_raises and len(r._log) == 1)
+
+
 def main() -> None:
     print(RULE)
     print("PHASE 9 BACKEND SMOKE  —  checkpoint:",
@@ -151,6 +227,7 @@ def main() -> None:
 
     check_tier0_bias_param()
     check_automode_decisionlog_contract()
+    check_reset_replaces_log()
 
     app = create_app(
         checkpoint=DEFAULT_CHECKPOINT,
@@ -160,6 +237,7 @@ def main() -> None:
         realtime_factor=0.05,
     )
 
+    runner = app.state.runner
     with TestClient(app) as client:
         health = wait_ready(client)
         check("sim thread came up", health["sim_ready"] and not health["sim_error"],
@@ -229,6 +307,21 @@ def main() -> None:
                   f_man["decision"]["reason"] in ("wait_time_threshold", "raw_count"),
                   f"reason={f_man['decision']['reason']!r}")
 
+            # ---- 2b: {lane} is an INDEX, not a raw SUMO lane id -------
+            # The deleted adapter passed `_representative_lane`'s raw id
+            # into the template, so §12.2's "Lane 3, North" rendered as
+            # "Lane N2_J2_1, North". explainability/narrator uses
+            # entry.lane_slot, the within-approach index.
+            dec_man = f_man["decision"]
+            m = re.search(r"\bLane (\d+),", f_man["narration"])
+            check("2b narration renders {lane} as a within-approach INDEX, "
+                  "not a raw SUMO lane id",
+                  m is not None
+                  and int(m.group(1)) == dec_man.get("lane_slot")
+                  and str(dec_man.get("lane_id")) not in f_man["narration"],
+                  f"narration={f_man['narration']!r} lane_slot="
+                  f"{dec_man.get('lane_slot')} lane_id={dec_man.get('lane_id')}")
+
             # ---- 6: get_stats field set -----------------------------
             st = client.get("/control/get_stats").json()
             required = {"ready", "sim_time", "mode", "baseline_mode", "lanes",
@@ -266,8 +359,44 @@ def main() -> None:
                   "expired" if gone else "still present")
 
             # ---- 4: trigger_emergency -> §10 emergency_override ------
+            # Force a lane the junction's CURRENT green does NOT serve, and
+            # whose approach differs from every lane it does. That is the
+            # exact condition the deleted `_representative_lane` adapter got
+            # wrong (it named the busiest lane of the EXECUTED PHASE's
+            # served set, which right after an override is a set of tied
+            # zero-wait lanes spanning BOTH approaches of that phase — so
+            # the compass direction it printed was an arbitrary tie-break,
+            # not the forced lane's). Forcing merely "the busiest lane"
+            # would often be a lane already being served, where the old and
+            # new rules agree by luck and the check proves nothing.
+            #
+            # Reads two plain Python attributes off the runner (a static
+            # dict and an int). No TraCI call, so §13's single-thread
+            # boundary is intact.
             st = client.get("/control/get_stats").json()
-            target = max(st["lanes"], key=lambda l: st["lanes"][l]["halted_count"])
+            snap0 = next_frame(ws)["digital_twin"]
+            target = None
+            for jid in CORRIDOR_JUNCTIONS:
+                jlanes = snap0["junctions"][jid]["lanes"]
+                cur = runner._env._phase_state[jid].cur_slot
+                cur_served = runner._served[jid].get(cur, frozenset())
+                cur_dirs = {jlanes[l]["approach"] for l in cur_served if l in jlanes}
+                outside = sorted(
+                    l for l in jlanes
+                    if l not in cur_served and jlanes[l]["approach"] not in cur_dirs
+                )
+                if outside:
+                    target = outside[0]
+                    check(f"4a forcing a lane OUTSIDE {jid}'s current green "
+                          f"set (the condition the old adapter got wrong)",
+                          True,
+                          f"{jid} slot {cur} serves {sorted(cur_dirs)}; forcing "
+                          f"{target} ({jlanes[target]['approach']})")
+                    break
+            if target is None:      # no such lane this instant — do not skip
+                target = max(st["lanes"], key=lambda l: st["lanes"][l]["halted_count"])
+                check("4a forcing a lane OUTSIDE the current green set", False,
+                      f"none available this step; fell back to busiest ({target})")
             r_em = client.post("/control/trigger_emergency",
                                json={"lane_id": target}).json()
             check("4  trigger_emergency accepted", r_em["applied"] is True, target)
@@ -282,7 +411,79 @@ def main() -> None:
                   "Emergency override" in f_em["narration"] if ok_em else False,
                   f_em["narration"])
 
+            # ---- 4b/4c: THE LIVE REGRESSION FOUND LAST SESSION -------
+            # The deleted adapter named the lane the EXECUTED PHASE serves,
+            # so forcing a lane OUTSIDE the current green set narrated the
+            # wrong lane and the wrong compass direction (the East/West
+            # bug). §12.1's DecisionLog takes the lane from the §10
+            # OverrideRecord instead, so the entry and the narration both
+            # name the lane the operator actually forced.
+            dec_em = f_em["decision"]
+            forced_dir = st["lanes"][target]["approach"]
+            check("4b emergency entry names the FORCED lane, not the "
+                  "served one",
+                  dec_em.get("lane_id") == target
+                  and dec_em.get("override", {}).get("lane_id") == target,
+                  f"forced={target} entry.lane_id={dec_em.get('lane_id')} "
+                  f"override.lane_id={dec_em.get('override', {}).get('lane_id')}")
+            check("4c narration carries the FORCED lane's real direction",
+                  forced_dir.capitalize() in f_em["narration"],
+                  f"forced lane {target} approach={forced_dir} :: "
+                  f"{f_em['narration']!r}")
+
+            # ---- 4d: an overridden step carries BOTH sides -----------
+            check("4d overridden entry carries proposed AND override",
+                  "proposed" in dec_em and "override" in dec_em
+                  and dec_em["proposed"]["reason"] not in
+                      ("emergency_override", "starvation_ceiling")
+                  and set(dec_em["override"]) >= {"rule", "lane_id", "wait_s",
+                                                  "from_slot", "to_slot",
+                                                  "outcome"},
+                  f"proposed={dec_em.get('proposed')} "
+                  f"override={dec_em.get('override')}")
+
+            # ---- 4e: §11.2 responder message after the hold expires ---
+            # trigger_emergency has no natural release, so the force is
+            # dropped after EMERGENCY_HOLD_S sim-seconds; §11.1's clearance
+            # episode closes then and §11.2's message rides the frame.
+            f_msg = next_frame(ws, lambda fr: fr.get("responder_messages"),
+                               budget=300)
+            msgs = f_msg.get("responder_messages") or []
+            check("4e a §11.2 responder message appears after "
+                  f"EMERGENCY_HOLD_S ({EMERGENCY_HOLD_S:.0f}s) expires",
+                  bool(msgs), f"frames carried {len(msgs)} message(s)")
+            if msgs:
+                msg = msgs[0]
+                check("4e  message is §11.2-shaped, operator-triggered, "
+                      "with a real clearance time",
+                      msg["event"] == "emergency_clearance"
+                      and msg["lane_id"] == target
+                      and msg["trigger_source"] == "operator"
+                      and isinstance(msg["clearance_time_s"], (int, float))
+                      and msg["clearance_time_s"] >= 0.0
+                      and msg["baseline_is_estimate"] is True,
+                      f"junction={msg['junction_id']} lane={msg['lane_id']} "
+                      f"clearance={msg['clearance_time_s']}s "
+                      f"trigger_source={msg['trigger_source']!r}")
+                # Printed, not asserted — clearance_time_s is scenario-
+                # dependent and pinning a value would be pinning the draw.
+                # Read it with `from_slot` in mind: that field is WHAT WAS
+                # PROPOSED (safety/validator.py:98), not the current green.
+                # So an override reading `0->1` on a frame whose message
+                # says "already clear" is consistent, not contradictory —
+                # the junction was already serving the forced lane when the
+                # force landed (hence served_on_arrival, clearance 0.0s),
+                # and the override is §10 rewriting a LATER proposal that
+                # would have moved the green off it.
+                print(f"         detection t={msg['sim_time']}  "
+                      f"emergency-frame t={f_em['sim_time']}  "
+                      f"override {dec_em['override']['from_slot']}->"
+                      f"{dec_em['override']['to_slot']} "
+                      f"({dec_em['override']['outcome']})")
+                print(f"         summary: {msg['summary']}")
+
             # ---- 5: set_topology rebuilds the network ---------------
+            pre_reset_t = next_frame(ws)["sim_time"]
             client.post("/control/set_topology", json={"topology_id": "222"})
             f_topo = next_frame(
                 ws,
@@ -296,6 +497,30 @@ def main() -> None:
                    for j in ("J1", "J2", "J3")})
             check("5  stream still flowing after the rebuild",
                   next_frame(ws) is not None)
+
+            # ---- 5c: sim_time monotonicity across a LIVE episode
+            # boundary. The rebuild above ran env.reset(), so sim_time goes
+            # BACKWARDS on the wire. That is the one thing DecisionLog
+            # refuses, so if _reset_counters() did not replace the log,
+            # record_step would raise inside the sim thread, the thread
+            # would die and /health would carry the traceback. Surviving
+            # the reset with frames still arriving IS the check.
+            post = [next_frame(ws) for _ in range(4)]
+            post_ts = [fr["sim_time"] for fr in post]
+            health = client.get("/health").json()
+            check("5c sim_time went backwards across the reset (a real "
+                  "episode boundary was crossed)",
+                  post_ts[0] < pre_reset_t,
+                  f"{pre_reset_t} -> {post_ts[0]}")
+            check("5c the sim thread survived it — the per-episode "
+                  "DecisionLog was replaced, not reused",
+                  not health.get("sim_error") and health.get("sim_ready"),
+                  (health.get("sim_error") or "no sim_error").splitlines()[-1])
+            check("5c decisions are monotonic again after the boundary",
+                  post_ts == sorted(post_ts)
+                  and all(fr["decision"]["sim_time"] == fr["sim_time"]
+                          for fr in post),
+                  f"post-reset sim_times={post_ts}")
 
     print(RULE)
     print(f"  {_passed} passed, {_failed} failed")

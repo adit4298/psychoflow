@@ -9,25 +9,40 @@ stays off it. The loop each iteration:
     2. expire lane biases / forced emergencies whose window has passed
     3. pick an action  — Tier 0 (§9.1) in manual mode, the trained policy in auto
     4. env.step(action) — the §10 validator runs INSIDE this call, unchanged
-    5. assemble the §13.2 frame, hand it to frame_sink, publish get_stats() cache
-    6. on episode end, reset and keep going (a demo runs continuously)
-    7. sleep to pace wall-clock
+    5. record the step into §12.1's DecisionLog and §11.1's clearance coordinator
+    6. assemble the §13.2 frame, hand it to frame_sink, publish get_stats() cache
+    7. on episode end, reset and keep going (a demo runs continuously)
+    8. sleep to pace wall-clock
 
-The §13.2 frame's `decision` / `narration` fields are Phase 8's territory
-(§12.1 / §12.2).
+PHASE 8 SEAM — CLOSED (2026-08-29). The §13.2 frame's `decision` and
+`narration` are now produced by Phase 8's real modules
+(`explainability/{decision_log,narrator,query_interface}.py`), not by the
+hand-rolled `_decision_entry` / `_narrate` / `_reason_for` /
+`_representative_lane` / `_NARRATION` adapter this file used to carry. That
+adapter and its placeholder narration templates are DELETED, not deprecated.
+The wire schema did not move; `_emit_junction` survives as a pure selector,
+now over `DecisionLogEntry` objects rather than raw dicts.
 
-STATUS (updated 2026-08-28): PHASE 8 HAS NOW LANDED (commit 9cf19af) — this
-docstring previously said it "has not landed", which is no longer true. The real
-`explainability/{decision_log,narrator,query_interface}.py` modules exist and
-their done-bar passes. The adapter below has NOT yet been swapped out for them;
-that reconciliation is the remaining work at this seam. The wire schema does not
-move when it happens.
+TWO SNAPSHOTS, AND THE ORDER MATTERS. `env.step()` rebinds the twin's
+snapshot, so there are two distinct objects per iteration:
 
-Until that swap, `_decision_entry` / `_narrate` below are a thin adapter that
-produces the frozen §12.1 / §12.2 shapes from data that already exists today
-(`Tier0Controller.act`'s `decisions`, `info["safety_overrides"]`,
-`info["reward_breakdown"]`). Every spot where Phase 8's contract has the final
-say is marked `# PHASE 8 SEAM`.
+  * the PRE-step snapshot goes to `DecisionLog.record_step()`. That is the
+    state §10's validator judged the action against (`psychoflow_env.py`
+    step 2b) and the state the observation was built from, so an override's
+    `lane_id` / `wait_s` and §12.1's triggering-lane pick both resolve
+    against what the decision was actually made on.
+  * the POST-step snapshot is the frame's `digital_twin` field (what the
+    dashboard must draw) and what §11.1's clearance coordinator observes,
+    matching `sim/run_explainability_episode.py`.
+
+Getting these the wrong way round fails SILENTLY — lane ids exist in both,
+so every field still populates, just describing the wrong instant.
+
+ONE DECISION LOG PER EPISODE. `_reset_counters()` REPLACES `self._log`
+rather than clearing it; `env.reset()` sends sim_time back to ~0 and
+`DecisionLog` refuses a backwards sim_time (its at-or-before queries read
+the deque positionally). Reusing one across a reset would raise on the
+first post-reset step.
 
 STANDING RULE (CLAUDE.md §8): the env is constructed with the default
 `enable_safety_validator=True` and that parameter is never named here.
@@ -44,9 +59,17 @@ from typing import Callable
 
 import numpy as np
 
-from agents.rule_based import REASON_COUNT, REASON_STARVATION, Tier0Controller
+from agents.rule_based import Tier0Controller
 from backend.control_api import EMERGENCY_HOLD_S, Command, ControlState
+from coordinator.emergency_clearance import EmergencyClearanceCoordinator
+from coordinator.responder_messaging import (
+    build_responder_message,
+    estimate_baseline_clearance_s,
+)
 from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
+from explainability.decision_log import REASON_RL_POLICY, DecisionLog
+from explainability.narrator import narrate
+from explainability.query_interface import QueryInterface
 from perception.lane_sensor import DEFAULT_STARVATION_THRESHOLD_S
 from prediction.spillover import SpilloverPredictor
 from sim.sumo_activity import beat as _sumo_beat, clear as _sumo_clear
@@ -103,22 +126,11 @@ _JUNCTION_ORDER = {jid: i for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
 # sumo_activity.STALE_AFTER_S so a live backend never reads as stale.
 _BEACON_EVERY_S = 20.0
 
-# §12.2's narration templates, verbatim, plus the two reason values §12.2 does
-# not itself list. `rl_policy` is CONFIRMED FINAL by Session 2 (Phase 8) — exact
-# string, asserted in their decision_log._selftest. `starvation_ceiling` wording
-# is still a Phase 8 placeholder.
-_NARRATION = {
-    REASON_STARVATION: "Lane {lane}, {direction} — selected. Wait threshold crossed.",
-    REASON_COUNT: "Lane {lane}, {direction} — selected. Highest vehicle count.",
-    RULE_EMERGENCY: "Emergency override — {direction} cleared for ambulance.",
-    "voice_command": "Voice command received: '{transcript}' -> {action_taken}.",
-    # PHASE 8 SEAM: not in §12.2; placeholder wording.
-    RULE_STARVATION: "Lane {lane}, {direction} — forced green. Starvation ceiling reached.",
-    # Lane is CONTEXT (busiest served lane), not the stated cause — the
-    # trained policy's actual reason is opaque. Mirrors explainability/narrator.
-    "rl_policy": "Trained policy selected phase {phase} "
-                 "(busiest served lane: {lane}, {direction}).",
-}
+# Per-episode cap on the §12.1 log. An episode is at most
+# episode_horizon_s / DECISION_INTERVAL_S = 3600/5 = 720 steps x 3 junctions
+# = 2160 entries, so this never bites in practice — it is a memory bound for
+# a demo left running, not a policy.
+_LOG_MAXLEN = 10_000
 
 
 def _jsonable(x):
@@ -184,6 +196,11 @@ class SimRunner:
         self._step_maxes: list[float] = []     # across-lane max wait / step
         self._wait_var = 0.0
         self._mean_wait_max = 0.0
+        # Phase 8 (§11/§12) — all three are per-EPISODE and are replaced,
+        # never cleared in place, by _reset_counters().
+        self._log: DecisionLog | None = None
+        self._query: QueryInterface | None = None
+        self._coord: EmergencyClearanceCoordinator | None = None
         self._last_voice = None  # reserved for Phase 11
 
     # ------------------------------------------------------------------
@@ -240,6 +257,9 @@ class SimRunner:
         self._reset_counters()
 
     def _reset_counters(self) -> None:
+        """Everything that is scoped to ONE episode. Called after every
+        `env.reset()` — the natural episode end AND a `set_topology` rebuild.
+        """
         self._starved_lanes = set()
         self._starvation_events = 0
         self._step_vars = []
@@ -247,6 +267,17 @@ class SimRunner:
         self._wait_var = 0.0
         self._mean_wait_max = 0.0
         self._step_idx = 0
+        # REPLACED, not cleared. reset() sends sim_time back to ~0 and
+        # DecisionLog refuses a backwards sim_time, so a reused log would
+        # raise on the first post-reset record_step. The QueryInterface is
+        # rebuilt against the new log because it holds a direct reference,
+        # and the clearance coordinator because it holds the (possibly
+        # rebuilt) phase->lane map.
+        self._log = DecisionLog(maxlen=_LOG_MAXLEN)
+        self._query = QueryInterface.from_twin_topology(
+            self._log, self._env.twin.topology
+        )
+        self._coord = EmergencyClearanceCoordinator(self._served)
 
     # ------------------------------------------------------------------
     # main loop
@@ -275,15 +306,37 @@ class SimRunner:
                     self._build_env()
 
                 self._expire_windows()
-                self._env.forced_emergency_lanes = frozenset(self._forced)
+                # ONE tracked set of operator-forced lanes, read once per
+                # step and handed to BOTH consumers: §10's validator (via
+                # the env, psychoflow_env.py step 2b) and §11.1's clearance
+                # coordinator below. Not two implementations of the same
+                # tracking — `self._forced` is the only tracker, aged out by
+                # _expire_windows() against EMERGENCY_HOLD_S.
+                forced = frozenset(self._forced)
+                self._env.forced_emergency_lanes = forced
+
+                # PRE-step snapshot: the state §10 judged the action against
+                # and the observation was built from. env.step() rebinds the
+                # twin's snapshot, so this is a genuinely distinct object
+                # from the post-step one — see this module's docstring.
+                pre_snap = self._env.twin.snapshot
 
                 action, decisions = self._pick_action()
                 obs, reward, terminated, truncated, info = self._env.step(action)
                 self._obs = obs
                 self._step_idx += 1
 
+                # §12.1 against the PRE-step snapshot; §11.1 against POST.
+                entries = self._log.record_step(
+                    info["sim_time"], decisions, info, pre_snap, self._served
+                )
+                closed = self._coord.observe(
+                    info["sim_time"], self._env.twin.snapshot, self._env._runtime(),
+                    info, forced_emergency_lanes=forced,
+                )
+
                 self._update_metrics(info)
-                frame = self._assemble_frame(info, decisions)
+                frame = self._assemble_frame(info, entries, closed)
                 if self._frame_sink is not None:
                     self._frame_sink(frame)
                 self.state.publish_stats(self._stats_payload(info))
@@ -291,6 +344,11 @@ class SimRunner:
                 if terminated or truncated:
                     print(f"[sim] episode end (terminated={terminated} "
                           f"truncated={truncated}) — resetting")
+                    # Close any clearance episode still open, so its §11.2
+                    # message is not lost at the boundary (matches the Phase
+                    # 8 harness's finalize()). Done BEFORE _reset_counters
+                    # replaces the coordinator.
+                    self._coord.finalize(info["sim_time"])
                     self._obs, _ = self._env.reset()
                     self._served = self._env.phase_served_lanes()
                     self._reset_counters()
@@ -354,19 +412,18 @@ class SimRunner:
             action = np.asarray(action, dtype=int)
             # A per-junction decision row for EVERY junction, even though the
             # trained policy has no Tier-0-style score breakdown. Phase 8's
-            # decision_log.record_step drops (now: raises on) any §10 override
-            # whose junction is missing from this dict, so an empty/partial
-            # dict here would lose the shield's overrides for the deployed
-            # policy. reason == decision_log.REASON_RL_POLICY (kept a literal,
-            # consistent with _reason_for / _NARRATION in this file; that
-            # module asserts the string).
+            # decision_log.record_step RAISES on any §10 override whose
+            # junction is missing from this dict, so an empty/partial dict
+            # here would lose the shield's overrides for the deployed policy.
+            # `score_breakdown`/`alternative_scores` stay empty: record_step
+            # accepts and structurally exempts them under a non-scored reason.
             decisions = {
                 jid: {
                     "junction_id": jid,
                     "phase_selected": int(action[i]),
                     "score_breakdown": {},
                     "alternative_scores": {},
-                    "reason": "rl_policy",
+                    "reason": REASON_RL_POLICY,
                 }
                 for i, jid in enumerate(CORRIDOR_JUNCTIONS)
             }
@@ -453,101 +510,69 @@ class SimRunner:
         }
 
     # ------------------------------------------------------------------
-    # §13.2 frame  (decision / narration = PHASE 8 SEAM)
+    # §13.2 frame
     # ------------------------------------------------------------------
-    def _emit_junction(self, info: dict) -> str:
-        overrides = info["safety_overrides"]
+    def _emit_junction(self, entries: list, info: dict):
+        """Pick the ONE §12.1 entry this frame carries (§13.2 has one
+        `decision` field; `DecisionLog` records one entry per junction).
+
+        Pure selector over the entries `record_step` just returned — it
+        derives nothing and rewrites nothing, so what the frame shows is
+        literally what the log holds. Order:
+
+          1. a §10 override, emergency outranking the starvation ceiling,
+             ties broken by corridor index (J1 < J2 < J3)
+          2. else the lowest-index junction that switched this step
+          3. else rotate by step index, so the panel stays live
+
+        Same rule the deleted adapter used, so the stream's behaviour does
+        not change with the swap.
+        """
+        by_j = {e.junction_id: e for e in entries}
         for rule in (RULE_EMERGENCY, RULE_STARVATION):
             hits = sorted(
-                (o["junction_id"] for o in overrides if o["rule"] == rule),
+                (e.junction_id for e in entries
+                 if e.override is not None and e.override["rule"] == rule),
                 key=lambda j: _JUNCTION_ORDER[j],
             )
             if hits:
-                return hits[0]
-        switched = list(info["switched_junctions"])
+                return by_j[hits[0]]
+        switched = [j for j in info["switched_junctions"] if j in by_j]
         if switched:
-            return sorted(switched, key=lambda j: _JUNCTION_ORDER[j])[0]
-        # nothing switched this step — rotate so the log stays live
-        return CORRIDOR_JUNCTIONS[self._step_idx % len(CORRIDOR_JUNCTIONS)]
+            return by_j[sorted(switched, key=lambda j: _JUNCTION_ORDER[j])[0]]
+        rotated = CORRIDOR_JUNCTIONS[self._step_idx % len(CORRIDOR_JUNCTIONS)]
+        return by_j.get(rotated) or entries[0]
 
-    def _reason_for(self, jid: str, info: dict, decisions: dict) -> str:
-        overrides = info["safety_overrides"]
-        # Mirror Phase 8's reconciliation order exactly: an emergency override
-        # outranks a starvation-ceiling override at the same junction.
-        for rule in (RULE_EMERGENCY, RULE_STARVATION):
-            if any(o["junction_id"] == jid and o["rule"] == rule for o in overrides):
-                return rule
-        if jid in decisions:
-            return decisions[jid]["reason"]
-        # Sixth §12.1 reason value, for a no-override decision made by the
-        # trained policy. CONFIRMED FINAL by Session 2 (Phase 8): exact string
-        # "rl_policy", asserted in their decision_log._selftest.
-        return "rl_policy"
+    def _responder_messages(self, closed: list) -> list[dict]:
+        """§11.2 messages for clearance episodes that closed this step.
 
-    def _decision_entry(self, info: dict, decisions: dict) -> dict:
+        Only for episodes that actually resolved to a green —
+        `build_responder_message` raises on an unresolved one, and an
+        episode that never reached green has no clearance time to report.
+        Baseline uses the same worst-case convention as the Phase 8 harness
+        (`age=0`, the junction's own green-phase count), so the live number
+        and the offline one mean the same thing.
+        """
+        out: list[dict] = []
+        for ev in closed:
+            if ev.clearance_time_s is None:
+                continue
+            n_green = len(self._served.get(ev.junction_id, {})) or 1
+            out.append(build_responder_message(
+                ev, estimate_baseline_clearance_s(0.0, n_green)
+            ))
+        return out
+
+    def _assemble_frame(self, info: dict, entries: list, closed: list) -> dict:
+        # POST-step snapshot — what the dashboard draws. The PRE-step one
+        # went to record_step(); see this module's docstring.
         snap = self._env.twin.snapshot
-        jid = self._emit_junction(info)
-        idx = _JUNCTION_ORDER[jid]
-        reason = self._reason_for(jid, info, decisions)
-
-        base = decisions.get(jid, {})
-        entry = {
-            "sim_time": snap["sim_time"],
-            "junction_id": jid,
-            "phase_selected": int(info["executed_action"][idx]),
-            # PHASE 8 SEAM: {} under RL control — Phase 8's decision_log owns
-            # the RL-mode breakdown. Populated verbatim from Tier 0 otherwise.
-            "score_breakdown": base.get("score_breakdown", {}),
-            "alternative_scores": base.get("alternative_scores", {}),
-            "reason": reason,
-        }
-        if reason in (RULE_EMERGENCY, RULE_STARVATION):
-            rec = next(
-                o for o in info["safety_overrides"]
-                if o["junction_id"] == jid and o["rule"] == reason
-            )
-            entry["override"] = {
-                "from_slot": rec["from_slot"], "to_slot": rec["to_slot"],
-                "lane_id": rec["lane_id"], "wait_s": round(rec["wait_s"], 3),
-                "outcome": rec["outcome"],
-            }
-        return entry
-
-    def _representative_lane(self, jid: str, slot: int, snap: dict):
-        lanes = snap["junctions"][jid]["lanes"]
-        served = self._served.get(jid, {}).get(slot, frozenset())
-        candidates = [(lid, lanes[lid]) for lid in served if lid in lanes]
-        if not candidates:
-            return "?", "?"
-        lid, reading = max(
-            candidates, key=lambda kv: kv[1]["wait_time_max_single_vehicle"]
-        )
-        return lid, reading["approach"]
-
-    def _narrate(self, entry: dict) -> str:
-        snap = self._env.twin.snapshot
-        tmpl = _NARRATION.get(entry["reason"])
-        lane, direction = self._representative_lane(
-            entry["junction_id"], entry["phase_selected"], snap
-        )
-        if tmpl is None:
-            return f"{entry['junction_id']}: phase {entry['phase_selected']} selected."
-        try:
-            return tmpl.format(
-                lane=lane, direction=str(direction).capitalize(),
-                phase=entry["phase_selected"], transcript="", action_taken="",
-            )
-        except Exception:
-            return f"{entry['junction_id']}: phase {entry['phase_selected']} selected."
-
-    def _assemble_frame(self, info: dict, decisions: dict) -> dict:
-        snap = self._env.twin.snapshot
-        decision = self._decision_entry(info, decisions)
+        entry = self._emit_junction(entries, info)
         frame = {
             "sim_time": snap["sim_time"],
             "digital_twin": snap,
-            "decision": decision,
-            "narration": self._narrate(decision),
+            "decision": entry.to_dict(),
+            "narration": narrate(entry),
             "metrics_snapshot": {
                 # §15.2's pinned set. avg_wait dropped (2026-08-28): it was
                 # computed from wait_time_current, a per-lane SUM, which
@@ -558,4 +583,10 @@ class SimRunner:
                 "throughput_total": info["arrived_total"],
             },
         }
+        # §11.2 responder messaging — ADDITIVE and only when non-empty, so
+        # the frozen §13.2 five-key shape is unchanged on the vast majority
+        # of frames and no consumer has to handle an empty list.
+        messages = self._responder_messages(closed)
+        if messages:
+            frame["responder_messages"] = messages
         return _jsonable(frame)

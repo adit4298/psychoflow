@@ -1915,3 +1915,185 @@ Fix 1 patched `sim_runner._pick_action` to satisfy `decision_log`'s contract, bu
 raise it added protects a call site the backend does not yet make. The
 adapter->Phase 8 swap remains open, and is the actual remaining work at the
 PHASE 8 SEAM.
+
+## 2026-08-29 — PHASE 8 SEAM CLOSED: DecisionLog monotonicity guard, operator-emergency provenance, and the adapter swap (§11 / §12 / §13.2)
+
+Three separately committed, separately verified steps, in order. The
+cross-phase scope (Phase 8 modules + Phase 9 backend in one pass) was
+approved on the condition that they land and be verified one at a time —
+recorded here because CLAUDE.md §6 otherwise treats a multi-phase change as
+a stop-and-ask.
+
+### Commit B — `DecisionLog` refuses a backwards `sim_time`.
+
+**Decision:** `record_step` and `record_voice` raise `ValueError` on a
+`sim_time` earlier than the highest already recorded. Equal is legal (one
+entry per junction per step; a voice entry may share an instant).
+**Why:** `entries_for` / `latest` / §12.3's `why()` read the deque
+POSITIONALLY and take the last match — they never sort. So an out-of-order
+entry raises nothing and instead makes every later at-or-before query answer
+with the wrong decision: this repo's named failure mode, a run that passes
+while proving nothing. The realistic route in is an episode boundary, since
+`env.reset()` sends sim_time back to ~0. The guard is what makes commit D's
+per-episode log lifecycle load-bearing rather than a convention.
+**Deviates from plan?** No. Nothing in `env/`, `env/reward.py` or
+`safety/validator.py` touched.
+**Verified:** `python -m explainability.decision_log` — scenarios 1-7
+unchanged plus a new scenario 8 (equal/increasing accepted; both recorders
+reject t=150 after t=200; the rejected calls append nothing and do not move
+the watermark; a FRESH log accepts t=0.0). `narrator` and `query_interface`
+self-tests re-run green.
+
+**The guard's first catch was in-repo, and is recorded rather than quietly
+fixed:** `sim/run_explainability_episode.py` recorded its §12.2 voice entry
+at a hardcoded `t=1234.0` into a Segment-1 log already at t~3145. It now
+records at the log's own watermark (`log.latest().sim_time`). One line, no
+measured claim moved.
+
+### Commit C — operator-vs-detected provenance on §11.1 / §11.2.
+
+**Decision:** `EmergencyClearanceCoordinator.observe(..., *,
+forced_emergency_lanes: frozenset[str] = frozenset())` — the same name, type
+and default as `safety.validator.validate()` — unioned per junction with the
+sensed-ambulance set. `EmergencyClearanceEvent.source` is `"detected"` |
+`"operator"`; detection wins on overlap; the field is fixed when the episode
+opens and never mutated. §11.2's payload gains `trigger_source` and its
+summary text follows it.
+**Why:** §10's emergency branch already fired on either trigger, but §11.1
+only ever saw a sensed ambulance — so an operator-forced clearance produced
+no clearance episode and no §11.2 message at all. And the messages it did
+produce said "cleared for emergency vehicle" regardless, asserting an
+observation the system never made, in the one place a sentence is shown to a
+HUMAN as decision support. `source` is fixed at open because the field is the
+provenance of the TRIGGER: an ambulance turning up later at an
+operator-opened junction does not make the trigger a detection.
+**Deviates from plan?** Additive to §11.2's literal schema, and master plan
+§11.2 was updated in the same commit with the field, its enum and the
+fixed-at-open rule. Nothing in `env/`, `env/reward.py` or
+`safety/validator.py` touched.
+**Verified:** `python -m coordinator.emergency_clearance` (9 scenarios — the
+3 originals plus operator-only trigger, detected+forced simultaneously at one
+junction, same-lane overlap, source-fixed-at-open, cross-junction forced-lane
+attribution, and default-equivalence) and
+`python -m coordinator.responder_messaging`.
+**Backward compatibility MEASURED, not asserted:**
+`sim/run_explainability_episode.py` does not pass the new kwarg and
+reproduces the recorded Phase 8 figures exactly — 627 steps / 1881 entries /
+18 §10 override records / 13 `starvation_ceiling` / 2 clearance episodes both
+resolved (J2 `served_on_arrival` 0.0s `override_fired: true`, J1 3.0s
+`override_fired: false`). The self-test pins it directly too: a coordinator
+with the kwarg omitted and one passed `frozenset()` produce byte-identical
+`to_dict()` output.
+
+### Commit D — the adapter swap.
+
+**Decision:** `backend/sim_runner.py`'s hand-rolled `_NARRATION`,
+`_decision_entry()`, `_reason_for()`, `_representative_lane()` and
+`_narrate()` are DELETED. The §13.2 frame's `decision` is
+`DecisionLogEntry.to_dict()` and its `narration` is
+`explainability.narrator.narrate(entry)`. `_emit_junction()` survives as a
+pure selector over the entries `record_step` returns, with the precedence it
+always had (emergency override > starvation ceiling > lowest switched
+corridor index > rotate by step index), so the wire schema did not move.
+§11.2 responder messages ride the frame as `responder_messages`, ADDITIVE
+and only when non-empty. `QueryInterface` is wired from
+`from_twin_topology(...)`.
+**Why:** the seam's whole point. The adapter reimplemented §12.1/§12.2 from
+the same inputs and drifted from them — see the regression below.
+**Deviates from plan?** No. Nothing in `env/`, `env/reward.py` or
+`safety/validator.py` touched; no locked decision (CLAUDE.md §2) reopened.
+
+**Two snapshots, and the order is load-bearing.** `env.step()` rebinds the
+twin's snapshot (`twin.update()` builds a NEW dict), so the loop holds two
+distinct objects. The PRE-step snapshot goes to `record_step()` — it is what
+§10's validator judged the action against (`psychoflow_env.py` step 2b) and
+what the observation was built from. The POST-step snapshot is the frame's
+`digital_twin` field and what §11.1 observes, matching the Phase 8 harness.
+**Swapping them fails SILENTLY** — lane ids exist in both, so every field
+still populates while describing the wrong instant.
+
+**Per-episode lifecycle:** `_reset_counters()` REPLACES `self._log`,
+`self._query` and `self._coord` rather than clearing them, and runs after
+BOTH the natural episode end and a `set_topology` rebuild. Commit B's guard
+is what turns a mistake here into a loud failure.
+
+**THE LIVE REGRESSION THE SWAP FIXES, and why the first version of the check
+proved nothing.** The deleted `_representative_lane` named the busiest lane
+of the EXECUTED PHASE's served set. Right after an emergency override that
+set is *tied at zero wait across BOTH approaches the phase serves*, so
+`max()` returned an arbitrary tie-break and the compass direction printed
+had nothing to do with the forced lane. Demonstrated on the captured live
+lane set (J1 phase 0, 8 lanes, 4 north + 4 south, all `wait_max=0.0`,
+forced lane `N1_J1_2`):
+
+| iteration order | deleted rule names | direction correct? |
+|---|---|---|
+| sorted | `N1_J1_0` (north) | yes, by luck |
+| reversed | **`S1_J1_3` (south)** | **NO** |
+| frozenset as seen | `N1_J1_1` (north) | yes, by luck |
+
+`explainability/decision_log` takes the lane from the §10 `OverrideRecord`
+instead, so entry and narration both name the lane the operator forced.
+**Worth recording as method:** the first version of smoke check 4 forced *the
+busiest lane*, which is usually a lane already being served — where the old
+and new rules agree and the check passes without discriminating. Check 4a now
+picks a lane OUTSIDE the junction's current green set whose approach differs
+from every lane that green serves, and asserts it did so, before 4b/4c run.
+
+**Verified:** `sim/run_backend_smoke.py` — **37 passed, 0 failed** (project
+venv, deployed Stage 4 checkpoint; was 24). 13 new checks, each pinning a
+specific regression: 1d/1e/1f (`_reset_counters` replaces the log; the
+rebuilt `QueryInterface` binds the new one; a REUSED log rejects the
+post-reset sim_time while the fresh one accepts it — no SUMO), 2b
+(`{lane}` renders a within-approach INDEX, not a raw SUMO lane id), 4a
+(forcing outside the current green set), 4b/4c (entry and narration name the
+FORCED lane and its real direction — `J1 slot 0 serves ['north','south'];
+forcing J2_J1_0 (east)` -> `J1 · Emergency override — East cleared for
+ambulance.`), 4d (`proposed` AND `override` both present), 4e (a §11.2
+message arrives after `EMERGENCY_HOLD_S`, `trigger_source='operator'`), 5c
+(sim_time crosses a live reset backwards, 105.0 -> 25.0, the sim thread
+survives it and decisions are monotonic again).
+`sim/run_explainability_episode.py` re-run green and unchanged. All 5 Phase 8
+module self-tests plus `python -m env.reward` and `python -m safety.validator`
+(11/11) green.
+
+### OPEN ITEM, NOT FIXED — `served_on_arrival` can be reported for a lane that was not already clear.
+
+Found while verifying commit D; **not** introduced by it. **The call on how
+to fix it is the user's (CLAUDE.md §6), and the numbers below are traced, not
+inferred.**
+
+§11.1's `observe()` is called with `info["sim_time"]` (POST-step), so
+`first_detection_sim_time` is stamped on the 5s decision grid, while
+`green_onset` is recovered as `sim_time - time_since_switch_s` at true 1s
+resolution. When §10 clears the lane INSIDE the same decision step, green
+onset lands BEFORE detection, `served_on_arrival` fires and
+`clearance_time_s` floors to 0.0. Live backend, operator trigger on
+`N1_J1_0` at J1:
+
+```
+t=90.0  forced=['N1_J1_0']  ovr=[('J1','emergency_override',1,0,'applied')]
+        J1 open: lane=N1_J1_0 src=operator det=90.0 green_onset=88.0
+                 cur_slot=0 green_age=2.0 serves=True clearance=0.0 on_arrival=True
+```
+
+The lane went green at t=88, ~2s after the request — it was **not** already
+clear. The operator-facing summary nonetheless reads "was already clear when
+the clearance was requested". §11.2 is the one place in this system where a
+number and a sentence go to a human as decision support (master plan §11.2's
+own blocker note), which is why this is logged rather than left as a detail.
+
+**Pre-existing:** `run_explainability_episode.py` calls
+`observe(info["sim_time"], ...)` the same way, and the 2026-08-28 Phase 8
+entry records the same 0.0s `served_on_arrival` result as its caveat 1. The
+swap is what put it on an operator-facing wire.
+
+**Candidate fixes, neither applied:** stamp detection at the PRE-step
+sim_time (the boundary from which the request was actually live), or floor
+`green_onset` at the previous decision boundary. Either changes §11.1's
+recorded numbers, so `python -m coordinator.emergency_clearance` and
+`sim/run_explainability_episode.py` must be re-run and the Phase 8 figures
+re-recorded.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete;
+this pass closed the last outstanding item at the Phase 8 / Phase 9 seam.
