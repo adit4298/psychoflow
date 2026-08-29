@@ -1724,6 +1724,27 @@ at t=1110) is **27s above the highest wait any override ever fired at** (144.0s)
 i.e. at the peak instant J1's ceiling did not need to fire — the served phase
 already covered that lane.
 
+**How hard the shield is actually working, quantified** (computed from
+`_sweeps/d1_override_pull.json`, no new runs). Against Phase 8's adversarial
+rule-based Segment 2 — a controller *deliberately built to starve J2 north*,
+which produced 13 `starvation_ceiling` overrides across 238 steps =
+**0.055 overrides/step**:
+
+| episode | overrides / steps | per step | vs adversarial baseline |
+|---|---|---|---|
+| (3,2,4) seed 42 | 85 / 628 | **0.135** | **~2.5×** |
+| (3,2,4) seed 1 | 217 / 640 | **0.339** | **~6.2×** |
+
+So at this checkpoint the policy makes §10's ceiling fire between two and six
+times as often as a controller written on purpose to starve a lane. That is a
+measure of how much work the shield is doing to keep the corridor moving, and it
+is **consistent with — not an additional finding beyond — "the policy never got
+stably good"** (§7's pass-2 result). It is **not** a validator defect: every one
+of those overrides fired above the 120s ceiling, and both episodes still
+terminate with the full **4668 vehicles arrived**. Stated because the raw
+override counts (85, 217) mean little without a reference point, and the
+adversarial segment is the only comparable one on record.
+
 **One record update this does force, small but real:** §10.1 quotes a measured
 overshoot of **124–141s** against the 120s ceiling, from Phase 4's B3/B4 on
 corridor 4/3/2. These runs measure **up to 171s** on (3,2,4) under a policy
