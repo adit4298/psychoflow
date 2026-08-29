@@ -2187,7 +2187,42 @@ above replace them and are derived from Stage 4's own training log. The
 conclusion is unchanged and marginally strengthened.
 **Deviates from plan?** No.
 
-### 3. Critic exposure — thin, and 81% of it is IRREDUCIBLE by construction
+### 3. Critic exposure — thin, and the large majority of it is IRREDUCIBLE by construction
+
+> **[CORRECTED 2026-08-30 — the single "81%" figure is replaced by a RANGE of
+> 81–92%, and the vis/none bucket table shown below in this section was
+> ILLUSTRATIVE CONTEXT, not the literal input to the 17.1 / 19.0 / 81.0 split.]**
+> A reviewer recomputed `Var_B(E[C|B])` directly from the two printed bucket
+> stats (`p_vis=0.0064175, mean_vis=10.2179, var_vis=108.5088`; `p_none`,
+> `mean_none=0.5733, var_none=6.3094`; `E[C]=0.6352`) and got **0.593**, i.e.
+> **7.85% reducible / 92.15% irreducible** — not the 1.2895 / 17.1% / 81.0% this
+> section states. The total reproduces (0.593 + 6.965 = 7.558), so the two-bucket
+> table is internally consistent; it just is not what produced the split.
+>
+> **What actually produced 1.2895:** a FINER partition — `vis` states split by
+> `(steps-into-transit k, corridor-route flag)` into 15 sub-buckets, `none` as a
+> single bucket (16 buckets total). Recomputed and confirmed this session:
+> two-bucket {vis,none} → `Var_B = 0.5931` (**7.85%** reducible); + position/route
+> sub-buckets → `0.5931 → 1.2895` (**17.06%**); + an exact `sim_time` (50s bins,
+> `none` states only) → `1.4344` (**18.98%**). Totals close to 7.5584 in all three.
+>
+> **The honest reading — reducible is a RANGE, 7.85%–19.0%; irreducible 81%–92%.**
+> The 7.85% lower bound (vis/none only) is the *faithful* "what a perfect critic
+> conditioned on the observation could remove," because the observation's only
+> ambulance channel is a per-lane count — it shows presence and location but not
+> `k` directly, and `sim_time` is absent entirely (`env/obs_action_spec.py`). The
+> 17–19% figures over-credit the critic with transit-position / clock information
+> it does not have. So the vis/none lower bound makes this section's point
+> *stronger*, not weaker: **92% irreducible, not 81%.**
+>
+> **Does this change the verdict? NO.** §6's "no fix, no retrain" and §4's
+> observability root cause rest on `env/obs_action_spec.py`'s channel list and the
+> route-sensing geometry — both read directly from code, neither touched by this
+> arithmetic. The direction (an ambulance is visible in 0.64% of states; the rest
+> of the emergency variance in the value target is unpredictable from the obs) is
+> unchanged and, at the 92% end, blunter. This is the third correction in the same
+> diagnostic pass; the two below were made inline before commit `585b666`, this
+> one after, so it takes the blockquote-pointer form used elsewhere in this file.
 
 **Decision:** record the observability decomposition as the finding, and WITHDRAW
 the value_loss comparison that was first offered as its support.
