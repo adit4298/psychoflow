@@ -21,9 +21,17 @@ dict shape that `agents.rule_based.Tier0Controller.act()` already
 returns; Phase 9's RL auto-mode builds the same-shaped dict with
 `reason="rl_policy"` and whatever breakdown it has, and the override
 reconciliation is identical regardless of who produced the proposal.
-It is fed CALLER-SIDE (the Phase 8 harness, later Phase 9's
+It is fed CALLER-SIDE (the Phase 8 harness, Phase 9's
 `backend/sim_runner.py`) — never wired into `PsychoFlowEnv.step()`,
 whose scope is frozen (CLAUDE.md §3).
+
+ONE LOG PER EPISODE. `record_step`/`record_voice` refuse a `sim_time`
+earlier than the highest already recorded: the deque is read positionally
+by `entries_for`/`latest`/§12.3's `why()`, so an out-of-order entry raises
+nothing and instead makes every later at-or-before query answer with the
+wrong decision. `env.reset()` sends sim_time back to ~0, so a log reused
+across an episode boundary would do exactly that — the guard is what makes
+the per-episode lifecycle load-bearing rather than a convention.
 
 Reason vocabulary — six values, single-sourced from the modules that own
 each string so they cannot drift:
@@ -153,9 +161,52 @@ class DecisionLog:
 
     def __init__(self, maxlen: int | None = None):
         self.entries: deque[DecisionLogEntry] = deque(maxlen=maxlen)
+        # Highest sim_time recorded so far. Tracked as a scalar rather than
+        # read off `entries[-1]`, because a bounded deque evicts.
+        self._last_sim_time: float | None = None
 
     def __len__(self) -> int:
         return len(self.entries)
+
+    # -- monotonicity guard --------------------------------------------------
+    def _check_monotonic(self, sim_time: float, caller: str) -> float:
+        """A log covers ONE episode; its sim_time may never go backwards.
+
+        `entries_for()` / `latest()` / §12.3's `why()` all rely on the deque
+        being ordered by `sim_time` — they slice it by position and take the
+        LAST match, never sorting. Appending an out-of-order entry therefore
+        does not raise anywhere; it silently makes every subsequent
+        at-or-before query answer with the wrong decision, which is the
+        failure mode this repo keeps hitting (a run that passes while
+        proving nothing).
+
+        The realistic way it happens is an episode boundary: `env.reset()`
+        sends sim_time back to ~0, so a log REUSED across a reset would
+        interleave two episodes into one non-monotonic sequence. The fix is
+        a fresh `DecisionLog` per episode (see `backend/sim_runner.py`'s
+        `_reset_counters`); this guard is what makes that lifecycle
+        load-bearing instead of a convention.
+
+        Equal timestamps are legal — a decision step records one entry per
+        junction, and a §12.2 voice entry may land on the same instant.
+        """
+        t = float(sim_time)
+        last = self._last_sim_time
+        if last is not None and t < last - 1e-9:
+            raise ValueError(
+                f"{caller}: sim_time went BACKWARDS ({t} < {last}). A "
+                f"DecisionLog covers one episode and must stay ordered — "
+                f"at-or-before queries (§12.3) read it positionally and "
+                f"would silently return the wrong decision. If this is an "
+                f"episode boundary, replace the log rather than reusing it."
+            )
+        return t
+
+    def _advance(self, sim_time: float) -> None:
+        """Move the watermark. `max`, not assignment, so a step back inside
+        the 1e-9 tolerance cannot walk it backwards over many calls."""
+        last = self._last_sim_time
+        self._last_sim_time = sim_time if last is None else max(last, sim_time)
 
     # -- recording -----------------------------------------------------------
     def record_step(
@@ -175,6 +226,10 @@ class DecisionLog:
         it. `snapshot` is the state the decision was scored against (the
         pre-step snapshot). `served_lanes` is the static phase->lane map.
         """
+        # Both guards run BEFORE anything is appended, so a rejected call
+        # leaves the log exactly as it was.
+        sim_time = self._check_monotonic(sim_time, "record_step")
+
         overrides_by_j = {
             record["junction_id"]: record
             for record in info.get("safety_overrides", [])
@@ -198,6 +253,8 @@ class DecisionLog:
                 f"every junction acted on this step — for RL auto mode, one "
                 f"per junction with reason={REASON_RL_POLICY!r}."
             )
+
+        self._advance(sim_time)
 
         new: list[DecisionLogEntry] = []
         for junction_id, decision in decisions.items():
@@ -258,6 +315,8 @@ class DecisionLog:
         Wired by Phase 9/11; defined here so the schema and reason value
         are fixed now.
         """
+        sim_time = self._check_monotonic(sim_time, "record_voice")
+        self._advance(sim_time)
         entry = DecisionLogEntry(
             sim_time=float(sim_time),
             junction_id=junction_id,
@@ -452,6 +511,49 @@ def _selftest() -> None:
             )
     print(f"  [OK] override at an unscored junction raises ValueError "
           f"(decisions={{}} and partial dict both)")
+
+    # -- 8: sim_time monotonicity guard --------------------------------
+    # A log covers ONE episode. Out-of-order entries do not raise anywhere
+    # downstream — entries_for()/latest()/why() read the deque positionally
+    # — so without this guard a log reused across env.reset() would silently
+    # answer at-or-before queries with the previous episode's decision.
+    clean = {"safety_overrides": []}
+    log = DecisionLog()
+    log.record_step(100.0, decisions, clean, snapshot, served)
+    log.record_step(100.0, decisions, clean, snapshot, served)   # equal: legal
+    log.record_voice(100.0, "J1", "same instant", "noop")        # equal: legal
+    log.record_step(200.0, decisions, clean, snapshot, served)
+    assert len(log) == 4 and log._last_sim_time == 200.0
+    print(f"  [OK] equal and increasing sim_time accepted "
+          f"({len(log)} entries, last t={log._last_sim_time:.0f})")
+
+    for label, call in (
+        ("record_step", lambda: log.record_step(150.0, decisions, clean,
+                                                snapshot, served)),
+        ("record_voice", lambda: log.record_voice(150.0, "J1", "late", "noop")),
+    ):
+        try:
+            call()
+        except ValueError as exc:
+            assert "BACKWARDS" in str(exc) and "150.0" in str(exc) \
+                and "200.0" in str(exc), exc
+            print(f"  [OK] {label}(t=150) after t=200 raises: {exc}")
+        else:
+            raise AssertionError(f"{label} must reject a backwards sim_time")
+
+    # The rejected calls appended nothing and did not move the watermark.
+    assert len(log) == 4 and log._last_sim_time == 200.0
+    # A tolerance-width step back is still accepted (float round-trip noise),
+    # and does NOT walk the watermark backwards — `_advance` takes a max.
+    log.record_step(200.0 - 1e-12, decisions, clean, snapshot, served)
+    assert len(log) == 5 and log._last_sim_time == 200.0, log._last_sim_time
+    # And the episode-boundary fix: a FRESH log restarts at t~0 happily.
+    fresh = DecisionLog()
+    fresh.record_step(0.0, decisions, clean, snapshot, served)
+    assert len(fresh) == 1 and fresh._last_sim_time == 0.0
+    print(f"  [OK] rejected calls left the log untouched (4 entries, "
+          f"watermark 200.0); a FRESH log accepts t=0.0 — the per-episode "
+          f"lifecycle is what the guard makes load-bearing")
 
     print(f"\nAll decision_log self-tests passed.")
 

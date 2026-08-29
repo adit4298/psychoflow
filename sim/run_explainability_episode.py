@@ -323,9 +323,14 @@ def verify_narration(tier0, adversarial) -> None:
         if e.reason == REASON_STARVATION_CEILING and e.override:
             seen[e.reason] = e  # prefer one carrying the wait_s
 
-    # A real voice entry via the actual API.
+    # A real voice entry via the actual API. Recorded at the log's own
+    # watermark rather than a literal mid-episode time: DecisionLog now
+    # refuses a backwards sim_time (one log per episode, §12.3's at-or-before
+    # queries read it positionally), and this call lands AFTER the segment's
+    # last decision step.
+    voice_t = tier0["log"].latest().sim_time
     voice_entry = tier0["log"].record_voice(
-        1234.0, "J2", "switch to manual mode", "set_mode(manual)"
+        voice_t, "J2", "switch to manual mode", "set_mode(manual)"
     )
     seen[REASON_VOICE_COMMAND] = voice_entry
 
