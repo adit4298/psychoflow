@@ -1224,6 +1224,35 @@ Pause and ask the user rather than proceeding when:
 &#x20; recorded (4,3,2) seed 7 row exactly (1.2859 / 121.0s / 1.09%), which is how
 &#x20; it is known to be measuring the same thing the existing record does.
 
+\- \*\*TWO DATA-LOCATION FACTS that cost time in the 2026-08-29 emergency
+&#x20; diagnosis — record them so the next session doesn't re-derive them.\*\*
+&#x20; (1) \*\*Stage 3, Stage 4 and Stage 5 TensorBoard event files all live under
+&#x20; `training/checkpoints/stage2/tb/MaskablePPO_1/`\*\*, NOT under their own
+&#x20; `stageN/tb/`. `MaskablePPO.load()` restores `tensorboard_log` from the
+&#x20; checkpoint, and Stages 3->4->5 resumed the Stage 2 lineage, so every
+&#x20; resumed run keeps writing to Stage 2's directory. Identify which run a
+&#x20; given event file belongs to by matching its filename Unix timestamp to the
+&#x20; `t_start` in the matching `stageN/monitor*.csv` header. `train.py` sets
+&#x20; `tensorboard_log=str(stage_dir / "tb")` only on a FRESH model (Burst A);
+&#x20; a resume never re-points it. \*\*Scalars available\*\*: `rollout/ep_rew_mean`,
+&#x20; `rollout/ep_len_mean`, `train/{value_loss, explained_variance, entropy_loss,
+&#x20; approx_kl, clip_fraction, policy_gradient_loss, loss, learning_rate}` — one
+&#x20; point per rollout (2048 steps). No per-state value predictions are logged
+&#x20; anywhere; `explained_variance` / `value_loss` are the only critic-fit signal.
+&#x20; (2) \*\*No per-term reward decomposition exists for Stage 4 anywhere in the
+&#x20; repo.\*\* `reward_term_pre51k.json` / `reward_term_replay.json` /
+&#x20; `det_stoch_diag.json` carry `sum_starvation_penalty` / `sum_throughput_bonus`
+&#x20; / `sum_emergency_penalty` / `sum_switch_penalty` — but ONLY for
+&#x20; `graph_attention` checkpoints. `stage4_*.json` and `checkpoint_bakeoff.json`
+&#x20; carry `mean_reward` / `ovrE` / `ovrS` and no term split. To get Stage 4's
+&#x20; term shares, reconstruct from `stage4/monitor*.csv` via the reward identity
+&#x20; `total = throughput_bonus - starvation - emergency - switch` with
+&#x20; `throughput_bonus = 0.25 * arrived` and `arrived ~= 4666.7 *
+&#x20; (0.357*density_mult_corridor + 0.643*density_mult_cross)` — the split that
+&#x20; matches 2x1000 + 6x600 veh/h over 3000s. A first pass of that diagnosis
+&#x20; wrongly used `graph_attention` per-step terms for Stage 4 and had to be
+&#x20; corrected.
+
 \- \*\*STANDING RULE (Phase 9): `backend/` is a hard TraCI-single-thread
 &#x20; boundary.\*\* `backend/sim_runner.py`'s `SimRunner` thread is the ONLY code
 &#x20; that may call `env.step()/reset()` or anything touching TraCI. FastAPI
