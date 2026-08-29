@@ -2,15 +2,28 @@
 process runs. NOT a repo module — a standalone companion process, launched
 alongside a long unattended training run and killed when it ends.
 
-Root cause it works around (2026-08-28): STANDBYIDLE/HIBERNATEIDLE are both
-0 (never) in the active power scheme, yet Windows Event Viewer recorded
-Kernel-Power Id=506 "entering Modern Standby, Reason: Idle Timeout" twice in
-~15 minutes, killing two training resumes (leg 2 at ~17:00-17:05, leg 3 at
-~17:10:56) via a dead TraCI socket. This laptop uses Modern Standby (S0 low
-power idle), which HP/Windows can drive into idle-suspend on its own idle
-heuristic independent of the classic SUB_SLEEP timers. `powercfg
-/requestsoverride` is the sanctioned fix but requires an elevated (admin)
-shell, which was not available here.
+Why it exists (2026-08-28): STANDBYIDLE/HIBERNATEIDLE are both 0 (never) in
+the active power scheme, yet Windows Event Viewer recorded Kernel-Power
+Id=506 "entering Modern Standby, Reason: Idle Timeout" during an evening of
+unattended D1 training. This laptop uses Modern Standby (S0 low power idle),
+which HP/Windows can drive into idle-suspend on its own idle heuristic
+independent of the classic SUB_SLEEP timers, so holding the machine awake
+explicitly is still worth doing for a genuinely-solo overnight run.
+`powercfg /requestsoverride` is the sanctioned fix but requires an elevated
+(admin) shell, which was not available here.
+
+CORRECTION (2026-08-29 audit): an earlier version of this docstring asserted
+those 506 events "killed two training resumes (leg 2 at ~17:00-17:05, leg 3
+at ~17:10:56) via a dead TraCI socket." The repo record refutes that
+attribution. Two SUMO sweeps (_sweeps/detstoch.log, _sweeps/emerg.log) ran
+to completion straight through that window; a machine actually in Modern
+Standby could not have let them finish. The D1 legs that died there almost
+certainly died from concurrent multi-SUMO TraCI-port contention (BUILD_LOG's
+documented cause for the FatalTraCIError), not from sleep — and the "leg 2 /
+leg 3" numbering does not map onto any log/monitor/tb artifact in the repo.
+The 506 events may be real; they were not what killed training on 08-28.
+This tool is kept because idle-suspend on a genuinely-solo long run is a
+real risk worth removing — just not the one that bit that evening.
 
 SetThreadExecutionState is the same Win32 API `powercfg /requestsoverride`
 ultimately arms on the caller's behalf, and — unlike requestsoverride — a
