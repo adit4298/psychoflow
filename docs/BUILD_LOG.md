@@ -2430,3 +2430,115 @@ no code was touched. **No SUMO process launched; the Tier 1 beacon was never
 required because nothing in this pass calls `env.reset()`.**
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-30 — Pre-event completions of Phase 8/9 modules (§17 / §12.2 / §13.2 / §13.1 / §15.2)
+
+Five separable, individually-verified commits. **Not Phase 10/11/12 work** —
+each finishes an already-built Phase 8/9 module against a phrase in the problem
+statement it did not yet fully meet. Nothing in `env/`, `env/reward.py` or
+`safety/validator.py` touched; no locked decision (CLAUDE.md §2) reopened. All
+verification in the project venv (`sys.prefix` ends `...\GitHub\Test\venv`).
+
+**Commit 1 — §17: lane closures are out of scope.**
+**Decision:** the problem statement's parenthetical reads "signal timing changes,
+lane closures, emergency corridors"; PsychoFlow's interventions are signal-phase
+control (§9) + emergency-corridor clearance (§10/§11) only. Lane closures are a
+system output it does NOT emit.
+**Why:** same honesty discipline V2X / vision mock / Y-merge already get — named
+once explicitly rather than silently implied. The system detects a blockage
+(§7.3) and predicts its impact (§8.2), then re-times around it; commanding a
+closure is a physical/authority action.
+**Deviates from plan?** No — new §17 bullet, same section that already scopes out
+the other modelled-not-built pieces. Code: `backend/control_api.py` docstring
+(HONEST BOUNDARY note — no `close_lane` by design) and
+`coordinator/responder_messaging.py` (sibling line where "not a real dispatch
+system (§17)" already sits).
+**Verified:** `python -m coordinator.responder_messaging` green; `control_api`
+imports clean.
+
+**Commit 2 — `explainability/narrator`: a public register.**
+**Decision:** `narrate(entry, *, register="operator")`. `"operator"` (default) is
+§12.2's control-room wording, unchanged. `"public"` renders the same decision in
+plain language — drops the lane INDEX and every mechanism term ("phase", "slot",
+"ceiling", "threshold", "override", raw lane id) for a public information
+channel. `REGISTERS` / `REGISTER_OPERATOR` / `REGISTER_PUBLIC` exported; unknown
+register -> `ValueError`.
+**Why:** the problem statement asks for "operator/public-ready explanations" and
+the module's own docstring said it produced operator-only language.
+**Deviates from plan?** Additive to §12.2; the four operator templates are
+untouched and stay the default, so `backend/sim_runner.py` and
+`explainability/query_interface.py` (both call `narrate` positionally) are
+unaffected.
+**Verified:** `python -m explainability.narrator` — 6 reasons x 2 registers, the
+operator fragments asserted unchanged, the public lines asserted jargon-free and
+different from operator, unknown register raises. `python -m
+explainability.query_interface` green. `python sim/run_explainability_episode.py`
+— all checks passed.
+
+**Commit 3 — §13.2 frame: `predictions` (§8.1 spillover + §8.2 incident impact).**
+**Decision:** new ADDITIVE top-level key, same contract as `responder_messages` —
+omitted unless material. `predictions.spillover` is §8.1's list shape filtered to
+pairs whose forecast moves >= `_SPILLOVER_MIN_DELTA` (1.0) queued vehicles over
+the 60s horizon; `predictions.incident_impact` is §8.2's shape, one per active
+§7.3 incident. Reference: `backend/sim_runner.py::_predictions`.
+**Why:** the forecasts existed (Phase 5) and fed the observation but never
+reached the dashboard; §13.2 is where the frontend will read them.
+**Deviates from plan?** No — master plan §13.2 updated in the same commit (frame
+example + a `predictions` paragraph + explicit "frozen five-key core + two
+additive keys" framing).
+**Key implementation choice:** spillover is computed by a SECOND, read-side
+`SpilloverPredictor` (`SimRunner._spillover_view`, `.reset()` in
+`_reset_counters()`), NOT the env's. `SpilloverPredictor.forecast()` is stateful
+(stores the previous snapshot for the rate calc); calling the env's from the
+frame path would double-advance it and corrupt the next observation. Fed the same
+post-step snapshots at the same 5s cadence, so it yields the same numbers obs
+indices 10/11 carry. `env/` is frozen (task constraint) so stashing the env's
+forecast was not an option anyway.
+**Verified:** `sim/run_backend_smoke.py` 41/41 (was 37). New no-SUMO P1/P2/P3
+(cold-start empty; a 2->12 queue over 5s yields a §8.1 spillover entry with
+`predicted_queue_delta` 120.0; an active incident yields a §8.2 entry) and live
+1g (109 frames carried a well-formed `predictions` object). The frame-keys check
+was loosened from `== {5}` to `{5} <= keys <= {5} | {responder_messages,
+predictions}`.
+
+**Commit 4 — §13.1 `inject_incident` endpoint.**
+**Decision:** `inject_incident(state, junction_id, affected_lanes, *,
+incident_type="lane_blocked", severity="high", lane_id=None,
+estimated_duration_s=600.0)` in `backend/control_api.py`; `POST
+/control/inject_incident` in `backend/main.py`;
+`_apply_command`'s `inject_incident` branch calls
+`env.twin.incidents.report(...)` between decision steps.
+**Why:** without it `digital_twin.active_incidents` is always empty in a live run
+and "detects incidents" has no trigger. `perception/incident_intake.py`'s own
+docstring already anticipated "backend control API ... later".
+**Deviates from plan?** Additive §13.1 endpoint (7th), table row added to the
+master plan. Validates junction against `_CORRIDOR_JUNCTIONS` and
+type/severity against `INCIDENT_TYPES`/`SEVERITIES` imported from
+`perception.incident_intake` (pure, no SUMO import — keeps `control_api`
+voice-context-importable). `report()` is a registry write on the sim thread, not
+a TraCI call, so §13's single-thread boundary is intact.
+**§17:** this REPORTS a blockage; it does not command a closure. There is no
+`close_lane`.
+**Verified:** `sim/run_backend_smoke.py` 45/45 (was 41). New check 8: an
+unknown `junction_id` is rejected; an accepted injection rides
+`digital_twin.active_incidents` (`inc_0001` at J1, lane on the affected list) and
+`predictions.incident_impact` (`estimated_delay_increase_s` 52.5, affected
+`[J1,J2,J3]`) within ~200 frames.
+
+**Commit 5 — §15.2 `emergency_clearance_time_s` definition.**
+**Decision:** point the metric at `EmergencyClearanceEvent.clearance_time_s`
+(`coordinator/emergency_clearance.py`) — first detection -> green onset at the
+junction the §10 override fired at, 1s resolution, 0.0 floor with
+`served_on_arrival`. The §15.2 row was "BLOCKED — see §11.2. Do not populate
+from the Stage 4 harness."
+**Why:** Phase 8 (commit `9cf19af`) built exactly the per-junction fix §11.2's
+blocker demanded; §15.2 had not been updated and openly contradicted the shipped
+§13.2 `responder_messages`.
+**Deviates from plan?** Definition-level only — no eval harness built (that
+aggregation is Phase 12). §11.2's PHASE 8 BLOCKER text keeps a RESOLVED pointer
+at its head; the Stage 4 harness prohibition stands.
+**Verified:** `python -m coordinator.emergency_clearance` green (docstring-only
+code change — added the §15.2 / §11.2 cross-ref to the `clearance_time_s`
+property).
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.

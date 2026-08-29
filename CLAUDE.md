@@ -1149,14 +1149,52 @@ Pause and ask the user rather than proceeding when:
 &#x20; --host --port`. Phase 9 done-bar check: `venv/Scripts/python.exe
 &#x20; sim/run_backend_smoke.py` (boots the app in-process via `TestClient`, no
 &#x20; external server needed; 7-point §13.1/§13.2 checklist + a no-SUMO unit
-&#x20; check of the new Tier 0 `lane_weights` param). \*\*Last run: 37/37 pass\*\*
-&#x20; (2026-08-29, project venv, against the deployed Stage 4 checkpoint). The
-&#x20; count has moved three times since the 21/21 this line used to quote, and went
+&#x20; check of the new Tier 0 `lane_weights` param). \*\*Last run: 45/45 pass\*\*
+&#x20; (2026-08-30, project venv, against the deployed Stage 4 checkpoint). The
+&#x20; count has moved five times since the 21/21 this line used to quote, and went
 &#x20; uncorrected for the first two: `3496057` added checks 1b/1c (the auto-mode
 &#x20; `decisions`-dict contract) -> 23, `f3d5908` added the §15.2
-&#x20; metrics-populated check -> 24, and the Phase 8 adapter swap added 13 more
-&#x20; (1d/1e/1f, 2b, 4a, 4b, 4c, 4d, 4e x2, 5c x3) -> 37. \*\*Cite the number from a run, not from this
+&#x20; metrics-populated check -> 24, the Phase 8 adapter swap added 13 more
+&#x20; (1d/1e/1f, 2b, 4a, 4b, 4c, 4d, 4e x2, 5c x3) -> 37, the §13.2 `predictions`
+&#x20; commit added P1/P2/P3 + live 1g -> 41, and `inject_incident` added check 8
+&#x20; (x4) -> 45. \*\*Cite the number from a run, not from this
 &#x20; line\*\*, and update it here when it moves.
+
+\- \*\*Pre-event completions of Phase 8/9 modules (2026-08-30) — five separable
+&#x20; commits, NOT Phase 10/11/12 work.\*\*
+&#x20; (1) \*\*§17\*\*: lane closures are OUT OF SCOPE as a system output — interventions
+&#x20; are signal-phase control (§9) + emergency corridors (§10/§11). New §17 bullet;
+&#x20; §17 notes in `backend/control_api.py` and `coordinator/responder_messaging.py`.
+&#x20; (2) \*\*`explainability/narrator.narrate(entry, *, register=...)`\*\* — `register`
+&#x20; is keyword-only, `"operator"` (default, §12.2 wording FROZEN — downstream
+&#x20; tests pin fragments) or `"public"` (plain-language, no phase/slot/ceiling/
+&#x20; threshold jargon, no raw lane id). `REGISTERS`, `REGISTER_OPERATOR`,
+&#x20; `REGISTER_PUBLIC` exported. Unknown register -> `ValueError`. `sim_runner`
+&#x20; and `query_interface` still call it positionally = operator.
+&#x20; (3) \*\*§13.2 frame gained an ADDITIVE `predictions` key\*\* (omitted unless
+&#x20; material, same contract as `responder_messages`): `predictions.spillover`
+&#x20; (§8.1 shape, only pairs with `abs(predicted_queue_delta) >=
+&#x20; _SPILLOVER_MIN_DELTA = 1.0` in `backend/sim_runner.py`) and
+&#x20; `predictions.incident_impact` (§8.2 shape, one per active §7.3 incident).
+&#x20; Spillover is computed by a SECOND, read-side `SpilloverPredictor`
+&#x20; (`SimRunner._spillover_view`, reset in `_reset_counters()`) — do NOT call the
+&#x20; env's stateful one from the frame path, it would double-advance its rate
+&#x20; calc. `SimRunner._predictions(snap)` is the reference. Master plan §13.2
+&#x20; updated same commit.
+&#x20; (4) \*\*§13.1 `inject_incident(junction_id, affected_lanes, incident_type=
+&#x20; "lane_blocked", severity="high", lane_id=None, estimated_duration_s=600)`\*\*
+&#x20; in `backend/control_api.py` — the live trigger for "detects incidents".
+&#x20; Queues a `Command` the sim thread applies via `env.twin.incidents.report()`
+&#x20; between steps (registry write, NOT TraCI). `POST /control/inject_incident`.
+&#x20; From the next step it rides `digital_twin.active_incidents`,
+&#x20; `predictions.incident_impact` and §8.1's confidence penalty. Master plan
+&#x20; §13.1 table row added. There is deliberately NO `close_lane` (§17).
+&#x20; (5) \*\*§15.2 `emergency_clearance_time_s` is DEFINED as
+&#x20; `EmergencyClearanceEvent.clearance_time_s`\*\* (`coordinator/emergency_clearance.py`)
+&#x20; — was "BLOCKED". Per-junction detection->green, 0.0 floor + `served_on_arrival`.
+&#x20; NOT the Stage 4 harness (still broken, still never reuse). §11.2's PHASE 8
+&#x20; BLOCKER got a RESOLVED pointer at its head. Cross-scenario aggregation is
+&#x20; Phase 12. Definition-level only — no eval harness built.
 
 \- \*\*`Tier0Controller.act()` now takes an optional `lane_weights:
 &#x20; dict[str, float]`\*\* — §13.1's `set_lane_bias(lane_id, weight, duration_s)`,
