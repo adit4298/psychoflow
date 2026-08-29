@@ -1253,7 +1253,7 @@ Pause and ask the user rather than proceeding when:
 &#x20; ADAPTER's copy, which is exactly what the swap deletes, not an open Phase 8
 &#x20; item; (3) `record_step` accepts empty `score_breakdown`/`alternative_scores`
 &#x20; under RL mode and exempts them from its phase-key check.
-&#x20; \*\*THE SEAM IS NOW CLOSED (2026-08-29, commit `<D>`). The adapter is DELETED.\*\*
+&#x20; \*\*THE SEAM IS NOW CLOSED (2026-08-29, commit `ad9e4df`). The adapter is DELETED.\*\*
 &#x20; This bullet previously ended "what IS actually outstanding at this seam is one
 &#x20; thing only: the adapter in `backend/sim_runner.py` has not been swapped out for
 &#x20; the real modules." It has been. `_NARRATION`, `_decision_entry()`,
