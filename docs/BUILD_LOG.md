@@ -2097,3 +2097,301 @@ re-recorded.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete;
 this pass closed the last outstanding item at the Phase 8 / Phase 9 seam.
+
+## 2026-08-29 — §16 STAGE 4 EMERGENCY CHECKPOINT: the sparse-signal hypothesis is REFUTED as the primary mechanism; the cause is OBSERVABILITY. "15/15 = 0% proactive" withdrawn a second time.
+
+Appended, not edited. **DIAGNOSIS ONLY — no fix, no training run, no code
+changed.** CLAUDE.md §2's locked decisions untouched; nothing in `env/`,
+`env/reward.py`, `safety/validator.py` or `backend/` modified. Phases 10/11/12
+not started. Every figure below comes from committed `_sweeps/*.json`, the
+Stage 4 Monitor CSVs, TensorBoard event files, or `evaluation/heldout.
+drawn_scenarios` (rng-pure, starts no SUMO). **No SUMO process was launched.**
+
+CLAUDE.md has carried, since 2026-08-15, an explicit and explicitly UNTESTED
+hypothesis for why §16's Stage 4 emergency bar failed: *"the training signal for
+emergency handling may simply be too sparse to learn from."* This entry tests it.
+
+---
+
+### 1. Sparsity, quantified — "sparse in scenarios" is FALSE, "sparse in steps" is TRUE
+
+**Decision:** record the sparsity as a measured number rather than an adjective.
+**Why:** the hypothesis was never given a magnitude, and 5%-of-steps and
+0.1%-of-steps are different problems with different fixes.
+**Measured:**
+
+  - **64 / 64** distinct Stage 4 training scenarios contain exactly one ambulance
+    (`n_emergencies=1`; both Monitor CSVs, 80 episodes, zero blank
+    `emergency_route`). Scenario-level sparsity is **zero**.
+  - The ambulance exists in the observation only while on a *sensed* lane, and
+    `twin/digital_twin.py` senses INCOMING lanes only. Measured across 138
+    committed eval episodes (57 policy-driven, 81 random control), route
+    recovered per seed offline:
+
+    | route type | n | ambulance-visible steps | penalty-firing junction-steps |
+    |---|---|---|---|
+    | corridor (`r_we`/`r_ew`) | 22 | **12.82** | 2.36 |
+    | cross (6 routes) | 35 | **2.46** | 1.06 |
+
+  - Stage 4's actual training mix is **14 corridor / 66 cross** (17.5% corridor).
+    Route-weighted onto the real run:
+
+    | | count | of Stage 4's 50,449 steps | of the 153,600-step lifetime |
+    |---|---|---|---|
+    | ambulance VISIBLE | ~342 | **0.68%** | 0.22% |
+    | penalty FIRING | ~103 | **0.20%** | 0.067% |
+
+  - The lifetime column matters: Stages 1-3 ran `spawn_emergencies=False`, so
+    **two thirds of the policy's training contained no ambulance at all.** And
+    per the burst-replay rule those ~342 steps are ~274 *distinct* situations.
+
+**Answer to the magnitude question: 0.68% visible, 0.20% firing — the 0.1% end,
+not the 5% end.**
+**Deviates from plan?** No.
+
+### 2. The reward term is NOT drowned out — it is the loudest signal in the function
+
+**Decision:** rule out "structurally too small to produce a gradient."
+**Why / measured:** `w_emergency = 20.0` per blocked junction per step.
+
+  - At a firing step the reward goes **+1.34 -> -18.66**.
+  - GAE with SB3 defaults (`gamma=0.99`, `gae_lambda=0.95`; `training/train.py`
+    passes neither) gives `gamma*lambda = 0.9405`, a credit horizon of **49 steps
+    (~244 simulated seconds)** at advantage >= 1.0 — far longer than the 2.5
+    (cross) / 12.8 (corridor) step visibility window. **Credit assignment is not
+    the bottleneck.**
+  - Share of reward mass, computed from the Stage 4 TRAINING LOG via the identity
+    `total = throughput - starvation - emergency - switch`:
+
+    ```
+    nominal inserted = 2x1000vph + 6x600vph over 3000s = 4666.7  (recorded arrived @1.0 = 4668)
+    80 episodes, 50,449 steps, 0 truncations (max 644 vs 720)
+      sum episode returns (Monitor 'r')      =  60,030.8
+      estimated arrived                      = 367,139.5
+      sum throughput_bonus = 0.25 x arrived  =  91,784.9
+      => sum(starvation+emergency+switch)    =  31,754.0
+      summed |emergency| = 103 x 20          =   2,060
+      emergency share of VARIABLE terms      = 6.49%
+      emergency share of ALL reward mass     = 1.67%
+    ```
+    Sensitivity on the firing-step numerator (70/103/140/181): 4.4%-11.4%.
+
+**CORRECTION MADE WITHIN THIS PASS, recorded rather than quietly fixed.** The
+first version of this calculation quoted **5.87% / 1.62%**, using per-step terms
+(`throughput 1.82, starvation 0.33, switch 0.325`) taken from
+`_sweeps/reward_term_pre51k.json` and `_sweeps/det_stoch_diag.json` — **both are
+`graph_attention` checkpoints, not Stage 4.** **No Stage-4 per-term reward
+decomposition exists anywhere in this repo** (`stage4_*.json` and
+`checkpoint_bakeoff.json` carry `mean_reward`/`ovrE`/`ovrS` only). The figures
+above replace them and are derived from Stage 4's own training log. The
+conclusion is unchanged and marginally strengthened.
+**Deviates from plan?** No.
+
+### 3. Critic exposure — thin, and 81% of it is IRREDUCIBLE by construction
+
+**Decision:** record the observability decomposition as the finding, and WITHDRAW
+the value_loss comparison that was first offered as its support.
+**Why:** no per-state value predictions are logged anywhere in this repo. What
+does exist: TensorBoard scalars for Stage 3 and Stage 4 — **filed under
+`training/checkpoints/stage2/tb/`, because `MaskablePPO.load()` restores
+`tensorboard_log` from the checkpoint and Stages 3/4 resumed the Stage 2 lineage.**
+Identified by matching each event file's timestamp to the Monitor `t_start`.
+Stage 3 -> Stage 4 differ by ONLY `spawn_emergencies` (`training/curriculum.py`),
+so this is a clean natural experiment:
+
+  | | explained_variance | value_loss |
+  |---|---|---|
+  | Stage 3 (emergencies OFF) | 0.7864 | 127.9 |
+  | Stage 4 (emergencies ON) | **0.7453** | **135.3** |
+
+**The load-bearing finding — a law-of-total-variance decomposition of the
+emergency component of the lambda-return,** `Var(C) = E_B[Var(C|B)] +
+Var_B(E[C|B])`, where `B` is what the observation actually carries about the
+ambulance (`('vis', k, corridor?)` while on a sensed lane, one single `('none',)`
+bucket otherwise):
+
+```
+E[C] = 0.6352     Var(C) total = 7.5584
+ 'vis'  bucket: n=  2,567 ( 0.64%)  mean=10.2179  var=108.5088
+ 'none' bucket: n=397,433 (99.36%)  mean= 0.5733  var=  6.3094
+ Var_B(E[C|B])                = 1.2895 = 17.1%   reducible by a perfect critic
+ Var_B(E[C|B]) + exact clock  = 1.4344 = 19.0%   reducible, UPPER BOUND
+ E_B[Var(C|B)]                = 6.1240 = 81.0%   IRREDUCIBLE
+ check: 1.4344 + 6.1240 = 7.5584 vs 7.5584 -> OK
+```
+
+Stress-tested across 12 variants (RNG seed, `p(corridor)` 0.10-0.25, firing
+counts, visibility windows, episode length, `lambda=1.0`): irreducible share
+**75.3%-83.9%**. The clock variant is an upper bound only — **`sim_time` is NOT
+an observation feature** (`env/obs_action_spec.py`).
+
+**TWO CLAIMS FROM THIS PASS'S FIRST REPORT ARE WITHDRAWN:**
+  1. The 17.1 / 19.0 / 81.0 percentages were **never derived from the
+     explained_variance / value_loss deltas.** They come entirely from the model
+     above plus the observation channel list. The first report placed the two
+     adjacently and implied a derivation that does not exist. Presentation
+     defect, not an arithmetic one — but it would have misled a reader about what
+     the figure rests on.
+  2. **"The observed +7.4 value_loss rise is attributable to the emergency term"
+     is WITHDRAWN as non-informative.** Total modelled variance spans **6.6-20.0**
+     over the same stress box, so +7.4 is merely inside the range. Worse: "critic
+     learned the reducible 19%" predicts ~6.1 and "critic learned nothing"
+     predicts ~7.5 — 1.4 apart against many units of model uncertainty. **The
+     measurement cannot resolve what the critic learned.** The EV/value_loss
+     delta is real and directionally consistent; it is not evidence.
+
+**What stands:** an ambulance is visible in **0.68% of states**, and in the other
+99.3% the observation contains *nothing* that predicts one. **More emergency data
+cannot remove 81% of that variance.**
+**Deviates from plan?** No.
+
+### 4. ROOT CAUSE — observability, not sparsity. The reward is not purely reactive; the OBSERVATION is.
+
+**Decision:** the primary mechanism is that no anticipatory state exists, and the
+measured sparsity is a *symptom* of the same fact rather than an independent cause.
+**Why / verified directly from code:**
+
+  - `env/reward.py`'s emergency term fires on EVERY step an ambulance sits on a
+    sensed lane that is not green — **not only at the override moment.** So the
+    reward is not structurally reactive-at-arrival. That candidate explanation is
+    disconfirmed on its own terms.
+  - But the window it can fire in is fixed by route geometry
+    (`sim/scenario_generator.py::ROUTES` x incoming-lanes-only sensing):
+
+    ```
+    r_ns1  N1_J1 J1_S1              sensed = ['N1_J1']                    <- ONE edge
+    r_sn1  S1_J1 J1_N1              sensed = ['S1_J1']                    <- ONE edge
+    ... all 6 cross routes identical in shape
+    r_we   W1_J1 J1_J2 J2_J3 J3_E3  sensed = ['W1_J1','J1_J2','J2_J3']
+    ```
+
+    For the **6 cross routes the single sensed edge IS the target junction's own
+    approach arm** — the ambulance's first appearance anywhere in the observation
+    is already at the junction that must serve it. **There is no anticipatory
+    state. Not a sparse one: none.** For corridor routes a junction still never
+    sees the ambulance before its own approach, though the flattened `(3,191)`
+    observation lets J2's head read J1's row (~2 steps of real lead).
+  - **82.5% of Stage 4's training episodes were cross routes.** For those,
+    "proactive" was not a behaviour the policy failed to learn — it was undefined.
+  - The only ambulance channel in the observation is `LF_TYPE_START+4`, a per-lane
+    count that is zero until the vehicle is physically on that junction's approach
+    lane (`env/obs_action_spec.py`). There is no clock and no upstream lookahead.
+
+**Deviates from plan?** No. CLAUDE.md's sparse-signal hypothesis is answered:
+sparsity is real and now measured, but it is downstream of the sensing geometry,
+not an independent cause — which is why up-weighting `w_emergency` or oversampling
+emergencies would supply more of a signal the policy already responds to, at
+states where the information it would need is absent.
+
+### 5. "15/15 = 0% proactive emergency handling" — WITHDRAWN A SECOND TIME, on COVERAGE
+
+**Decision:** the 15/15 figure is 3 distinct emergency draws, not 15 trials, and
+its route mix over-samples the hardest case 3.8x. Replacement: **10/12 distinct
+draws (~83%), or ~79% re-weighted to the training route mix.**
+**Why:** `run_emergency_recheck` runs `ScenarioConfig(lane_counts=combo,
+randomize_lane_counts=False, randomize_density=False, spawn_emergencies=True)`.
+With both randomisation axes off, the emergency draw depends only on `seed`.
+Reproduced offline (rng-pure, no SUMO):
+
+```
+ all 5 combos x seed  1 -> r_ew  @ 582.2s    BUILD_LOG 2026-08-15 recorded r_ew  @582.2   MATCH
+ all 5 combos x seed  7 -> r_ns1 @ 980.0s    recorded r_ns1 @980.0                        MATCH
+ all 5 combos x seed 42 -> r_we  @1642.8s    recorded r_we  @1642.8                       MATCH
+ DISTINCT (route, depart) pairs across all 15 cells: 3
+```
+
+**2 of the 3 draws are corridor routes (67%) against Stage 4's training mix of
+17.5% — a 3.8x over-sample of the long-exposure case,** which is precisely the
+case where the shield is most certain to be needed.
+
+Re-measured on `stage4_proposal.py`'s 12 DISTINCT draws (`STAGES[4]`,
+`reset(seed=sd)`), same checkpoint, **metric matched exactly** (`ovrE >= 1`,
+i.e. §10's `emergency_override` fired — the same event the 15/15 counted):
+
+| seed | route | type | topology | ambJ | srv | blkA | blkU | ovrE | fired |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | r_we | corridor | (2,4,2) | 14 | 13 | 0 | 1 | 1 | YES |
+| 2 | r_ns3 | cross | (2,2,2) | 2 | 1 | 0 | 1 | 1 | YES |
+| 3 | r_sn3 | cross | (2,4,4) | 2 | 2 | 0 | 0 | 0 | **no** |
+| 5 | r_ns1 | cross | (4,3,4) | 2 | 1 | 0 | 1 | 1 | YES |
+| 7 | r_ew | corridor | (3,2,3) | 12 | 10 | 1 | 1 | 2 | YES |
+| 10 | r_sn2 | cross | (4,2,3) | 2 | 0 | 2 | 0 | 2 | YES |
+| 13 | r_sn1 | cross | (3,3,4) | 2 | 2 | 0 | 0 | 0 | **no** |
+| 21 | r_we | corridor | (2,3,4) | 10 | 9 | 0 | 1 | 1 | YES |
+| 42 | r_sn1 | cross | (4,2,2) | 2 | 0 | 2 | 0 | 2 | YES |
+| 99 | r_sn1 | cross | (3,3,2) | 2 | 1 | 1 | 0 | 1 | YES |
+| 123 | r_sn2 | cross | (2,3,2) | 2 | 1 | 1 | 0 | 1 | YES |
+| 777 | r_ew | corridor | (2,3,3) | 12 | 9 | 2 | 1 | 3 | YES |
+
+`ovrE>=1` -> **10/12**; `blocked>=1` -> **10/12**, agreeing on **all 12 seeds**
+(zero disagreements), so the metric is genuinely matched and not a proxy. By
+route: **corridor 4/4 fire, cross 6/8.** Re-weighted to the training mix:
+`0.175x1.0 + 0.825x0.75 = 0.794` -> **~79%**. Wilson 95% CI on 10/12:
+**[0.55, 0.95]**. This also EXPLAINS 15/15 rather than merely disputing it: two
+corridor draws (4/4 firing) plus one cross draw that fired, each counted 5x.
+
+**NAMED PARALLEL — this is the `j1=3` failure shape for the third time, and the
+D1-"collapse" shape for the fourth.** Each was a matrix that *could not have
+detected the alternative*, read as though it had: `--j1-recheck`'s four combos
+contained no `j1=2` cell; `phase0_baselines`' seeds replayed training episodes;
+D1's three checkpoints missed the peak region; and here, three emergency draws
+were reported as fifteen, with the route mix skewed 3.8x toward the case that
+fires most reliably. The cheap defence remains the one recorded on 2026-08-29:
+**before writing a comparative claim, ask which regions the sampling would have
+had to cover for the opposite conclusion to be visible.**
+
+What the policy actually does, Stage 4 @153,600 on held-out-screened seeds:
+**49/64 = 76.6%** of ambulance junction-steps served by its own proposal;
+held-out proposal quality **0.8298 vs chance 0.6383, z=+3.388, p=0.0007**;
+**16.9%** of blocked steps were `blocked_unavoidable` (the action mask left no
+slot that serves it). §16's bar remains FAILED — the shield is still needed in
+~8 of 10 episodes — but "0% proactive" was withdrawn on 2026-08-18 and this pass
+confirms the withdrawal with a properly-powered matrix.
+**Deviates from plan?** No. §16's Stage 4 FAILED status is unchanged.
+
+### 6. VERDICT — no fix, no retrain. Recommendation accepted as scope for this pass.
+
+**Decision:** attempt no remediation before the Sep 5 deadline.
+**Why:** the only fix addressing the mechanism is an OBSERVATION-SPACE change (an
+upstream-ambulance / ETA channel, or `sim_time`). That changes
+`Box(-10,10,(3,191))`, which invalidates every checkpoint including the deployed
+`psychoflow_stage4_153600_steps_final.zip` and forces a retrain of Stages 1-5.
+With ~4 days left and D1 having demonstrated 39-percentage-point swings between
+checkpoints 5,000 steps apart at fixed hyperparameters (2026-08-29 entry §7), a
+retrain has no reliable landing point. Reward reweighting and emergency
+oversampling — the two cheap fixes the sparse-signal hypothesis would have
+implied — are specifically NOT recommended: §2 shows the term is already the
+loudest in the function and §4 shows the missing ingredient is state, not signal.
+**Deviates from plan?** No. No locked decision reopened; deployment unchanged.
+
+### 7. Corrected fallback wording for §17 / §19 / §20
+
+The wording carried into this session — *"the policy doesn't proactively handle
+emergencies yet, but the safety validator catches every one by design, 15/15"* —
+has two factually wrong components. "Doesn't proactively handle" is measurably
+too harsh (76.6% self-served, p=0.0007 above chance) and "15/15" is 3 draws.
+"Catches every one by design" is TRUE and structurally so — §10 sits inside
+`env.step()` ahead of the only `setPhase` call. Replacement, judge-facing:
+
+> "The learned policy serves an approaching ambulance on its own initiative on
+> about three quarters of the decision steps where one is present — measurably
+> better than chance (0.83 vs 0.64, p=0.0007, on held-out scenarios). It can't
+> anticipate one: the sensors don't register an ambulance until it's already on
+> the junction's own approach lane, so on most routes there is no earlier moment
+> at which it could have acted. The safety validator sits underneath as a hard
+> gate — it has to fire in roughly 8 of 10 episodes, and it catches every
+> ambulance, by construction rather than by training."
+
+**Verified (this entry):** Stage 4 Monitor CSVs (80 episodes, 64 distinct
+scenarios, 14/66 route split, 0 truncations); 138 committed eval episode rows
+across `phase0_baselines.json`, `phase0_emergency.json`, `stage4_proposal.json`,
+`ga154_proposal.json`, `ga102_proposal.json`; TB scalars for Stage 3/4 read from
+`stage2/tb` by timestamp match; offline scenario reproduction of the 15-cell
+matrix against BUILD_LOG's three recorded (route, depart) values — **exact match
+on all three**; law-of-total-variance decomposition with its own consistency
+check and a 12-variant stress test; reward-mass identity closed against the
+training log. `python -m env.reward` and `python -m safety.validator` NOT re-run —
+no code was touched. **No SUMO process launched; the Tier 1 beacon was never
+required because nothing in this pass calls `env.reset()`.**
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
