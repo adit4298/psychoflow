@@ -93,7 +93,13 @@ class EmergencyClearanceEvent:
 
     @property
     def clearance_time_s(self) -> float | None:
-        """Detection -> green, at THIS junction. Floors at 0.0."""
+        """Detection -> green, at THIS junction. Floors at 0.0.
+
+        This IS §15.2's `emergency_clearance_time_s` and §11.2's
+        `clearance_time_s` — the real per-junction measurement, NOT the
+        known-broken Stage 4 emergency-latency sweep (see the module
+        docstring and master plan §11.2 / §15.2).
+        """
         if self.green_onset_sim_time is None:
             return None
         return max(0.0, self.green_onset_sim_time - self.first_detection_sim_time)
