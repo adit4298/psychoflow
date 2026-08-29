@@ -1158,6 +1158,26 @@ point 2.
 71.4%), served-on-arrival message (0.0s -> 100%, "already clear"), unresolved
 event raises.
 
+> **[CORRECTED by commit `3496057` — see the 2026-08-29 entry "Commit `3496057`:
+> five correctness fixes" below.]** Every baseline number in the Verified line
+> immediately above is SUPERSEDED and must not be quoted. `estimate_baseline_
+> clearance_s` was double-counting (it charged min-green + yellow for every
+> phase including the target, plus a spurious trailing yellow), roughly doubling
+> the estimate. Corrected values: **2-phase/age0 = 14.0s** (was 28.0),
+> **3-phase/age0 = 28.0s** (was 42.0), **4-phase/age0 = 42.0s**; the override
+> message is now **8.0s vs 14.0s -> 42.9%** (was 8.0 vs 28.0 -> 71.4%). The
+> `71.4%` figure in particular is an OVERSTATED improvement claim against an
+> inflated baseline, and §11.2's message is operator-facing — do not cite it.
+> Pointer only; the original entry text is unedited per this file's append-only
+> rule.
+
+> **[ALSO CORRECTED by `3496057`.]** The decision_log Verified line further up
+> this entry says "6 hand-scored assertions". `3496057` added a seventh
+> (scenario 7, the auto-mode `decisions`-dict contract), so the current count is
+> 7. Same for the §11.2 design note above: `baseline_clearance_time_s` is now
+> labelled `baseline_is_worst_case` as well as `baseline_is_estimate`, and the
+> summary text says "worst-case".
+
 **§18 Phase 8 is COMPLETE.** Done bar — *"full decision log renders correctly for
 a rule-based test run before the RL agent is even wired in"* — verified in the
 project venv (`sys.prefix` = `...\GitHub\Test\venv`) via
@@ -1814,3 +1834,84 @@ never ran — a loud failure, correctly. Rewritten and both episodes re-run.
 were briefly held only in stdout; recovered by parsing the captured output rather
 than re-running, and the parsed table was checked against the raw lines before
 being written.
+
+## 2026-08-29 — Commit `3496057`: five correctness fixes (§11.2 / §12.1 / §12.2 / §13.2)
+
+**Backfilled record.** `3496057` landed 2026-08-28 17:39 as an adversarial-audit
+follow-up to Phase 8, and never got a BUILD_LOG entry — so the Phase 8 entry's
+recorded §11.2 baseline arithmetic sat wrong-and-uncorrected in this file for a
+day, with no pointer telling a reader it had been superseded. Two correction
+pointers have now been inserted into that entry; this entry is the target they
+point at. Written from the commit diff and message, not from memory of the
+session that made the change.
+
+**Fix 1 — `DecisionLog.record_step` now RAISES on an override at a junction
+absent from `decisions` (was: dropped silently).**
+**Why:** the loop iterates `decisions.items()`, so a §10 `OverrideRecord` for a
+junction the caller did not score was discarded without a sound. The deployed
+policy is RL, and `sim_runner._pick_action` returned an EMPTY decisions dict in
+auto mode — so every shield firing under the deployed configuration would have
+vanished from the log, and a §15 "how often did the safety gate have to fire"
+metric computed from it would have read ~100% proactive for a policy doing
+nothing proactive. That is a textbook §0.3 done-bar-integrity failure, the same
+shape as the invalid "near-100% emergency priority" metric §0.3's footnote is
+built around. `sim_runner._pick_action` correspondingly now emits a full
+per-junction dict with `reason="rl_policy"`.
+**Deviates from plan?** No — enforces §12.1's contract rather than changing it.
+**Verified:** `decision_log._selftest` scenario 7 (auto-mode override reconciles;
+`decisions={}` and a partial dict both raise `ValueError` naming the junction),
+plus `run_backend_smoke.py` checks 1b/1c.
+
+**Fix 2 — `estimate_baseline_clearance_s` traversal math corrected; it was
+roughly DOUBLE-counting.**
+**Why:** it charged `min_green + yellow` for every phase including the target and
+added a trailing yellow. The correct worst-case traversal is the remaining
+min-green on the current phase + `(n-1)` yellows + `(n-2)` intervening
+min-greens; the target's own min-green is not waited, since service begins the
+instant it goes green. 3-green baseline **42.0 -> 28.0s**; 2-green **28.0 ->
+14.0s**. **This is the one number in the system shown to a human operator as
+decision support (§11.2, and master plan §11.2's own blocker note), so an
+inflated baseline directly inflates the advertised `improvement_pct`** — the
+Phase 8 entry's `71.4%` becomes `42.9%`.
+**Deviates from plan?** No — §11.2 gives the field, not the model behind it.
+**Verified:** the self-test now DERIVES its expectations from first principles in
+the test body rather than asserting the function's own output back at it (closing
+a "a wrong model passes its own test" gap), plus hand-computed anchors at
+MIN_GREEN=10 / YELLOW=4 that fail deliberately if `MIN_GREEN_S` ever moves.
+
+**Fix 3 — `responder_messaging._MIN_GREEN_S` imports `env.psychoflow_env.
+MIN_GREEN_S` instead of re-typing the literal.** Drift risk; CLAUDE.md §8
+single-source discipline, same class as `WAITING_TIME_MEMORY_S` and
+`TIME_TO_TELEPORT_S`.
+
+**Fix 4 — the `rl_policy` narration template frames the busiest served lane as
+CONTEXT, not as the stated cause.**
+**Why:** the previous wording read like "Lane N — selected", attributing a
+rationale to an opaque trained policy that the system cannot attest. Applied in
+both `explainability/narrator.py` and `sim_runner._NARRATION`.
+**Deviates from plan?** No — §12.2's honesty requirement; §17's boundary
+language.
+
+**Fix 5 — the payload gained `baseline_is_worst_case: true`** alongside the
+existing `baseline_is_estimate: true`, and the summary text says "worst-case".
+The estimate assumes the target phase is last in rotation, which is a
+worst-case, not a typical case — saying only "estimate" understated how
+conservative it is.
+
+**Deviates from plan?** No locked decision (CLAUDE.md §2) touched. Nothing in
+`env/`, `env/reward.py` or `safety/validator.py` changed.
+**Verified (at the time, per the commit message):** all module self-tests +
+`python -m env.reward` + `python -m safety.validator` green; Phase 8 harness and
+Phase 9 smoke (23/23 at that commit) pass live. **Re-verified 2026-08-29** in the
+project venv: 8/8 module baselines green and `sim/run_backend_smoke.py` **24/24
+pass** (the count reached 24 via `f3d5908`'s §15.2 metrics check, after this
+commit's 1b/1c took it from 21 to 23 — CLAUDE.md §8 had this stale at 21/21 and
+is now corrected).
+
+**Note — what this commit did NOT do, and is the reason it reads as incomplete.**
+Fix 1 patched `sim_runner._pick_action` to satisfy `decision_log`'s contract, but
+`backend/sim_runner.py` still runs its OWN hand-rolled `_decision_entry` /
+`_narrate` adapter rather than calling `DecisionLog` / `narrate` at all — so the
+raise it added protects a call site the backend does not yet make. The
+adapter->Phase 8 swap remains open, and is the actual remaining work at the
+PHASE 8 SEAM.

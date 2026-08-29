@@ -1114,7 +1114,18 @@ Pause and ask the user rather than proceeding when:
 
 \- \*\*PHASE 8 WARNING — do NOT reuse the Stage 4 emergency-latency
 &#x20; measurement for §11.2's `clearance_time_s`. It is KNOWN BROKEN and
-&#x20; UNFIXED.\*\* The Stage 4 emergency sweep produced NEGATIVE latencies
+&#x20; UNFIXED.\*\*
+&#x20; \*\*SATISFIED 2026-08-29 — the warning still stands about the STAGE 4 HARNESS,
+&#x20; which is still broken and must still never be reused. But the fix it demanded
+&#x20; HAS been built:\*\* `coordinator/emergency_clearance.py` (Phase 8, commit
+&#x20; `9cf19af`) tracks detection and green onset PER JUNCTION and floors at 0.0
+&#x20; with `served_on_arrival=True` instead of emitting a negative latency. The
+&#x20; sentence below reading "there is currently NO working latency measurement in
+&#x20; the repo" was true when written and is now FALSE — there is one, it is
+&#x20; `EmergencyClearanceEvent.clearance_time_s`, and §11.2 already consumes it.
+&#x20; Read the rest of this bullet as the rationale for that design, not as
+&#x20; outstanding work.
+&#x20; The Stage 4 emergency sweep produced NEGATIVE latencies
 &#x20; (−42.0s to −2.0s) because the harness tracked detection and green-onset
 &#x20; at the FIRST junction the ambulance was seen at, while the §10 override
 &#x20; can fire at a LATER junction on a corridor-through route (J1→J2→J3) —
@@ -1138,7 +1149,13 @@ Pause and ask the user rather than proceeding when:
 &#x20; --host --port`. Phase 9 done-bar check: `venv/Scripts/python.exe
 &#x20; sim/run_backend_smoke.py` (boots the app in-process via `TestClient`, no
 &#x20; external server needed; 7-point §13.1/§13.2 checklist + a no-SUMO unit
-&#x20; check of the new Tier 0 `lane_weights` param). Last run: 21/21 pass.
+&#x20; check of the new Tier 0 `lane_weights` param). \*\*Last run: 24/24 pass\*\*
+&#x20; (2026-08-29, project venv, against the deployed Stage 4 checkpoint). The
+&#x20; count has moved twice since the 21/21 this line used to quote, and went
+&#x20; uncorrected for both: `3496057` added checks 1b/1c (the auto-mode
+&#x20; `decisions`-dict contract) -> 23, and `f3d5908` added the §15.2
+&#x20; metrics-populated check -> 24. \*\*Cite the number from a run, not from this
+&#x20; line\*\*, and update it here when it moves.
 
 \- \*\*`Tier0Controller.act()` now takes an optional `lane_weights:
 &#x20; dict[str, float]`\*\* — §13.1's `set_lane_bias(lane_id, weight, duration_s)`,
@@ -1226,14 +1243,22 @@ Pause and ask the user rather than proceeding when:
 &#x20; \*\*STATUS UPDATE (2026-08-28): PHASE 8 HAS LANDED (commit `9cf19af`).\*\* This
 &#x20; bullet was written while it was still in flight and described it as pending.
 &#x20; The three `explainability/` modules and `coordinator/` now exist with their
-&#x20; done-bar verified, and item (1) below is CLOSED — `"rl_policy"` is confirmed
-&#x20; final and asserted in `decision_log._selftest`. Items (2) and (3) remain
-&#x20; open. The adapter in `backend/sim_runner.py` has NOT yet been swapped out for
-&#x20; the real modules — that reconciliation is still to do, and is the actual
-&#x20; remaining work behind this seam. §11.2's `clearance_time_s` was BUILT
-&#x20; correctly by Phase 8 (per-junction attribution, generalised from B2) — the
-&#x20; PHASE 8 WARNING below is satisfied, not outstanding.
-&#x20; Original open items, each marked `# PHASE 8 SEAM` in code: (1) the sixth
+&#x20; done-bar verified. \*\*CORRECTED 2026-08-29 — this bullet said "items (2) and
+&#x20; (3) remain open" while the Phase 8 bullet further down said all three are
+&#x20; CLOSED. The Phase 8 bullet is right; ALL THREE ARE CLOSED.\*\* (1) `"rl_policy"`
+&#x20; is final and asserted in `decision_log._selftest`; (2) `explainability/
+&#x20; narrator.py` carries final `starvation_ceiling` and `rl_policy` templates —
+&#x20; note the PLACEHOLDER wording still sitting in `sim_runner._NARRATION` is the
+&#x20; ADAPTER's copy, which is exactly what the swap deletes, not an open Phase 8
+&#x20; item; (3) `record_step` accepts empty `score_breakdown`/`alternative_scores`
+&#x20; under RL mode and exempts them from its phase-key check.
+&#x20; \*\*What IS actually outstanding at this seam is one thing only: the adapter in
+&#x20; `backend/sim_runner.py` has not been swapped out for the real modules.\*\*
+&#x20; §11.2's `clearance_time_s` was BUILT correctly by Phase 8 (per-junction
+&#x20; attribution, generalised from B2) — the PHASE 8 WARNING above is SATISFIED,
+&#x20; not outstanding.
+&#x20; Original open items, each marked `# PHASE 8 SEAM` in code — all three now
+&#x20; closed per the correction above: (1) the sixth
 &#x20; `reason` value for a no-override RL decision is used as `"rl_policy"`
 &#x20; (Session 2's stated string) — confirm and finalise; (2) §12.2 defines
 &#x20; only 4 narration templates — `starvation_ceiling` and `rl_policy` have
@@ -1243,8 +1268,12 @@ Pause and ask the user rather than proceeding when:
 &#x20; `starvation_ceiling` (emergency outranks, then lowest corridor index),
 &#x20; mirroring Phase 8's reconciliation order. §11.2 responder messaging is
 &#x20; NOT in §13.2's frame and is not emitted by Phase 9 — it stays Phase 8 /
-&#x20; §11.2, and the PHASE 8 WARNING above about `clearance_time_s` still
-&#x20; applies to whoever builds it.
+&#x20; §11.2. \*\*CORRECTED 2026-08-29: this sentence used to end "and the PHASE 8
+&#x20; WARNING above about `clearance_time_s` still applies to whoever builds it",
+&#x20; contradicting the STATUS UPDATE at the top of this same bullet. Phase 8
+&#x20; already built it correctly\*\* (`coordinator/emergency_clearance.py`,
+&#x20; per-junction attribution + 0.0 floor). Responder messaging is still not on
+&#x20; the §13.2 wire — putting it there is part of the adapter swap.
 
 \- \*\*`set_baseline_mode("greedy")` is PLUMBED BUT STUBBED\*\* — the §13.1
 &#x20; switch, its state flag and stream echo all exist, but it returns
