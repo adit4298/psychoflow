@@ -26,7 +26,9 @@ from pydantic import BaseModel
 
 from backend.control_api import (
     ControlState,
+    DEFAULT_INCIDENT_DURATION_S,
     get_stats,
+    inject_incident,
     set_baseline_mode,
     set_lane_bias,
     set_mode,
@@ -99,6 +101,15 @@ class SetBaselineModeBody(BaseModel):
     baseline: str
 
 
+class InjectIncidentBody(BaseModel):
+    junction_id: str
+    affected_lanes: list[str]
+    incident_type: str = "lane_blocked"
+    severity: str = "high"
+    lane_id: str | None = None
+    estimated_duration_s: float = DEFAULT_INCIDENT_DURATION_S
+
+
 def create_app(
     *,
     checkpoint: Path | None = DEFAULT_CHECKPOINT,
@@ -162,6 +173,14 @@ def create_app(
     @router.post("/set_baseline_mode")
     def _set_baseline_mode(body: SetBaselineModeBody):
         return set_baseline_mode(state, body.baseline)
+
+    @router.post("/inject_incident")
+    def _inject_incident(body: InjectIncidentBody):
+        return inject_incident(
+            state, body.junction_id, body.affected_lanes,
+            incident_type=body.incident_type, severity=body.severity,
+            lane_id=body.lane_id, estimated_duration_s=body.estimated_duration_s,
+        )
 
     app.include_router(router)
 

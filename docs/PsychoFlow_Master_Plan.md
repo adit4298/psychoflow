@@ -555,6 +555,7 @@ Answers "why did you do that?" by pulling the actual decision log entry (§12.1)
 | `trigger_emergency` | `(lane_id)` | manually forces the same override §10 triggers automatically |
 | `set_topology` | `(topology_id)` | swaps live SUMO network file, restarts sim with same trained agent |
 | `set_baseline_mode` | `("psychoflow" \| "greedy")` | swaps controller live, no restart — Greedy always picks highest raw `vehicle_count`, no fairness/wait consideration |
+| `inject_incident` | `(junction_id, affected_lanes, incident_type="lane_blocked", severity="high", lane_id=None, estimated_duration_s=600)` | reports a §7.3 incident into perception — the live trigger for "detects incidents". From the next step it rides `digital_twin.active_incidents`, §8.2's `incident_impact` and §8.1's confidence penalty. Added 2026-08-30. Not a lane closure (§17): the system re-times around the reported blockage, it never actuates one — there is no `close_lane`. |
 
 ### 13.2 WebSocket stream (pushed every simulation step)
 ```json

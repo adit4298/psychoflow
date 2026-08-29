@@ -409,6 +409,18 @@ class SimRunner:
             )
         elif cmd.kind == "trigger_emergency":
             self._forced[cmd.args["lane_id"]] = now + EMERGENCY_HOLD_S
+        elif cmd.kind == "inject_incident":
+            # §7.3 registry write — not a TraCI call. The twin pulls the
+            # active set on its next update(); from the next step it rides
+            # digital_twin.active_incidents, §8.2's incident_impact and
+            # (via the confidence penalty) §8.1's spillover forecast.
+            a = cmd.args
+            self._env.twin.incidents.report(
+                a["incident_type"], a["junction_id"], a["lane_id"],
+                a["severity"], a["affected_lanes"],
+                reported_at_sim_time=now,
+                estimated_duration_s=a["estimated_duration_s"],
+            )
         elif cmd.kind == "set_topology":
             self._pending_lane_counts = tuple(cmd.args["lane_counts"])
         else:  # pragma: no cover - control_api never emits anything else

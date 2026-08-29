@@ -14,6 +14,8 @@ thread starts), connects a WebSocket client, and runs a 7-point checklist:
   5. set_topology("222")  changes every junction's lane_count on the stream
   6. get_stats()  returns the §13.1 field set
   7. set_baseline_mode  psychoflow applies; greedy reports "Phase 12" and does not
+  8. inject_incident (§13.1)  -> the incident rides digital_twin.active_incidents
+     and predictions.incident_impact (§8.2); an unknown junction_id is rejected
 
 Plus §8.1/§8.2 predictions on the §13.2 frame (2026-08-30):
 
@@ -435,6 +437,50 @@ def main() -> None:
                   {"wait_time_current", "halted_count", "starvation_flag",
                    "wait_time_max_single_vehicle"} <= lane_keys,
                   f"{any_lane}: {sorted(lane_keys)}")
+
+            # ---- 8: inject_incident (§13.1) -> live §7.3 + §8.2 -------
+            # The live trigger for "detects incidents": before this the
+            # twin's active_incidents is always empty. After it, the
+            # incident must ride digital_twin.active_incidents AND appear in
+            # predictions.incident_impact (§8.2) on the stream.
+            inc_lane = any_lane
+            inc_j = st["lanes"][inc_lane]["junction_id"]
+            r_bad = client.post("/control/inject_incident",
+                                json={"junction_id": "J9",
+                                      "affected_lanes": [inc_lane]}).json()
+            check("8  inject_incident rejects an unknown junction_id",
+                  r_bad["applied"] is False and "junction_id" in r_bad["reason"],
+                  r_bad["reason"])
+            r_inc = client.post("/control/inject_incident", json={
+                "junction_id": inc_j, "affected_lanes": [inc_lane],
+                "incident_type": "lane_blocked", "severity": "high",
+                "estimated_duration_s": 600.0,
+            }).json()
+            check("8  inject_incident accepted",
+                  r_inc["applied"] is True
+                  and r_inc["incident"]["location"]["junction_id"] == inc_j,
+                  f"{r_inc}")
+            f_inc = next_frame(
+                ws, lambda fr: fr["digital_twin"].get("active_incidents"),
+                budget=200)
+            active = f_inc["digital_twin"].get("active_incidents") or []
+            check("8  the incident rides digital_twin.active_incidents",
+                  len(active) >= 1
+                  and active[0]["location"]["junction_id"] == inc_j
+                  and inc_lane in active[0]["affected_lanes"],
+                  f"active_incidents={active}")
+            f_ii = next_frame(
+                ws,
+                lambda fr: fr.get("predictions", {}).get("incident_impact"),
+                budget=200)
+            ii = f_ii.get("predictions", {}).get("incident_impact") or []
+            inc_id = active[0]["incident_id"] if active else None
+            check("8  §8.2 incident_impact for it appears in predictions",
+                  any(e["incident_id"] == inc_id
+                      and e["estimated_affected_junctions"][0] == inc_j
+                      and e["estimated_delay_increase_s"] > 0
+                      for e in ii),
+                  f"incident_impact={ii}")
 
             # ---- 3: set_lane_bias reaches get_stats() and expires ----
             busiest = max(st["lanes"], key=lambda l: st["lanes"][l]["halted_count"])

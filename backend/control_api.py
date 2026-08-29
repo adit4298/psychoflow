@@ -38,6 +38,10 @@ import queue
 import threading
 from dataclasses import dataclass, field
 
+# perception.incident_intake is pure dataclasses — no SUMO / torch import,
+# so this stays importable in a voice-only context (§14).
+from perception.incident_intake import INCIDENT_TYPES, SEVERITIES
+
 # §13.1 `trigger_emergency` has no natural release event (it is operator-forced,
 # not a real vehicle that leaves the approach), so the sim thread auto-clears it
 # after this many simulated seconds. Approved as the Phase 9 default; revisit
@@ -51,6 +55,13 @@ VALID_BASELINES = ("psychoflow", "greedy")
 # rather than imported so this module pulls in no SUMO dependency; the sim
 # thread does the authoritative check when it builds the network.
 _VALID_LANE_COUNTS = (2, 3, 4)
+
+# §0.1's locked 3-junction corridor. Literal, not imported from
+# twin.digital_twin (which imports sumolib).
+_CORRIDOR_JUNCTIONS = ("J1", "J2", "J3")
+
+# §7.3 default incident duration when the caller does not give one.
+DEFAULT_INCIDENT_DURATION_S = 600.0
 
 
 @dataclass(frozen=True)
@@ -190,6 +201,90 @@ def set_topology(state: ControlState, topology_id) -> dict:
     state.pending.put(Command("set_topology", {"lane_counts": list(combo)}))
     return {"applied": True, "topology_id": "".join(str(d) for d in combo),
             "lane_counts": list(combo)}
+
+
+def inject_incident(
+    state: ControlState,
+    junction_id: str,
+    affected_lanes: list[str],
+    *,
+    incident_type: str = "lane_blocked",
+    severity: str = "high",
+    lane_id: str | None = None,
+    estimated_duration_s: float = DEFAULT_INCIDENT_DURATION_S,
+) -> dict:
+    """Report a §7.3 incident into perception so the system can react to it.
+
+    This is the LIVE trigger the demo otherwise lacks — without it
+    `digital_twin.active_incidents` is always empty and "detects incidents"
+    has nothing to detect. The sim thread calls
+    `env.twin.incidents.report(...)` between decision steps; from the next
+    step the incident shows up in the twin snapshot, in §8.2's
+    incident-impact prediction, and (via §8.1's confidence penalty) in the
+    spillover forecast.
+
+    §17 boundary: this REPORTS a blockage, it does not command a lane
+    closure — there is no `close_lane`. The system re-times signals around
+    the reported incident; it never actuates a physical closure.
+    """
+    if junction_id not in _CORRIDOR_JUNCTIONS:
+        return {"applied": False,
+                "reason": f"junction_id must be one of {_CORRIDOR_JUNCTIONS}, "
+                          f"got {junction_id!r}"}
+    if incident_type not in INCIDENT_TYPES:
+        return {"applied": False,
+                "reason": f"type must be one of {INCIDENT_TYPES}, got {incident_type!r}"}
+    if severity not in SEVERITIES:
+        return {"applied": False,
+                "reason": f"severity must be one of {SEVERITIES}, got {severity!r}"}
+    if not isinstance(affected_lanes, (list, tuple)) or not affected_lanes:
+        return {"applied": False,
+                "reason": "affected_lanes must be a non-empty list of lane ids"}
+    affected_lanes = [str(l) for l in affected_lanes]
+    try:
+        estimated_duration_s = float(estimated_duration_s)
+    except (TypeError, ValueError):
+        return {"applied": False, "reason": "estimated_duration_s must be numeric"}
+    if estimated_duration_s <= 0.0:
+        return {"applied": False, "reason": "estimated_duration_s must be positive"}
+
+    if lane_id is None:
+        lane_id = affected_lanes[0]
+    lane_id = str(lane_id)
+
+    # If the sim has published a lane set, sanity-check the lane ids against
+    # it (same courtesy as set_lane_bias / trigger_emergency). The sim
+    # thread's registry does no such check, so this is the only guard.
+    known = state.snapshot_stats().get("lanes", {})
+    if known:
+        unknown = sorted({lane_id, *affected_lanes} - set(known))
+        if unknown:
+            return {"applied": False,
+                    "reason": f"unknown lane id(s) {unknown} (not in the current network)"}
+        misplaced = sorted(
+            l for l in affected_lanes
+            if known.get(l, {}).get("junction_id") not in (None, junction_id)
+        )
+        if misplaced:
+            return {"applied": False,
+                    "reason": f"lane(s) {misplaced} are not at junction {junction_id}"}
+
+    state.pending.put(Command("inject_incident", {
+        "incident_type": incident_type,
+        "junction_id": junction_id,
+        "lane_id": lane_id,
+        "severity": severity,
+        "affected_lanes": affected_lanes,
+        "estimated_duration_s": estimated_duration_s,
+    }))
+    # incident_id is assigned by the registry on the sim thread; it will
+    # appear in digital_twin.active_incidents on the stream from the next
+    # step. The echo reports the request, not the assigned id.
+    return {"applied": True, "incident": {
+        "type": incident_type, "location": {"junction_id": junction_id, "lane_id": lane_id},
+        "severity": severity, "affected_lanes": affected_lanes,
+        "estimated_duration_s": estimated_duration_s,
+    }}
 
 
 def set_baseline_mode(state: ControlState, baseline: str) -> dict:
