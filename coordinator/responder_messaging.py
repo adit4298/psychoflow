@@ -9,12 +9,21 @@ into any real emergency-services system (§17); it is an output object.
     { "event", "lane_id", "sim_time", "clearance_time_s",
       "baseline_clearance_time_s", "improvement_pct", "summary" }
 
-Two additions in this build (design plan, Phase 8), both for honesty:
+Additions to §11.2's literal schema in this build, all for honesty:
 
   * "junction_id"        — §11.2 predates §0.1's 3-junction corridor; the
                            per-junction attribution (CLAUDE.md §8 PHASE 8
                            WARNING) needs it stated.
   * "baseline_is_estimate": true — see below.
+  * "trigger_source"     — "detected" or "operator" (§11.1's
+                           `EmergencyClearanceEvent.source`). §10's
+                           emergency branch fires on a sensed ambulance OR
+                           on §13.1's `trigger_emergency(lane_id)`, and
+                           this message is read by a human: "the system saw
+                           an ambulance" and "I forced this lane green
+                           myself" are different facts and must not render
+                           identically. Detection wins when both are true
+                           at the instant the episode opened.
 
 `clearance_time_s` is REAL: detection -> green onset at the junction the
 override fired at, measured by §11.1 (`sim/run_tier0_episode.py` B2's
@@ -36,7 +45,11 @@ payload, and "worst-case" in the summary text.
 
 from __future__ import annotations
 
-from coordinator.emergency_clearance import EmergencyClearanceEvent
+from coordinator.emergency_clearance import (
+    SOURCE_DETECTED,
+    SOURCE_OPERATOR,
+    EmergencyClearanceEvent,
+)
 from env.psychoflow_env import MIN_GREEN_S as _MIN_GREEN_S
 
 # Imported, not re-typed, so it cannot drift from the env's anti-flicker
@@ -87,16 +100,26 @@ def build_responder_message(
     baseline = float(baseline_clearance_time_s)
     improvement = 100.0 * (1.0 - clearance / baseline) if baseline > 0 else 0.0
 
+    # An operator-forced clearance may have no vehicle behind it at all, so
+    # "for the emergency vehicle" would be an overstatement in front of the
+    # human reading this. Say which it was.
+    if event.source == SOURCE_OPERATOR:
+        who = "operator-requested emergency clearance"
+        arrival = "was already clear when the clearance was requested"
+    else:
+        who = "emergency vehicle"
+        arrival = "was already clear for the emergency vehicle on arrival"
+
     if event.served_on_arrival:
         summary = (
-            f"{event.junction_id}: lane {event.lane_id} ({event.direction}) was "
-            f"already clear for the emergency vehicle on arrival — no signal "
-            f"delay (vs. ~{baseline:.1f}s worst-case under normal rotation)."
+            f"{event.junction_id}: lane {event.lane_id} ({event.direction}) "
+            f"{arrival} — no signal delay (vs. ~{baseline:.1f}s worst-case "
+            f"under normal rotation)."
         )
     else:
         summary = (
             f"{event.junction_id}: lane {event.lane_id} ({event.direction}) "
-            f"cleared for emergency vehicle in {clearance:.1f}s "
+            f"cleared for {who} in {clearance:.1f}s "
             f"(vs. ~{baseline:.1f}s worst-case without override) — normal "
             f"operation resumed immediately after."
         )
@@ -112,6 +135,7 @@ def build_responder_message(
         "baseline_is_worst_case": True,
         "improvement_pct": round(improvement, 1),
         "override_fired": event.override_fired,
+        "trigger_source": event.source,
         "summary": summary,
     }
 
@@ -171,11 +195,34 @@ def _selftest() -> None:
     # 100 * (1 - 8/14) = 42.857... -> 42.9   (was 71.4 against the inflated 28s)
     assert msg["improvement_pct"] == 42.9, msg["improvement_pct"]
     assert msg["override_fired"] is True
+    assert msg["trigger_source"] == SOURCE_DETECTED
     assert "cleared for emergency vehicle in 8.0s" in msg["summary"]
     assert "worst-case without override" in msg["summary"]
     print(f"  [OK] override message: clearance 8.0s vs 14.0s worst-case -> "
-          f"{msg['improvement_pct']}% improvement")
+          f"{msg['improvement_pct']}% improvement, "
+          f"trigger_source={msg['trigger_source']!r}")
     print(f"       summary: {msg['summary']}")
+
+    # -- same event, OPERATOR-triggered (§13.1 trigger_emergency) ----
+    # Identical arithmetic; the provenance and the wording must differ,
+    # because an operator-forced clearance may have no vehicle behind it
+    # and this message is read by a human.
+    ev_op = EmergencyClearanceEvent(
+        junction_id="J2", lane_id="N2_J2_0", direction="north",
+        first_detection_sim_time=100.0, override_sim_time=105.0,
+        green_onset_sim_time=108.0, closed_sim_time=140.0,
+        source=SOURCE_OPERATOR,
+    )
+    msg_op = build_responder_message(ev_op, estimate_baseline_clearance_s(0.0, 2))
+    assert msg_op["trigger_source"] == SOURCE_OPERATOR
+    assert msg_op["clearance_time_s"] == msg["clearance_time_s"]
+    assert msg_op["improvement_pct"] == msg["improvement_pct"]
+    assert "operator-requested emergency clearance" in msg_op["summary"]
+    assert "emergency vehicle" not in msg_op["summary"], msg_op["summary"]
+    print(f"  [OK] operator-triggered message: same 8.0s/42.9% arithmetic, "
+          f"trigger_source={msg_op['trigger_source']!r}, no 'emergency "
+          f"vehicle' claim in the text")
+    print(f"       summary: {msg_op['summary']}")
 
     # -- served-on-arrival event ----------------------------------
     ev2 = EmergencyClearanceEvent(
@@ -189,10 +236,23 @@ def _selftest() -> None:
     assert msg2["improvement_pct"] == 100.0
     assert msg2["override_fired"] is False
     assert msg2["baseline_is_worst_case"] is True
+    assert msg2["trigger_source"] == SOURCE_DETECTED   # dataclass default
     assert "already clear" in msg2["summary"]
     assert "worst-case under normal rotation" in msg2["summary"]
     print(f"  [OK] served-on-arrival message: clearance 0.0s, "
           f"summary: {msg2['summary']}")
+
+    # served-on-arrival + operator trigger: no "on arrival" claim either.
+    ev2op = EmergencyClearanceEvent(
+        junction_id="J1", lane_id="W1_J1_0", direction="west",
+        first_detection_sim_time=50.0, green_onset_sim_time=48.0,
+        closed_sim_time=70.0, source=SOURCE_OPERATOR,
+    )
+    msg2op = build_responder_message(ev2op, estimate_baseline_clearance_s(20.0, 2))
+    assert msg2op["trigger_source"] == SOURCE_OPERATOR
+    assert "when the clearance was requested" in msg2op["summary"]
+    assert "emergency vehicle" not in msg2op["summary"], msg2op["summary"]
+    print(f"  [OK] served-on-arrival + operator: {msg2op['summary']}")
 
     # -- unresolved event must raise ----------------------------
     ev3 = EmergencyClearanceEvent(

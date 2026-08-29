@@ -505,10 +505,15 @@ On emergency override trigger: vehicles already in the intersection visibly move
   "clearance_time_s": 4.2,
   "baseline_clearance_time_s": 18.6,
   "improvement_pct": 77.4,
+  "trigger_source": "detected",
   "summary": "Lane cleared for emergency vehicle in 4.2s (vs. ~18.6s baseline) — corridor resumed normal operation immediately after."
 }
 ```
 Decision-support output in the spirit of what a real dispatch coordinator would want to see — not wired into an actual emergency-services system (§17).
+
+**`trigger_source` (added 2026-08-29) — `"detected"` or `"operator"`, required, never omitted.** §10's emergency branch fires on *either* a sensed ambulance in a lane *or* that lane appearing in `forced_emergency_lanes` — §13.1's `trigger_emergency(lane_id)`, an operator forcing the same override by hand. Those are different facts and this message is read by a human, so they must not render identically: an operator-forced clearance may have no vehicle behind it at all, and a payload that said "cleared for emergency vehicle" regardless would be asserting something the system did not observe. The field carries `EmergencyClearanceEvent.source` (§11.1) verbatim, and the `summary` text changes with it ("cleared for operator-requested emergency clearance …" rather than "… for emergency vehicle …").
+
+Provenance is fixed when the clearance episode OPENS and is never rewritten: `"detected"` wins if a real ambulance is sensed at that junction on the opening step, otherwise `"operator"`. A real ambulance arriving later at an operator-opened junction does **not** retroactively relabel the trigger — the field describes what caused the clearance, not what turned up during it. `EmergencyClearanceCoordinator.observe()` takes `forced_emergency_lanes` with the same name, type and default (`frozenset()`) as `safety.validator.validate()`, and callers must pass the *same tracked set* they hand the validator rather than maintaining a second copy; the two triggers are unioned per junction so one junction yields one clearance episode however it was raised.
 
 🚧 **PHASE 8 BLOCKER — `clearance_time_s` and `baseline_clearance_time_s` have NO working implementation in this repo. Do not ship this message until one exists.** The Stage 4 emergency-latency harness is KNOWN BROKEN and UNFIXED: it produced NEGATIVE latencies (−42.0s to −2.0s) because it tracked detection and green-onset at the FIRST junction the ambulance was seen at, while §10's override can fire at a LATER junction on a corridor-through route (J1→J2→J3) — and green-onset recovered as `sim_time - time_since_switch_s` can predate detection when that junction was already green for unrelated reasons. `training/evaluate_stage.py`'s `--emergency-recheck` deliberately OMITS latency rather than emit a known-bad number.
 
