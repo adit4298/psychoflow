@@ -564,11 +564,23 @@ Answers "why did you do that?" by pulling the actual decision log entry (§12.1)
   "decision": { ...§12.1 shape... },
   "narration": "Lane 3, North — selected. Wait threshold crossed.",
   "metrics_snapshot": { "wait_time_variance_across_lanes": 41.2, "mean_wait_max": 33.6, "starvation_events_total": 1, "throughput_total": 340 },
+  "predictions": {                                   // ADDITIVE, key omitted entirely when nothing is material
+    "spillover": [ { ...§8.1 shape... } ],           //   sub-key present only when a forecast is material
+    "incident_impact": [ { ...§8.2 shape... } ]      //   sub-key present only when an incident is active
+  },
   "responder_messages": [ { ...§11.2 shape... } ]   // ADDITIVE, key omitted entirely when empty
 }
 ```
 
+The frame has a **frozen five-key core** (`sim_time`, `digital_twin`, `decision`, `narration`, `metrics_snapshot`), plus **two additive keys** — `predictions` and `responder_messages` — each omitted entirely unless it carries something material, so a consumer that only handles the five never sees an empty list or empty object.
+
 **`responder_messages` added 2026-08-29 — live since `ad9e4df`, previously undocumented here.** A list of §11.2 responder-coordination message payloads, one per emergency-clearance episode that resolved on this step. **ADDITIVE and present only when non-empty** — on the vast majority of frames the key is omitted entirely, so the frozen five-key shape above is unchanged and no consumer has to handle an empty list. `backend/sim_runner.py::_responder_messages` is the reference implementation.
+
+**`predictions` added 2026-08-30 — the §8.1 spillover forecast and §8.2 incident-impact estimate on the wire.** An object with up to two sub-keys:
+- `spillover` — §8.1's list shape (`from_junction` / `to_junction` / `horizon_s` / `predicted_queue_delta` / `confidence`), filtered to the adjacency pairs whose forecast moves at least `_SPILLOVER_MIN_DELTA` (1.0) queued vehicles over the 60s horizon. The near-zero-delta common case is not streamed.
+- `incident_impact` — §8.2's shape (`incident_id` / `estimated_affected_junctions` / `estimated_delay_increase_s` / `horizon_s`), one entry per currently-active incident in `digital_twin.active_incidents`.
+
+**ADDITIVE and present only when material** — the whole `predictions` key is omitted when neither sub-key has content, and each sub-key is omitted independently. The spillover numbers are computed by a **read-side** `SpilloverPredictor` in `backend/sim_runner.py` that is separate from the one feeding observation indices 10/11 (that one is stateful; sharing it would corrupt the next observation), fed the same post-step snapshots so it produces the same forecast the policy sees. `backend/sim_runner.py::_predictions` is the reference implementation.
 
 **`metrics_snapshot` field set updated 2026-08-28 to match §15.2's pinned definitions.** `avg_wait` was **removed**: it was computed from `wait_time_current` (TraCI `lane.getWaitingTime()`, a SUM over the vehicles on a lane — see `agents/rule_based.py`'s "§9.1's UNITS" note), so it scaled with occupancy and lane count rather than fairness, and would confound the §19 Greedy-vs-PsychoFlow side-by-side. `wait_time_variance_across_lanes` and `mean_wait_max` are computed from `wait_time_max_single_vehicle`, verbatim per `training/scripts/checkpoint_bakeoff.py::LaneMetricProbe`, so the live dashboard, the eval suite and the bake-off share one implementation. `backend/sim_runner.py::_update_metrics` is the reference for the live stream; `get_stats()` (§13.1) carries the same field set.
 

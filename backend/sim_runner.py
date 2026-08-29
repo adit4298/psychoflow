@@ -71,6 +71,7 @@ from explainability.decision_log import REASON_RL_POLICY, DecisionLog
 from explainability.narrator import narrate
 from explainability.query_interface import QueryInterface
 from perception.lane_sensor import DEFAULT_STARVATION_THRESHOLD_S
+from prediction.incident_impact import predict_incident_impact
 from prediction.spillover import SpilloverPredictor
 from sim.sumo_activity import beat as _sumo_beat, clear as _sumo_clear
 from safety.validator import RULE_EMERGENCY, RULE_STARVATION
@@ -125,6 +126,12 @@ _JUNCTION_ORDER = {jid: i for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
 # How often the sim thread refreshes the Tier 1 SUMO beacon. Well under
 # sumo_activity.STALE_AFTER_S so a live backend never reads as stale.
 _BEACON_EVERY_S = 20.0
+
+# §13.2 `predictions` — a §8.1 spillover pair is streamed only when its
+# forecast moves at least this many queued vehicles over the 60s horizon.
+# A forecast of ~0 delta is the common case and is not worth a frame; this
+# keeps `predictions` ADDITIVE-and-material, like `responder_messages`.
+_SPILLOVER_MIN_DELTA = 1.0
 
 # Per-episode cap on the §12.1 log. An episode is at most
 # episode_horizon_s / DECISION_INTERVAL_S = 3600/5 = 720 steps x 3 junctions
@@ -186,6 +193,14 @@ class SimRunner:
         self._baseline = state.baseline_mode
         self._bias: dict[str, tuple[float, float]] = {}     # lane -> (weight, expiry_sim_time)
         self._forced: dict[str, float] = {}                 # lane -> expiry_sim_time
+        # READ-SIDE spillover predictor for the §13.2 `predictions` field.
+        # Deliberately a SECOND SpilloverPredictor, separate from the one
+        # inside the env that feeds obs indices 10/11: forecast() is
+        # stateful (it stores the previous snapshot to compute a rate), so
+        # calling the env's would double-advance it and corrupt the next
+        # observation. Fed the same post-step snapshots at the same 5s
+        # cadence, so it produces the same numbers the policy sees.
+        self._spillover_view = SpilloverPredictor()
         self._pending_lane_counts: tuple[int, int, int] | None = None
         self._step_idx = 0
         self._starved_lanes: set[str] = set()
@@ -267,6 +282,11 @@ class SimRunner:
         self._wait_var = 0.0
         self._mean_wait_max = 0.0
         self._step_idx = 0
+        # The read-side spillover predictor is STATEFUL and per-episode,
+        # exactly like the env's own (psychoflow_env.reset() resets that
+        # one). Without this, episode 2's first forecast computes a rate
+        # against episode 1's last snapshot.
+        self._spillover_view.reset()
         # REPLACED, not cleared. reset() sends sim_time back to ~0 and
         # DecisionLog refuses a backwards sim_time, so a reused log would
         # raise on the first post-reset record_step. The QueryInterface is
@@ -563,6 +583,38 @@ class SimRunner:
             ))
         return out
 
+    def _predictions(self, snap: dict) -> dict:
+        """§8.1 spillover + §8.2 incident-impact for the §13.2 frame.
+
+        ADDITIVE and MATERIAL, same contract as `responder_messages`:
+
+          * `spillover`       — §8.1's list shape, but only the adjacency
+            pairs whose forecast moves >= _SPILLOVER_MIN_DELTA vehicles.
+            Omitted entirely when nothing is moving (the common case).
+          * `incident_impact` — §8.2's shape, one per currently-active
+            incident (§7.3). Omitted when there are no active incidents.
+
+        Returns `{}` when neither has anything to say, and the caller then
+        omits the whole `predictions` key.
+        """
+        out: dict = {}
+
+        spill = [
+            f for f in self._spillover_view.forecast(snap)
+            if abs(f["predicted_queue_delta"]) >= _SPILLOVER_MIN_DELTA
+        ]
+        if spill:
+            out["spillover"] = spill
+
+        incidents = [
+            predict_incident_impact(inc)
+            for inc in snap.get("active_incidents", [])
+        ]
+        if incidents:
+            out["incident_impact"] = incidents
+
+        return out
+
     def _assemble_frame(self, info: dict, entries: list, closed: list) -> dict:
         # POST-step snapshot — what the dashboard draws. The PRE-step one
         # went to record_step(); see this module's docstring.
@@ -583,6 +635,11 @@ class SimRunner:
                 "throughput_total": info["arrived_total"],
             },
         }
+        # §8.1 spillover + §8.2 incident impact — ADDITIVE and only when
+        # material (see _predictions), same contract as responder_messages.
+        preds = self._predictions(snap)
+        if preds:
+            frame["predictions"] = preds
         # §11.2 responder messaging — ADDITIVE and only when non-empty, so
         # the frozen §13.2 five-key shape is unchanged on the vast majority
         # of frames and no consumer has to handle an empty list.

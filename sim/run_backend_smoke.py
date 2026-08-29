@@ -15,6 +15,14 @@ thread starts), connects a WebSocket client, and runs a 7-point checklist:
   6. get_stats()  returns the §13.1 field set
   7. set_baseline_mode  psychoflow applies; greedy reports "Phase 12" and does not
 
+Plus §8.1/§8.2 predictions on the §13.2 frame (2026-08-30):
+
+  P1/P2/P3  SimRunner._predictions() — cold-start empty, a growing queue
+            yields a §8.1-shaped `spillover` entry, an active incident
+            yields a §8.2-shaped `incident_impact` entry (no SUMO)
+  1g        every `predictions` object that rides a live frame is
+            §8.1/§8.2-shaped (presence is scenario-dependent, not asserted)
+
 Plus, since the Phase 8 adapter swap (2026-08-29), five checks that each pin a
 SPECIFIC regression rather than a general shape:
 
@@ -172,11 +180,58 @@ def check_automode_decisionlog_contract() -> None:
 # thread. _reset_counters() must REPLACE it, not clear it. Pure, no SUMO;
 # the live counterpart is check 5c, which drives a real reset.
 # ---------------------------------------------------------------------------
+def check_predictions_field() -> None:
+    """§13.2 `predictions` — §8.1 spillover + §8.2 incident impact, ADDITIVE
+    and only when material. Pure, no SUMO: drives `SimRunner._predictions`
+    with synthetic §7.6-shaped snapshots.
+    """
+    from backend.sim_runner import SimRunner, _SPILLOVER_MIN_DELTA
+    from prediction.spillover import SpilloverPredictor, _synthetic_snapshot
+
+    r = SimRunner.__new__(SimRunner)          # bypass __init__ (no thread, no env)
+    r._spillover_view = SpilloverPredictor()
+
+    # cold start -> §8.1 forces delta to 0.0 -> nothing material -> no key
+    p0 = r._predictions(_synthetic_snapshot(0.0, {"J2": 2, "J3": 1}))
+    check("P1 _predictions() is empty on a cold-start / quiet frame "
+          "(key omitted)", p0 == {}, f"got {p0}")
+
+    # J2 west queue 2 -> 12 over 5s -> +120 veh over the 60s horizon
+    p1 = r._predictions(_synthetic_snapshot(5.0, {"J2": 12, "J3": 1}))
+    sp = p1.get("spillover", [])
+    check("P2 a growing queue streams a §8.1-shaped spillover entry",
+          len(sp) >= 1
+          and {"from_junction", "to_junction", "horizon_s",
+               "predicted_queue_delta", "confidence"} <= set(sp[0])
+          and all(abs(f["predicted_queue_delta"]) >= _SPILLOVER_MIN_DELTA
+                  for f in sp)
+          and "incident_impact" not in p1,
+          f"spillover={sp}")
+
+    incident = {
+        "incident_id": "inc_0001", "type": "lane_blocked",
+        "location": {"junction_id": "J1", "lane_id": "J1_west_0"},
+        "severity": "high", "affected_lanes": ["J1_west_0", "J1_west_1"],
+        "reported_at_sim_time": 10.0, "estimated_duration_s": 600.0,
+    }
+    p2 = r._predictions(
+        _synthetic_snapshot(10.0, {"J2": 12, "J3": 1}, incidents=[incident]))
+    ii = p2.get("incident_impact", [])
+    check("P3 an active incident streams a §8.2-shaped incident_impact entry",
+          len(ii) == 1
+          and {"incident_id", "estimated_affected_junctions",
+               "estimated_delay_increase_s", "horizon_s"} <= set(ii[0])
+          and ii[0]["incident_id"] == "inc_0001"
+          and ii[0]["estimated_affected_junctions"] == ["J1", "J2", "J3"],
+          f"incident_impact={ii}")
+
+
 def check_reset_replaces_log() -> None:
     from backend.sim_runner import SimRunner
     from coordinator.emergency_clearance import EmergencyClearanceCoordinator
     from explainability.decision_log import DecisionLog
     from explainability.query_interface import QueryInterface
+    from prediction.spillover import SpilloverPredictor
 
     class _Twin:
         topology = {"J1": {"lane_approach_map": {"L_J1_0": "north"}}}
@@ -186,6 +241,7 @@ def check_reset_replaces_log() -> None:
 
     r = SimRunner.__new__(SimRunner)          # bypass __init__ (no thread)
     r._env, r._served = _Env(), {"J1": {0: frozenset({"L_J1_0"})}}
+    r._spillover_view = SpilloverPredictor()  # _reset_counters() resets it
     r._reset_counters()
     log1, query1, coord1 = r._log, r._query, r._coord
     r._reset_counters()
@@ -227,6 +283,7 @@ def main() -> None:
 
     check_tier0_bias_param()
     check_automode_decisionlog_contract()
+    check_predictions_field()
     check_reset_replaces_log()
 
     app = create_app(
@@ -248,9 +305,12 @@ def main() -> None:
             # ---- 1: frame shape ---------------------------------------
             f = next_frame(ws)
             keys = set(f)
-            check("1  frame has the §13.2 keys",
-                  keys == {"sim_time", "digital_twin", "decision", "narration",
-                           "metrics_snapshot"},
+            core = {"sim_time", "digital_twin", "decision", "narration",
+                    "metrics_snapshot"}
+            additive = {"responder_messages", "predictions"}
+            check("1  frame has the §13.2 five-key core (only additive keys "
+                  "beyond it)",
+                  core <= keys <= core | additive,
                   f"keys={sorted(keys)}")
             dt = f["digital_twin"]
             check("1  digital_twin is §7.6-shaped",
@@ -279,6 +339,44 @@ def main() -> None:
                   f"mean_wait_max={ms['mean_wait_max']} "
                   f"starv_ev={ms['starvation_events_total']} "
                   f"thru={ms['throughput_total']}")
+
+            # ---- 1g: live `predictions` shape (§8.1 / §8.2) -----------
+            # Scenario-dependent whether the spillover threshold is crossed
+            # in any given window, so presence is not asserted — but every
+            # `predictions` object that DOES ride a frame must be well-formed.
+            # (spawn_emergencies=False here and no incident is injected, so
+            # incident_impact is exercised by the no-SUMO P3 check above and
+            # live by commit 4's inject_incident check.)
+            pred_frames = 0
+            for _ in range(120):
+                fr = ws.receive_json()
+                p = fr.get("predictions")
+                if p is None:
+                    continue
+                pred_frames += 1
+                ok_shape = (
+                    isinstance(p, dict)
+                    and set(p) <= {"spillover", "incident_impact"}
+                    and p  # never emitted empty
+                    and all(
+                        {"from_junction", "to_junction", "horizon_s",
+                         "predicted_queue_delta", "confidence"} <= set(e)
+                        for e in p.get("spillover", [])
+                    )
+                    and all(
+                        {"incident_id", "estimated_affected_junctions",
+                         "estimated_delay_increase_s", "horizon_s"} <= set(e)
+                        for e in p.get("incident_impact", [])
+                    )
+                )
+                if not ok_shape:
+                    check("1g every live `predictions` object is §8.1/§8.2-shaped",
+                          False, f"malformed: {p}")
+                    break
+            else:
+                check("1g every live `predictions` object is §8.1/§8.2-shaped",
+                      True,
+                      f"{pred_frames} frame(s) carried predictions, all well-formed")
 
             # ---- 7: baseline swap (before we touch mode) --------------
             r_ok = client.post("/control/set_baseline_mode",
