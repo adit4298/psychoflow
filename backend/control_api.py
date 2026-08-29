@@ -18,7 +18,17 @@ anywhere in this module or anywhere else under `backend/`. There is no
 operator-facing reason to switch off §10, and its guarantee ("nothing reaches
 the road without passing through here") only holds if the off-switch is
 unreachable from anything that drives a real sim. `set_mode`, `set_baseline_mode`,
-`trigger_emergency`, `set_topology` and `set_lane_bias` cannot reach it.
+`trigger_emergency`, `set_topology`, `set_lane_bias` and `inject_incident`
+cannot reach it.
+
+HONEST BOUNDARY (§17): the intervention surface here is signal-phase control
+(§9, via `set_mode` / `set_lane_bias` / the running policy) plus emergency-
+corridor clearance (§10/§11, via `trigger_emergency`). The problem statement's
+parenthetical also names "lane closures" — those are OUT OF SCOPE as a system
+output. `inject_incident` REPORTS a blockage into perception (§7.3) so the
+system can predict its impact (§8.2) and re-time around it; there is
+deliberately no `close_lane` — commanding a closure is a physical / authority
+action, not a control signal PsychoFlow emits.
 """
 
 from __future__ import annotations

@@ -2,7 +2,9 @@
 
 Turns a closed `EmergencyClearanceEvent` (§11.1) into the decision-support
 message a dispatch coordinator would want — §11.2's JSON shape. Not wired
-into any real emergency-services system (§17); it is an output object.
+into any real emergency-services system (§17); it is an output object. The
+intervention it reports on is emergency-corridor clearance (signal control);
+§17 also scopes OUT lane closures — this message never advises one.
 
 §11.2's literal schema:
 
