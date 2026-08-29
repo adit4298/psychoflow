@@ -204,6 +204,18 @@ def train_stage(
           f"({math.ceil(timesteps / 2048)} rollouts x 2048"
           f"{f'; overshoot +{projected - resume_from - timesteps}' if projected - resume_from != timesteps else '; exact'})")
 
+    # Tier 1 SUMO beacon (sim/sumo_activity.py): CLAIM OWNERSHIP NOW, before
+    # build_env() and before the checkpoint load. The __main__ guard's
+    # require_free() only READS the beacon; if this process waited until
+    # _SumoBeaconCallback fired at _on_training_start to WRITE one, there would
+    # be a multi-second-to-minute window (env construction + MaskablePPO.load)
+    # in which a second trainer could pass its own require_free() and race for
+    # the TraCI port — the same failure shape as the D1 leg3/leg4 collision,
+    # just narrower. Claiming here shrinks that window to the gap between the
+    # guard and this line, which is a few imports.
+    beacon_note = f"stage {stage} ({coordination_mode}) -> {stage_dir.name}"
+    _sumo_beat("training", beacon_note)
+
     env = build_env(stage, seed, monitor_path)
 
     checkpoint_callback = CheckpointCallback(
@@ -212,15 +224,10 @@ def train_stage(
         name_prefix=f"psychoflow_stage{stage}",
     )
 
-    # Tier 1 SUMO beacon (sim/sumo_activity.py): announce that this process is
-    # driving SUMO, so a sweep harness in another session refuses to launch
-    # concurrent instances instead of crashing this run with
-    # FatalTraCIError: Could not connect. Advisory, self-clearing, and never
-    # fatal to training — see that module's docstring.
-    beacon_callback = _SumoBeaconCallback(
-        kind="training",
-        note=f"stage {stage} ({coordination_mode}) -> {stage_dir.name}",
-    )
+    # Refreshes the beacon claimed above so it never goes stale mid-run
+    # (STALE_AFTER_S=300). Advisory, self-clearing, and never fatal to
+    # training — see sim/sumo_activity.py's docstring.
+    beacon_callback = _SumoBeaconCallback(kind="training", note=beacon_note)
     callbacks = CallbackList([checkpoint_callback, beacon_callback])
 
     if resume is not None:
@@ -339,4 +346,15 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Tier 1 SUMO beacon (sim/sumo_activity.py): refuse to start a SECOND
+    # concurrent training run while another process is already driving SUMO.
+    # train.py EMITS a beacon (via _SumoBeaconCallback) but historically never
+    # CHECKED for one, so two near-simultaneous resumes could both start and
+    # race for the TraCI port — the D1 leg3/leg4 collision, 2026-08-29 audit.
+    # Checked before build_env(), so the refusal costs nothing. Residual
+    # window: this run's own beacon is not written until model.learn() begins,
+    # so two trainers launched within ~1 min of each other can still both pass;
+    # PSYCHOFLOW_IGNORE_SUMO_BEACON=1 overrides for deliberate parallelism.
+    from sim.sumo_activity import require_free
+    require_free('train.py (stage training run)')
     main()
