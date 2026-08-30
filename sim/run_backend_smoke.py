@@ -309,7 +309,11 @@ def main() -> None:
             keys = set(f)
             core = {"sim_time", "digital_twin", "decision", "narration",
                     "metrics_snapshot"}
-            additive = {"responder_messages", "predictions"}
+            # `shadow_advisor` (§13.2, read-only advisory) is the third
+            # additive key. Its own S1-S6 checks live in
+            # sim/run_shadow_advisor_check.py; here it only has to not
+            # break the frozen five-key core contract.
+            additive = {"responder_messages", "predictions", "shadow_advisor"}
             check("1  frame has the §13.2 five-key core (only additive keys "
                   "beyond it)",
                   core <= keys <= core | additive,

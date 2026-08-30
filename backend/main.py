@@ -11,6 +11,11 @@ Layout:
   * the control endpoints are thin wrappers over `backend/control_api.py`'s plain
     functions — the same functions §14's voice intent agent will import.
 
+`--no-shadow` / `--shadow-checkpoint` control the §13.2 `shadow_advisor` key —
+a READ-ONLY second opinion from the §9.5 MARL checkpoint that never drives the
+road. Default ON when the checkpoint file exists. Read the honesty note at
+`backend/sim_runner.py`'s DEFAULT_SHADOW_CHECKPOINT before showing it to anyone.
+
 STANDING RULE (CLAUDE.md §8): nothing here references `enable_safety_validator`.
 """
 
@@ -35,7 +40,11 @@ from backend.control_api import (
     set_topology,
     trigger_emergency,
 )
-from backend.sim_runner import DEFAULT_CHECKPOINT, SimRunner
+from backend.sim_runner import (
+    DEFAULT_CHECKPOINT,
+    DEFAULT_SHADOW_CHECKPOINT,
+    SimRunner,
+)
 
 
 class Hub:
@@ -113,6 +122,7 @@ class InjectIncidentBody(BaseModel):
 def create_app(
     *,
     checkpoint: Path | None = DEFAULT_CHECKPOINT,
+    shadow_checkpoint: Path | None = DEFAULT_SHADOW_CHECKPOINT,
     lane_counts: tuple[int, int, int] = (4, 3, 2),
     randomize_density: bool = True,
     spawn_emergencies: bool = True,
@@ -125,6 +135,7 @@ def create_app(
     runner = SimRunner(
         state,
         checkpoint=checkpoint,
+        shadow_checkpoint=shadow_checkpoint,
         lane_counts=lane_counts,
         randomize_density=randomize_density,
         spawn_emergencies=spawn_emergencies,
@@ -220,6 +231,18 @@ def _main() -> None:
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     parser.add_argument("--no-checkpoint", action="store_true",
                         help="Run Tier 0 only (auto mode unavailable).")
+    # SHADOW ADVISOR (§13.2 `shadow_advisor`) — read-only, advisory. Default
+    # ON when the file exists; an absent file is not an error (the key is
+    # simply never emitted). It never drives the road — see
+    # backend/sim_runner.py's DEFAULT_SHADOW_CHECKPOINT honesty note: the
+    # shadow is the WORSE policy on every 4a bake-off metric.
+    parser.add_argument("--shadow-checkpoint", type=Path,
+                        default=DEFAULT_SHADOW_CHECKPOINT,
+                        help="§9.5 MARL checkpoint to run in read-only "
+                             "shadow mode alongside the deployed policy.")
+    parser.add_argument("--no-shadow", action="store_true",
+                        help="Disable the shadow advisor (no "
+                             "`shadow_advisor` key on the §13.2 stream).")
     parser.add_argument("--topology", default="432", help="Initial lane counts, e.g. 432.")
     parser.add_argument("--realtime-factor", type=float, default=0.3,
                         help="Wall-clock seconds to sleep per decision step.")
@@ -231,6 +254,7 @@ def _main() -> None:
     lane_counts = tuple(int(d) for d in args.topology)
     globals()["app"] = create_app(
         checkpoint=None if args.no_checkpoint else args.checkpoint,
+        shadow_checkpoint=None if args.no_shadow else args.shadow_checkpoint,
         lane_counts=lane_counts,
         realtime_factor=args.realtime_factor,
         fast=args.fast,

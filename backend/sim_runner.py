@@ -8,11 +8,25 @@ stays off it. The loop each iteration:
     1. drain queued control commands (§13.1) and apply them
     2. expire lane biases / forced emergencies whose window has passed
     3. pick an action  — Tier 0 (§9.1) in manual mode, the trained policy in auto
+    3b. run the SHADOW ADVISOR's forward pass on the SAME pre-step obs/mask —
+        read-only, its output never reaches step() (see DEFAULT_SHADOW_CHECKPOINT)
     4. env.step(action) — the §10 validator runs INSIDE this call, unchanged
     5. record the step into §12.1's DecisionLog and §11.1's clearance coordinator
     6. assemble the §13.2 frame, hand it to frame_sink, publish get_stats() cache
     7. on episode end, reset and keep going (a demo runs continuously)
     8. sleep to pace wall-clock
+
+SHADOW ADVISOR PLACEMENT IS LOAD-BEARING. Step 3b sits between `_pick_action()`
+and `env.step()` on purpose: it must read the SAME pre-step observation and the
+same action mask the deployed policy just used. Running it after `step()` would
+compare the two policies' proposals against DIFFERENT states — the recommendation
+would silently be an answer to the next question, and nothing would raise.
+Both `recommended_phase` and `deployed_proposed_phase` are therefore PRE-SHIELD
+proposals; `executed_phase` (post-§10) is carried alongside for context and is
+deliberately NOT what agreement is computed against, since comparing a proposal
+to a post-shield action conflates a policy disagreement with the shield's own
+intervention. The advisor is failure-isolated: any exception disables it for the
+rest of the process and the key simply stops being emitted.
 
 PHASE 8 SEAM — CLOSED (2026-08-29). The §13.2 frame's `decision` and
 `narration` are now produced by Phase 8's real modules
@@ -121,6 +135,53 @@ DEFAULT_CHECKPOINT = (
     / "psychoflow_stage4_153600_steps_final.zip"
 )
 
+# ---------------------------------------------------------------------------
+# SHADOW ADVISOR (§13.2 `shadow_advisor`) — READ-ONLY, ADVISORY, NEVER DRIVES.
+# ---------------------------------------------------------------------------
+# The §9.5 MARL checkpoint runs its own forward pass alongside the deployed
+# policy every decision step and its recommendation rides the frame as an
+# ADDITIVE third top-level key. It never reaches `env.step()`; the deployed
+# checkpoint above is the sole driver, unconditionally.
+#
+# ***THE HONESTY NOTE — READ THIS BEFORE BUILDING ANY PANEL ON THIS FIELD.***
+#
+#   `graph_attention` @51,624 is the WORSE policy. Not marginally, and not
+#   only in aggregate — on the DEMO CORRIDOR (4,3,2) specifically, the one
+#   topology §19 actually shows:
+#
+#              starvation events   §10 overrides   worst wait
+#     Stage 4          0                 0            38-42s   <-- DEPLOYED
+#     ga_51624         4                 1           121-125s   <-- SHADOW
+#
+#   (4a bake-off, 3 seeds, _sweeps/checkpoint_bakeoff.json. Across the full
+#   48-episode grid: starved% 0.08 vs 1.20, reward 1.3450 vs 1.2347.)
+#
+#   So this field shows WHAT THE MARL ARCHITECTURE WOULD HAVE DONE. It is
+#   NOT a better idea being ignored, and it is NOT a second opinion worth
+#   deferring to. A disagreement is not evidence the deployed policy erred;
+#   on the measured record the prior runs the other way. Any UI built on
+#   this must say so — do not label it "recommended", "suggested" or
+#   "alternative plan" without that context attached.
+#
+# Why carry it at all: §9.5's architecture A/B (attention beat shared_policy
+# 12/12) is a real measured result, and showing the two policies' proposals
+# side by side is an honest way to exhibit it. §20 requires saying out loud
+# that the demo runs SINGLE-AGENT PPO; this field makes the distinction
+# visible rather than rhetorical — provided the note above travels with it.
+#
+# Default ON when the file exists; `--no-shadow` disables it; an absent file
+# is not an error, the key is simply never emitted.
+DEFAULT_SHADOW_CHECKPOINT = (
+    REPO_ROOT / "training" / "checkpoints" / "stage5_graph_attention"
+    / "psychoflow_stage5_51624_steps_final.zip"
+)
+
+# Reported verbatim on the wire as `shadow_advisor.coordination_mode`. This is
+# the MARL extractor the SHADOW checkpoint carries, NOT a live read of
+# `agents.config.COORDINATION_MODE` — §9.5 is not reopened by this feature and
+# nothing here selects an extractor. The deployed path is unaffected either way.
+SHADOW_COORDINATION_MODE = "graph_attention"
+
 _JUNCTION_ORDER = {jid: i for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
 
 # How often the sim thread refreshes the Tier 1 SUMO beacon. Well under
@@ -166,6 +227,7 @@ class SimRunner:
         state: ControlState,
         *,
         checkpoint: Path | None = DEFAULT_CHECKPOINT,
+        shadow_checkpoint: Path | None = DEFAULT_SHADOW_CHECKPOINT,
         lane_counts: tuple[int, int, int] = (4, 3, 2),
         randomize_density: bool = True,
         spawn_emergencies: bool = True,
@@ -176,6 +238,9 @@ class SimRunner:
     ):
         self.state = state
         self.checkpoint = Path(checkpoint) if checkpoint else None
+        self.shadow_checkpoint = (
+            Path(shadow_checkpoint) if shadow_checkpoint else None
+        )
         self._lane_counts = tuple(lane_counts)
         self._randomize_density = randomize_density
         self._spawn_emergencies = spawn_emergencies
@@ -193,6 +258,13 @@ class SimRunner:
         # sim-thread-only state
         self._env: PsychoFlowEnv | None = None
         self._model = None
+        # SHADOW ADVISOR — advisory only, never consulted for the action that
+        # is executed. `_shadow_enabled` is the single latch: it is set False
+        # and never re-armed the moment the advisor raises, so a broken
+        # advisor costs exactly one logged traceback and then disappears from
+        # the wire. Nothing on the deployed path reads any of these.
+        self._shadow_model = None
+        self._shadow_enabled = False
         self._tier0 = Tier0Controller()
         self._served: dict[str, dict[int, frozenset[str]]] = {}
         self._obs = None
@@ -218,6 +290,9 @@ class SimRunner:
         self._step_maxes: list[float] = []     # across-lane max wait / step
         self._wait_var = 0.0
         self._mean_wait_max = 0.0
+        # Shadow-advisor agreement, per EPISODE (reset in _reset_counters).
+        self._shadow_agree = 0                 # junction-slots agreeing
+        self._shadow_slots = 0                 # junction-slots compared
         # Phase 8 (§11/§12) — all three are per-EPISODE and are replaced,
         # never cleared in place, by _reset_counters().
         self._log: DecisionLog | None = None
@@ -261,6 +336,41 @@ class SimRunner:
         self.state.has_checkpoint = True
         print(f"[sim] checkpoint loaded (policy: {type(self._model.policy).__name__})")
 
+    def _load_shadow_model(self) -> None:
+        """Load the §9.5 MARL checkpoint for READ-ONLY advisory use (§13.2
+        `shadow_advisor`). See DEFAULT_SHADOW_CHECKPOINT's honesty note.
+
+        A missing file is NOT an error — the advisor stays off and the frame
+        key is simply never emitted, exactly as `--no-shadow` produces. This
+        must never be able to stop the backend: the deployed policy does not
+        depend on it in any way.
+        """
+        if self.shadow_checkpoint is None:
+            print("[sim] shadow advisor OFF (disabled by --no-shadow)")
+            return
+        if not self.shadow_checkpoint.exists():
+            print(f"[sim] shadow advisor OFF — no checkpoint at "
+                  f"{self.shadow_checkpoint} (not an error; the §13.2 "
+                  f"`shadow_advisor` key is simply not emitted)")
+            return
+        try:
+            from sb3_contrib import MaskablePPO  # local: keeps control_api light
+
+            self._shadow_model = MaskablePPO.load(str(self.shadow_checkpoint))
+            self._shadow_enabled = True
+            print(f"[sim] shadow advisor ON: {self.shadow_checkpoint.name} "
+                  f"(extractor: "
+                  f"{type(self._shadow_model.policy.features_extractor).__name__}) "
+                  f"— ADVISORY ONLY, it does not drive the road")
+        except Exception:
+            # Same isolation as a runtime failure: the advisor is optional,
+            # the backend is not. Never let it take the sim thread down.
+            self._shadow_model = None
+            self._shadow_enabled = False
+            print("[sim] shadow advisor OFF — failed to load, continuing "
+                  "without it (deployed policy unaffected):\n"
+                  + traceback.format_exc())
+
     def _build_env(self) -> None:
         if self._env is not None:
             self._env.close()
@@ -289,6 +399,12 @@ class SimRunner:
         self._wait_var = 0.0
         self._mean_wait_max = 0.0
         self._step_idx = 0
+        # §13.2 shadow_advisor.episode_agreement_rate is a PER-EPISODE rate,
+        # so its two accumulators reset on the boundary like every other
+        # per-episode counter above. Carrying them across a reset would blend
+        # two different scenarios into one ratio.
+        self._shadow_agree = 0
+        self._shadow_slots = 0
         # The read-side spillover predictor is STATEFUL and per-episode,
         # exactly like the env's own (psychoflow_env.reset() resets that
         # one). Without this, episode 2's first forecast computes a rate
@@ -312,6 +428,7 @@ class SimRunner:
     def _run(self) -> None:
         try:
             self._load_model()
+            self._load_shadow_model()
             self._build_env()
             self._started.set()
             while not self._stop.is_set():
@@ -349,9 +466,35 @@ class SimRunner:
                 pre_snap = self._env.twin.snapshot
 
                 action, decisions = self._pick_action()
+
+                # SHADOW ADVISOR (§13.2 `shadow_advisor`) — read-only. HERE,
+                # not after step(): it must see the SAME pre-step observation
+                # and mask the deployed policy just used, or the two proposals
+                # would be answers to different states and the disagreement
+                # rate would be meaningless. `self._obs` is still the pre-step
+                # observation (step() rebinds it below), and action_masks() is
+                # a pure read of the current runtime — the second consecutive
+                # call returns what _pick_action() just saw (verified live,
+                # check S4 in sim/run_shadow_advisor_check.py).
+                #
+                # `action` is the deployed policy's PRE-SHIELD proposal, which
+                # is the only like-for-like comparison against the shadow's own
+                # pre-shield recommendation. `executed_phase` is filled in from
+                # info AFTER step() — deliberately not used for agreement.
+                shadow = self._shadow_advice(
+                    self._obs, self._env.action_masks(), action
+                )
+
                 obs, reward, terminated, truncated, info = self._env.step(action)
                 self._obs = obs
                 self._step_idx += 1
+                if shadow is not None:
+                    # Overwrites the placeholder set by _shadow_advice, keeping
+                    # the key in its documented wire position.
+                    shadow["executed_phase"] = {
+                        jid: int(info["executed_action"][i])
+                        for i, jid in enumerate(CORRIDOR_JUNCTIONS)
+                    }
 
                 # §12.1 against the PRE-step snapshot; §11.1 against POST.
                 entries = self._log.record_step(
@@ -363,7 +506,7 @@ class SimRunner:
                 )
 
                 self._update_metrics(info)
-                frame = self._assemble_frame(info, entries, closed)
+                frame = self._assemble_frame(info, entries, closed, shadow)
                 if self._frame_sink is not None:
                     self._frame_sink(frame)
                 self.state.publish_stats(self._stats_payload(info))
@@ -476,6 +619,81 @@ class SimRunner:
             snap, runtime, masks, self._served, lane_weights=weights
         )
         return action, decisions
+
+    def _shadow_advice(self, obs, masks, deployed_action) -> dict | None:
+        """§13.2 `shadow_advisor` — what the §9.5 MARL policy WOULD have done.
+
+        READ-ONLY AND ADVISORY. The returned dict rides the frame and is read
+        by nobody else; it is never fed to `env.step()`, never consulted by
+        `_pick_action()`, and cannot influence the deployed policy. Stage 4
+        drives the road unconditionally. See DEFAULT_SHADOW_CHECKPOINT's
+        honesty note — the shadow is the WORSE policy on every 4a metric and
+        on the demo corridor specifically.
+
+        Called with the PRE-step `obs`/`masks` and the deployed policy's
+        PRE-SHIELD proposal, so `agrees_with_deployed` compares two
+        proposals made from one state. `executed_phase` is a placeholder here
+        and is filled by the caller after `env.step()`.
+
+        Returns None when the advisor is off, disabled or has just failed —
+        the caller then omits the frame key entirely.
+
+        FAILURE ISOLATION: any exception disables the advisor for the rest of
+        the process (logged once, since the guard above short-circuits every
+        later call) and returns None. A broken advisor must never be able to
+        stop the sim thread or change what reaches the road.
+        """
+        if not self._shadow_enabled or self._shadow_model is None:
+            return None
+        try:
+            t0 = time.perf_counter()
+            recommended_action, _ = self._shadow_model.predict(
+                obs, action_masks=masks, deterministic=True
+            )
+            inference_ms = (time.perf_counter() - t0) * 1000.0
+            recommended_action = np.asarray(recommended_action, dtype=int)
+
+            recommended = {jid: int(recommended_action[i])
+                           for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
+            proposed = {jid: int(deployed_action[i])
+                        for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
+            agrees = {jid: recommended[jid] == proposed[jid]
+                      for jid in CORRIDOR_JUNCTIONS}
+            n_agree = sum(agrees.values())
+
+            self._shadow_agree += n_agree
+            self._shadow_slots += len(CORRIDOR_JUNCTIONS)
+
+            return {
+                # Stated on the wire, every frame, so a consumer cannot read
+                # this field as a control output by accident.
+                "advisory_only": True,
+                "drives_the_road": False,
+                "coordination_mode": SHADOW_COORDINATION_MODE,
+                "checkpoint": self.shadow_checkpoint.name,
+                "recommended_phase": recommended,
+                "deployed_proposed_phase": proposed,
+                # Placeholder — the caller overwrites this from
+                # info["executed_action"] after step(). Kept here so the key
+                # order on the wire is stable.
+                "executed_phase": {},
+                "agrees_with_deployed": agrees,
+                "agreement_count": n_agree,
+                "n_junctions": len(CORRIDOR_JUNCTIONS),
+                "episode_agreement_rate": (
+                    self._shadow_agree / self._shadow_slots
+                    if self._shadow_slots else 0.0
+                ),
+                "inference_ms": round(inference_ms, 3),
+            }
+        except Exception:
+            self._shadow_enabled = False
+            self._shadow_model = None
+            print("[sim] shadow advisor DISABLED after an exception. The "
+                  "deployed policy, the sim loop and the §13.2 stream are "
+                  "unaffected; the `shadow_advisor` key stops being "
+                  "emitted:\n" + traceback.format_exc())
+            return None
 
     # ------------------------------------------------------------------
     # metrics
@@ -634,7 +852,8 @@ class SimRunner:
 
         return out
 
-    def _assemble_frame(self, info: dict, entries: list, closed: list) -> dict:
+    def _assemble_frame(self, info: dict, entries: list, closed: list,
+                        shadow: dict | None = None) -> dict:
         # POST-step snapshot — what the dashboard draws. The PRE-step one
         # went to record_step(); see this module's docstring.
         snap = self._env.twin.snapshot
@@ -665,4 +884,9 @@ class SimRunner:
         messages = self._responder_messages(closed)
         if messages:
             frame["responder_messages"] = messages
+        # §13.2 `shadow_advisor` — ADDITIVE third key, present only while the
+        # advisor is on and healthy. READ-ONLY: nothing downstream of this
+        # line, and nothing in the control path, consumes it.
+        if shadow is not None:
+            frame["shadow_advisor"] = shadow
         return _jsonable(frame)
