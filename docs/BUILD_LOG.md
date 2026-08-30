@@ -2577,3 +2577,171 @@ origin implicit risked a future reader treating 1.0 as spec-mandated.
   (smoke check 8), which runs after the 1g window.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-30 — §13.2 `shadow_advisor`: the §9.5 MARL checkpoint as a READ-ONLY advisor
+
+**BACKEND ONLY.** Nothing in `env/`, `env/reward.py`, `safety/validator.py`,
+`agents/`, `prediction/`, `perception/`, `twin/`, `coordinator/` or
+`explainability/` was touched (verified: `git status --porcelain` over all nine
+paths is empty). `COORDINATION_MODE` unchanged, §9.5 NOT reopened,
+`DEFAULT_CHECKPOINT` unchanged. No training run. No Phase 10/11/12 work.
+
+**Decision:** the §9.5 MARL checkpoint
+(`stage5_graph_attention/psychoflow_stage5_51624_steps_final.zip`) runs its own
+forward pass every decision step alongside the deployed Stage 4 policy, and its
+recommendation rides the §13.2 frame as an ADDITIVE THIRD top-level key,
+`shadow_advisor`. It is read-only and advisory: it never reaches `env.step()`,
+`_pick_action()` never consults it, and Stage 4 single-agent drives the corridor
+unconditionally.
+**Why:** §9.5's architecture A/B (attention beat `shared_policy` 12/12 on
+`starved_pct`, 1.64% vs 86.60%) is a real measured result, while §20 requires
+saying out loud that the live demo runs SINGLE-AGENT PPO. Publishing both
+policies' proposals side by side makes that distinction visible rather than
+rhetorical — *provided* the honesty note below travels with the field.
+**Deviates from plan?** Additive to §13.2, documented in the same commit (frame
+example, the "frozen five-key core + three additive keys" framing, and a
+`shadow_advisor` paragraph carrying the honesty note).
+
+**THE HONESTY NOTE, recorded here as well as in code and in §13.2 — the shadow
+is the WORSE policy.** Not marginally, and not only in aggregate. On the DEMO
+CORRIDOR (4,3,2), the one topology §19 shows:
+
+| | starvation events | §10 overrides | worst wait |
+|---|---|---|---|
+| **Stage 4 (deployed)** | **0** | **0** | **38-42s** |
+| `ga_51624` (shadow) | 4 | 1 | 121-125s |
+
+(4a bake-off, 3 seeds. Full 48-episode grid: `starved_pct` 0.08% vs 1.20%,
+reward 1.3450 vs 1.2347.) The field shows **what the MARL architecture would
+have done**, not a better idea being ignored. A disagreement is NOT evidence the
+deployed policy erred — the measured prior runs the other way. This is stated in
+`DEFAULT_SHADOW_CHECKPOINT`'s comment block, in master plan §13.2, in CLAUDE.md
+§8 and in the harness docstring, because the failure mode is a future session
+building a "recommended action" panel on it.
+
+**Decision — the call site is between `_pick_action()` and `env.step()`, and
+`_pick_action()` is not modified.**
+**Why:** the advisor must read the SAME pre-step observation and mask the
+deployed policy just used. Called after `step()` it would compare the two
+policies' proposals against DIFFERENT states — the recommendation would silently
+answer the next question and **nothing would raise**, this repo's named failure
+mode. Since `_pick_action()` is unmodified it does not return its mask, so the
+advisor calls `env.action_masks()` a second time; **S4 exists precisely to prove
+that second read returns what the first did.**
+
+**Decision — `recommended_phase` and `deployed_proposed_phase` are both
+PRE-SHIELD proposals; agreement is never computed against `executed_phase`.**
+**Why:** `executed_phase` is post-§10. Comparing a proposal against a shielded
+action conflates a policy disagreement with the validator's own intervention —
+two different facts that would be reported as one number. `executed_phase` still
+rides the payload as context, filled from `info["executed_action"]` after
+`step()` (the caller overwrites a placeholder so the wire key order is stable).
+
+**Decision — failure isolation is a LATCH, not a retry.** Any exception from the
+advisor logs one traceback, sets `_shadow_enabled = False`, drops the model and
+returns None; the frame key simply stops being emitted. A missing checkpoint file
+is NOT an error — identical silent-off path to `--no-shadow`. A load failure is
+caught the same way. A broken advisor must never be able to stop the sim thread
+or change what reaches the road.
+
+**Wire payload** (12 keys, pinned as `SHADOW_KEYS` in the harness so a rename
+fails there rather than in a frontend): `advisory_only` / `drives_the_road` /
+`coordination_mode` / `checkpoint` / `recommended_phase` /
+`deployed_proposed_phase` / `executed_phase` / `agrees_with_deployed` /
+`agreement_count` / `n_junctions` / `episode_agreement_rate` / `inference_ms`.
+`episode_agreement_rate` is cumulative agreeing junction-slots over compared
+junction-slots and resets in `_reset_counters()` with every other per-episode
+counter — carrying it across a boundary would blend two scenarios into one ratio.
+
+**Note — the advisor runs in BOTH modes, deliberately.** The spec said "every
+decision step". Under `mode="manual"` the comparison is therefore against Tier
+0's proposal, which is why the field is named `deployed_proposed_phase` rather
+than anything Stage-4-specific.
+
+**Files:** `backend/sim_runner.py` (`DEFAULT_SHADOW_CHECKPOINT` +
+`SHADOW_COORDINATION_MODE` + `_load_shadow_model` + `_shadow_advice` + the call
+site + the frame key + the two per-episode counters), `backend/main.py`
+(`--shadow-checkpoint` / `--no-shadow`, mirroring `--checkpoint` /
+`--no-checkpoint`, plus the `create_app` kwarg),
+`sim/run_shadow_advisor_check.py` (new S1-S6 harness, outside §6, same category
+as every prior phase's `run_*.py`), `docs/PsychoFlow_Master_Plan.md` §13.2,
+`sim/run_backend_smoke.py` (check 1's additive-key set widened to three — the
+only change there).
+
+**Verified — `python sim/run_shadow_advisor_check.py` -> 35 passed, 0 failed**
+(project venv, `sys.prefix` ends `...\GitHub\Test\venv`). Each check was also run
+individually. **Every one was built to be non-vacuous, and the non-vacuity is
+asserted rather than assumed** — the discipline this log has had to apply four
+times now (`j1=3`, `0.885`, D1 "collapse", the 15/15 emergency matrix):
+
+- **S1** (no SUMO, 8 checks) — a stub recommending `[0,2,0]` against a deployed
+  proposal of `[0,1,0]` yields the full 12-key payload, `agrees_with_deployed`
+  `{J1:True, J2:False, J3:True}`, `agreement_count=2`, and the rate accumulating
+  2/3 -> 5/6 across two steps then restarting at 1.0 after the counters reset.
+- **S2** (no SUMO, 5 checks) — a raising stub: the exception does NOT propagate,
+  `_shadow_advice` returns None, `_shadow_enabled` and `_shadow_model` are
+  cleared, and a subsequent call short-circuits on the guard (one log per
+  process, not one per step). An advisor that is off is silent, not an error.
+- **S3** (no SUMO, 5 checks) — Stage 4 predicts on 24 synthetic (obs, mask)
+  pairs; the shadow is then loaded and interleaved; Stage 4 re-predicts:
+  **BIT-EQUAL on all 24**. Non-vacuity asserted: the two policies **disagree on
+  20 of the 24**, so "unchanged" is distinguishable from "overwritten". This
+  check earns its place because `MaskablePPO.load()` calls `set_random_seed()`,
+  which reseeds Python's `random`, numpy's global RNG and torch. The sim is
+  immune only because `sim/scenario_generator.py`, `perception/v2x.py` and
+  `perception/vision_mock.py` all use instance-local `random.Random(seed)` — S3
+  and S6 measure that rather than leaving it as inspection.
+- **S4** (live, 2 checks) — 60 real decision steps on a standalone
+  single-threaded env (NOT the backend's: calling `action_masks()` from a test
+  thread would be a cross-thread TraCI call, which CLAUDE.md §8 forbids). The
+  second `action_masks()` call equalled the first on every step, across **27
+  distinct mask patterns** — asserted, so the equality is not trivially true of
+  a constant mask.
+- **S5** (live, 10 checks) — 40 consecutive frames: `shadow_advisor` present on
+  **40/40**, exact key set on all, flags correct on all, all four per-junction
+  maps covering J1/J2/J3 (including `executed_phase`, i.e. the post-step fill
+  ran), `agrees_with_deployed`/`agreement_count` internally consistent with the
+  two proposals on all, rate in [0,1] on all, and every `recommended_phase` a
+  real green slot for its junction (J3 has only 2 — `{J1:[0,1,2], J2:[0,1,2],
+  J3:[0,1]}`). Observed `agreement_count` 2-3 of 3, `episode_agreement_rate`
+  0.823 at the last frame, inference **1.70-6.08 ms**. Non-vacuity asserted:
+  `min(agreement_count) < 3`, so the agreement fields are not a constant.
+  *Scope of the mask claim, stated rather than overclaimed:* this checks the
+  PADDING half of §9.2's masking. The dynamic half (min-green / mid-yellow)
+  cannot be violated by construction — MaskablePPO applies the mask to the
+  logits before the argmax — and S3 confirms that holds for this checkpoint on
+  deliberately masked inputs.
+- **S6** (live, 5 checks) — **the check that actually proves "advisory".** Two
+  SimRunners, run SEQUENTIALLY (never concurrently — TraCI is process-global and
+  `_capture_run` stops and closes run 1 before run 2 starts), same seed 7, same
+  pinned scenario (4,3,2 / no density randomisation / no emergencies), one with
+  the advisor off and one on, 120 frames each. The
+  `(sim_time, junction_id, phase_selected, reason)` sequences, the throughput
+  series (`845` at the last frame in both) and the **actuated signal phases on
+  the road** are all IDENTICAL — while the advisor disagreed with the deployed
+  policy on **60 of the 120 frames** and changed nothing on any of them. Both
+  arms' advisor state asserted (0/120 vs 120/120 carry the key) so the
+  comparison cannot pass by both runs having it off.
+
+**Why S6 captures via `frame_sink` and not the WebSocket:** `Hub`'s per-client
+queue is bounded and deliberately drops frames for a slow consumer (Phase 9's
+threading decision). A WebSocket capture could therefore produce two unequal
+sequences for a reason having nothing to do with the advisor — a test failing,
+or passing, while proving nothing.
+
+**Regression set, all green in the project venv:** `python -m env.reward`
+(all §9.4 assertions), `python -m safety.validator` (11/11 §10 scenarios),
+`python -m explainability.decision_log`, `python -m explainability.narrator`
+(6 reasons x 2 registers), `python -m explainability.query_interface`,
+`python -m coordinator.emergency_clearance`,
+`python -m coordinator.responder_messaging`.
+**`python sim/run_backend_smoke.py` -> 45/45 pass, unchanged** — the
+`shadow_advisor` commit adds no check there; it only widened check 1's
+additive-key set from `{responder_messages, predictions}` to include
+`shadow_advisor`, and the count is unmoved at 45.
+
+**Also verified by hand:** `python -m backend.main --help` lists both new flags;
+a non-existent `--shadow-checkpoint` path and `--no-shadow` both leave
+`_shadow_enabled=False` with no exception raised and no frame key emitted.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.

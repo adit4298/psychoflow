@@ -1158,7 +1158,56 @@ Pause and ask the user rather than proceeding when:
 &#x20; (1d/1e/1f, 2b, 4a, 4b, 4c, 4d, 4e x2, 5c x3) -> 37, the §13.2 `predictions`
 &#x20; commit added P1/P2/P3 + live 1g -> 41, and `inject_incident` added check 8
 &#x20; (x4) -> 45. \*\*Cite the number from a run, not from this
-&#x20; line\*\*, and update it here when it moves.
+&#x20; line\*\*, and update it here when it moves. The 2026-08-30
+&#x20; `shadow_advisor` commit added NO check here — it widened check 1's
+&#x20; additive-key set to three and put its own S1-S6 in
+&#x20; `sim/run_shadow_advisor_check.py`; 45/45 re-verified unchanged after it.
+
+\- \*\*§13.2 `shadow_advisor` (2026-08-30) — the §9.5 MARL checkpoint runs a
+&#x20; READ-ONLY forward pass alongside the deployed policy. IT NEVER DRIVES THE
+&#x20; ROAD.\*\* `graph_attention` (`psychoflow_stage5_51624_steps_final.zip`)
+&#x20; predicts on the SAME pre-step obs/mask the deployed policy just used and its
+&#x20; recommendation rides the frame as an ADDITIVE THIRD top-level key (after
+&#x20; `predictions` and `responder_messages`). Stage 4 single-agent remains the
+&#x20; sole driver, unconditionally — `DEFAULT_CHECKPOINT` is unchanged,
+&#x20; `COORDINATION_MODE` is unchanged, §9.5 is NOT reopened.
+&#x20; \*\*THE HONESTY NOTE — carry it wherever the field is shown.\*\* The shadow is
+&#x20; the \*\*WORSE\*\* policy, and on the DEMO CORRIDOR (4,3,2) specifically:
+&#x20; Stage 4 = \*\*0\*\* starvation events / \*\*0\*\* overrides / \*\*38-42s\*\* worst,
+&#x20; vs `ga_51624`'s \*\*4 / 1 / 121-125s\*\* (4a bake-off; full grid `starved_pct`
+&#x20; 0.08% vs 1.20%). It shows WHAT THE MARL ARCHITECTURE WOULD HAVE DONE — not a
+&#x20; better idea being ignored. A disagreement is NOT evidence the deployed policy
+&#x20; erred; the measured prior runs the other way. \*\*Do not build a panel
+&#x20; labelling it "recommended"/"suggested" without that context\*\*, and note §20
+&#x20; still requires saying out loud that the demo runs SINGLE-AGENT PPO.
+&#x20; \*\*Placement is load-bearing:\*\* the call sits between `_pick_action()` and
+&#x20; `env.step()`. After `step()` it would compare the two proposals against
+&#x20; DIFFERENT states and nothing would raise. `_pick_action()` is NOT modified,
+&#x20; so the advisor calls `env.action_masks()` a second time — S4 is what proves
+&#x20; that second read returns the same mask.
+&#x20; \*\*Both `recommended_phase` and `deployed_proposed_phase` are PRE-SHIELD.\*\*
+&#x20; Never compute agreement against `executed_phase` (post-§10) — that conflates
+&#x20; a policy disagreement with the shield's own intervention.
+&#x20; \*\*Failure isolation:\*\* any exception logs once, latches
+&#x20; `_shadow_enabled = False`, and the key stops being emitted. A missing
+&#x20; checkpoint file is NOT an error — same silent-off path as `--no-shadow`.
+&#x20; Flags: `--shadow-checkpoint` / `--no-shadow` (mirroring
+&#x20; `--checkpoint` / `--no-checkpoint`); default ON when the file exists.
+&#x20; `episode_agreement_rate` resets in `_reset_counters()` with the other
+&#x20; per-episode counters.
+&#x20; \*\*Check: `venv/Scripts/python.exe sim/run_shadow_advisor_check.py`\*\*
+&#x20; (`--s1`..`--s6` individually selectable). \*\*Last run: 35/35 pass\*\*
+&#x20; (2026-08-30). S1/S2/S3 need no SUMO; S4/S5/S6 do. \*\*S6 is the one that
+&#x20; actually proves "advisory"\*\*: two SimRunners run SEQUENTIALLY (never
+&#x20; concurrently — TraCI is process-global), same seed and pinned scenario, one
+&#x20; off one on, frames captured via `frame_sink` DIRECTLY and not the WebSocket
+&#x20; (the `Hub` queue is bounded and drops frames for a slow consumer, which would
+&#x20; make the sequences differ for a reason unrelated to the advisor). Measured:
+&#x20; decision/throughput/actuated-phase sequences IDENTICAL while the advisor
+&#x20; disagreed on \*\*60/120\*\* frames. S3 matters because `MaskablePPO.load()`
+&#x20; reseeds Python/numpy/torch global RNGs — the sim is immune only because
+&#x20; `scenario_generator`/`v2x`/`vision_mock` all use instance-local
+&#x20; `random.Random(seed)`, and S3/S6 measure that rather than assuming it.
 
 \- \*\*Pre-event completions of Phase 8/9 modules (2026-08-30) — five separable
 &#x20; commits, NOT Phase 10/11/12 work.\*\*

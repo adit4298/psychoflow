@@ -571,11 +571,21 @@ Answers "why did you do that?" by pulling the actual decision log entry (§12.1)
     "spillover": [ { ...§8.1 shape... } ],           //   sub-key present only when a forecast is material
     "incident_impact": [ { ...§8.2 shape... } ]      //   sub-key present only when an incident is active
   },
-  "responder_messages": [ { ...§11.2 shape... } ]   // ADDITIVE, key omitted entirely when empty
+  "responder_messages": [ { ...§11.2 shape... } ],  // ADDITIVE, key omitted entirely when empty
+  "shadow_advisor": {                                // ADDITIVE, key omitted entirely when the advisor is off
+    "advisory_only": true, "drives_the_road": false, //   READ-ONLY — this never reaches the road
+    "coordination_mode": "graph_attention", "checkpoint": "psychoflow_stage5_51624_steps_final.zip",
+    "recommended_phase": {"J1": 0, "J2": 2, "J3": 1},        // the MARL policy's PRE-SHIELD proposal
+    "deployed_proposed_phase": {"J1": 0, "J2": 1, "J3": 1},  // the deployed policy's PRE-SHIELD proposal
+    "executed_phase": {"J1": 0, "J2": 1, "J3": 1},           // post-§10, context only
+    "agrees_with_deployed": {"J1": true, "J2": false, "J3": true},
+    "agreement_count": 2, "n_junctions": 3,
+    "episode_agreement_rate": 0.83, "inference_ms": 2.4
+  }
 }
 ```
 
-The frame has a **frozen five-key core** (`sim_time`, `digital_twin`, `decision`, `narration`, `metrics_snapshot`), plus **two additive keys** — `predictions` and `responder_messages` — each omitted entirely unless it carries something material, so a consumer that only handles the five never sees an empty list or empty object.
+The frame has a **frozen five-key core** (`sim_time`, `digital_twin`, `decision`, `narration`, `metrics_snapshot`), plus **three additive keys** — `predictions`, `responder_messages` and `shadow_advisor` — each omitted entirely unless it carries something material, so a consumer that only handles the five never sees an empty list or empty object.
 
 **`responder_messages` added 2026-08-29 — live since `ad9e4df`, previously undocumented here.** A list of §11.2 responder-coordination message payloads, one per emergency-clearance episode that resolved on this step. **ADDITIVE and present only when non-empty** — on the vast majority of frames the key is omitted entirely, so the frozen five-key shape above is unchanged and no consumer has to handle an empty list. `backend/sim_runner.py::_responder_messages` is the reference implementation.
 
@@ -584,6 +594,12 @@ The frame has a **frozen five-key core** (`sim_time`, `digital_twin`, `decision`
 - `incident_impact` — §8.2's shape (`incident_id` / `estimated_affected_junctions` / `estimated_delay_increase_s` / `horizon_s`), one entry per currently-active incident in `digital_twin.active_incidents`.
 
 **ADDITIVE and present only when material** — the whole `predictions` key is omitted when neither sub-key has content, and each sub-key is omitted independently. The spillover numbers are computed by a **read-side** `SpilloverPredictor` in `backend/sim_runner.py` that is separate from the one feeding observation indices 10/11 (that one is stateful; sharing it would corrupt the next observation), fed the same post-step snapshots so it produces the same forecast the policy sees. `backend/sim_runner.py::_predictions` is the reference implementation.
+
+**`shadow_advisor` added 2026-08-30 — the §9.5 MARL checkpoint's own recommendation, READ-ONLY, riding every frame.** `graph_attention` (`psychoflow_stage5_51624_steps_final.zip`) runs its forward pass on the **same pre-step observation and action mask** the deployed policy just used, every decision step, and its recommendation is published for comparison. **It never touches `env.step()` and never influences the deployed control path — Stage 4 single-agent drives the corridor unconditionally.** Default ON when the checkpoint file exists; `--no-shadow` disables it; a missing file is not an error, the key is simply never emitted. `backend/sim_runner.py::_shadow_advice` is the reference implementation and `sim/run_shadow_advisor_check.py` (S1-S6) is its verification harness.
+
+⚠️ **STATE THIS WHEREVER THE FIELD IS SHOWN — the shadow is the WORSE policy, not a better idea being ignored.** On the 4a bake-off's demo corridor (4,3,2), the only topology §19 shows: Stage 4 scores **0** starvation events / **0** §10 overrides / **38-42s** worst wait, against `ga_51624`'s **4 / 1 / 121-125s**; across the full 48-episode grid, `starved_pct` 0.08% vs 1.20% and reward 1.3450 vs 1.2347. The field exists to make §9.5's measured architecture result (attention beat shared-policy 12/12) visible alongside §20's requirement to say out loud that the demo runs SINGLE-AGENT PPO. A disagreement is **not** evidence the deployed policy erred. Do not label this "recommended" or "suggested" in any UI without that context attached.
+
+Both `recommended_phase` and `deployed_proposed_phase` are **PRE-SHIELD proposals**. Agreement is deliberately *not* computed against `executed_phase`, which is post-§10: comparing a proposal to a shielded action would conflate a policy disagreement with the validator's own intervention. `episode_agreement_rate` is cumulative agreeing junction-slots over compared junction-slots **within the current episode**, and resets on the episode boundary with every other per-episode counter. Any exception from the advisor disables it for the rest of the process (logged once) and the key stops being emitted — a broken advisor cannot affect the sim thread or the road.
 
 **`metrics_snapshot` field set updated 2026-08-28 to match §15.2's pinned definitions.** `avg_wait` was **removed**: it was computed from `wait_time_current` (TraCI `lane.getWaitingTime()`, a SUM over the vehicles on a lane — see `agents/rule_based.py`'s "§9.1's UNITS" note), so it scaled with occupancy and lane count rather than fairness, and would confound the §19 Greedy-vs-PsychoFlow side-by-side. `wait_time_variance_across_lanes` and `mean_wait_max` are computed from `wait_time_max_single_vehicle`, verbatim per `training/scripts/checkpoint_bakeoff.py::LaneMetricProbe`, so the live dashboard, the eval suite and the bake-off share one implementation. `backend/sim_runner.py::_update_metrics` is the reference for the live stream; `get_stats()` (§13.1) carries the same field set.
 
