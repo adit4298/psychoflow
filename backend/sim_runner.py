@@ -131,6 +131,13 @@ _BEACON_EVERY_S = 20.0
 # forecast moves at least this many queued vehicles over the 60s horizon.
 # A forecast of ~0 delta is the common case and is not worth a frame; this
 # keeps `predictions` ADDITIVE-and-material, like `responder_messages`.
+#
+# NOT a spec value: §8.1 defines no materiality/streaming threshold — it
+# only specifies the forecast heuristic. 1.0 veh was chosen as a reasonable
+# default for this §13.2 streaming filter (2026-08-30). It is display-only:
+# it gates nothing but the wire frame — obs indices 10/11 carry the full
+# unfiltered forecast from the env's own predictor, and no control/reward
+# path reads it. Tune freely if the dashboard proves too noisy or too quiet.
 _SPILLOVER_MIN_DELTA = 1.0
 
 # Per-episode cap on the §12.1 log. An episode is at most

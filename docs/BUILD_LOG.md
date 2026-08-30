@@ -2542,3 +2542,38 @@ code change — added the §15.2 / §11.2 cross-ref to the `clearance_time_s`
 property).
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-30 — §13.2 `_SPILLOVER_MIN_DELTA` provenance clarification (verification pass)
+
+**Decision:** Recorded plainly, in `backend/sim_runner.py` and here, that the
+`_SPILLOVER_MIN_DELTA = 1.0` veh materiality threshold on the §13.2
+`predictions.spillover` stream is a **chosen default for the 2026-08-30 streaming
+commit, not a §8.1 spec value.** §8.1 defines only the forecast heuristic and no
+streaming/materiality threshold; master plan §13.2 names the constant but did not
+characterise it either way.
+**Why:** a verification pass asked whether the constant reads as a spec number.
+It does not gate anything load-bearing — obs indices 10/11 carry the full
+unfiltered forecast from the env's own predictor; the constant only decides
+whether a near-zero-delta spillover pair rides the WebSocket frame. Leaving its
+origin implicit risked a future reader treating 1.0 as spec-mandated.
+**Deviates from plan?** No — comment/log clarification only, no behaviour change.
+**Verified:**
+- Read side tracks state correctly. `SimRunner._spillover_view` (the read-side
+  `SpilloverPredictor`) is `.forecast(post-step snapshot)`-ed **every decision
+  step** via `_assemble_frame -> _predictions`, and `.reset()`-ed every episode in
+  `_reset_counters()` — same cadence and reset discipline as the env's stateful
+  predictor feeding obs 10/11. `forecast()` unconditionally rebinds `self._prev`,
+  so the rate calc always sees dt = one 5s interval. No cold/unstepped instance.
+- `python sim/run_backend_smoke.py` → **45/45 pass** (project venv, deployed
+  Stage 4 checkpoint). Check 1g: 104 live frames carried a well-formed
+  `predictions` object this run (was 109 when the commit-3 entry was written —
+  the count is scenario/timing-dependent, not fixed).
+- Spillover IS being populated live, not empty. A 400-frame clean window (no
+  incident injected) split: **328 `spillover`-only frames, 0 `incident_impact`,
+  0 both, 72 with the key omitted** (near-zero delta). Sample live deltas swing
+  +48 / +12 / −48 / −12 / +24 veh on the J1→J2 link — genuine queue growth/drain,
+  not a stuck value. The commit-3 "109 frames" were therefore all non-empty
+  `spillover`; `incident_impact` only appears after `inject_incident`
+  (smoke check 8), which runs after the 1g window.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
