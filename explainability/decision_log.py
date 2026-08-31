@@ -302,6 +302,12 @@ class DecisionLog:
                 lane_id=lane_id,
                 direction=direction,
                 lane_slot=lane_slot,
+                # Carried through for a reason=voice_command row produced
+                # via record_step (§13.1 force_phase). Absent for every
+                # other producer -> .get() is None -> to_dict() drops it,
+                # so this is transparent to existing callers.
+                transcript=decision.get("transcript"),
+                action_taken=decision.get("action_taken"),
             )
             self.entries.append(entry)
             new.append(entry)
@@ -453,6 +459,22 @@ def _selftest() -> None:
     assert back[1]["transcript"] == "switch to manual mode"
     assert "proposed" not in back[0]   # to_dict() drops None fields
     print(f"  [OK] jsonl round-trip: {len(lines)} lines, voice entry intact")
+
+    # -- 5b: a voice_command row via record_step (§13.1 force_phase) carries
+    #        transcript / action_taken through; other producers are untouched.
+    fp = {"J1": {"junction_id": "J1", "phase_selected": 1, "score_breakdown": {},
+                 "alternative_scores": {}, "reason": REASON_VOICE_COMMAND,
+                 "transcript": "force phase 1 at J1",
+                 "action_taken": "force_phase(J1, 1)"}}
+    log = DecisionLog()
+    (e,) = log.record_step(1870.0, fp, {"safety_overrides": []}, snapshot, served)
+    assert e.reason == REASON_VOICE_COMMAND
+    assert e.transcript == "force phase 1 at J1" and e.action_taken == "force_phase(J1, 1)"
+    (e2,) = DecisionLog().record_step(1871.0, decisions, {"safety_overrides": []},
+                                     snapshot, served)
+    assert e2.transcript is None and e2.action_taken is None   # non-voice: unchanged
+    print(f"  [OK] force_phase voice_command row keeps transcript/action_taken; "
+          f"other rows keep None")
 
     # -- 6: query helpers -----------------------------------------------
     log = DecisionLog()

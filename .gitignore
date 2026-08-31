@@ -12,6 +12,11 @@ Thumbs.db
 .vscode/
 *.swp
 
+# Claude Code per-machine local settings — permissions/allowlist state, not
+# shared. (Also covered by ~/.gitignore_global on this machine, but a
+# collaborator or CI checkout has no such global file, so pin it here too.)
+.claude/settings.local.json
+
 # Training checkpoints — only the FINAL model that powers the demo should
 # be tracked, not every intermediate save. Ignore the folder by default...
 training/checkpoints/*
