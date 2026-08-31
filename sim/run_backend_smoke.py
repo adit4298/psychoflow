@@ -16,6 +16,12 @@ thread starts), connects a WebSocket client, and runs a 7-point checklist:
   7. set_baseline_mode  psychoflow applies; greedy reports "Phase 12" and does not
   8. inject_incident (§13.1)  -> the incident rides digital_twin.active_incidents
      and predictions.incident_impact (§8.2); an unknown junction_id is rejected
+  4f force_phase / clear_override (§13.1, 2026-08-31)  -> a valid deferred pin
+     makes the junction report reason="voice_command" on the stream; a bad
+     phase is rejected at the API
+
+The 2026-08-31 backend security hardening has its own targeted harness,
+sim/run_backend_security_check.py (offline, no SUMO).
 
 Plus §8.1/§8.2 predictions on the §13.2 frame (2026-08-30):
 
@@ -151,6 +157,7 @@ def check_automode_decisionlog_contract() -> None:
 
     r = SimRunner.__new__(SimRunner)          # bypass __init__ (no thread, no state)
     r._mode, r._model, r._env, r._obs = "auto", _StubModel(), _StubEnv(), None
+    r._forced_phase = {}                      # §13.1 force_phase pins (none here)
     action, decisions = r._pick_action()
     check("1b sim_runner auto-mode returns a full per-junction decisions dict",
           set(decisions) == set(CORRIDOR_JUNCTIONS)
@@ -630,6 +637,58 @@ def main() -> None:
                       f"({dec_em['override']['outcome']})")
                 print(f"         summary: {msg['summary']}")
 
+            # ---- 4f: force_phase / clear_override (§13.1, 2026-08-31) ----
+            # New control endpoints. force_phase is DEFERRED and MASK-CHECKED
+            # on the sim thread; when a valid pin lands, that junction's
+            # decision on the stream carries reason="voice_command". A bad
+            # phase is rejected at the API. clear_override cancels the pin.
+            r_fp_bad = client.post("/control/force_phase",
+                                   json={"junction_id": "J1", "phase": 9}).json()
+            check("4f force_phase rejects a phase outside [0, MAX_PHASES)",
+                  r_fp_bad["applied"] is False, r_fp_bad.get("reason", ""))
+            # The valid green-slot set for J2 is topology-dependent (2 or 3),
+            # and which slots the mask permits shifts with min-green — so try
+            # each candidate slot and take the first that actually lands as a
+            # voice_command decision on the stream. _emit_junction now
+            # surfaces a force_phase ahead of an ordinary switch, so a valid
+            # pin shows within a step or two.
+            f_fp = None
+            for slot in (0, 1, 2):
+                r_fp = client.post("/control/force_phase",
+                                   json={"junction_id": "J2",
+                                         "phase": slot}).json()
+                if not r_fp.get("applied"):
+                    continue
+                cand = next_frame(
+                    ws,
+                    lambda fr: fr["decision"]["junction_id"] == "J2"
+                    and fr["decision"]["reason"] == "voice_command",
+                    budget=60)
+                if (cand["decision"]["junction_id"] == "J2"
+                        and cand["decision"]["reason"] == "voice_command"):
+                    f_fp = cand
+                    break
+                client.post("/control/clear_override",
+                            json={"junction_id": "J2"})
+            check("4f a valid force_phase surfaces J2 with "
+                  "reason='voice_command' on the stream",
+                  f_fp is not None,
+                  "" if f_fp else "no slot in {0,1,2} landed as voice_command")
+            if f_fp is not None:
+                check("4f the voice_command narration reads back the operator "
+                      "action",
+                      "Voice command received" in f_fp["narration"],
+                      f_fp["narration"])
+                check("4f the forced entry carries phase_selected == the pin",
+                      f_fp["decision"]["phase_selected"] == slot
+                      and f_fp["decision"].get("action_taken")
+                      == f"force_phase(J2, {slot})",
+                      f"phase_selected={f_fp['decision'].get('phase_selected')} "
+                      f"action_taken={f_fp['decision'].get('action_taken')!r}")
+            r_co = client.post("/control/clear_override",
+                               json={"junction_id": "J2"}).json()
+            check("4f clear_override accepted", r_co["applied"] is True, str(r_co))
+
             # ---- 5: set_topology rebuilds the network ---------------
             pre_reset_t = next_frame(ws)["sim_time"]
             client.post("/control/set_topology", json={"topology_id": "222"})
@@ -677,6 +736,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Narration (§12.2) is UTF-8 (the voice template carries a "→"); keep the
+    # harness printable when stdout is redirected to a cp1252 pipe on Windows.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     # Tier 1 SUMO beacon (sim/sumo_activity.py): refuse to launch
     # concurrent SUMO while a training run or the backend is live.
     from sim.sumo_activity import require_free
