@@ -2745,3 +2745,172 @@ a non-existent `--shadow-checkpoint` path and `--no-shadow` both leave
 `_shadow_enabled=False` with no exception raised and no frame key emitted.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-31 — Backend security hardening (§13 / §17), force_phase + clear_override (§13.1)
+
+`backend/` + docs + `explainability/decision_log.py` (2-line passthrough) only.
+Nothing in `env/`, `env/reward.py`, `safety/validator.py`, `agents/`,
+`prediction/`, `perception/`, `twin/`, `coordinator/` touched. No training run.
+No locked decision (CLAUDE.md §2) reopened. NOT Phase 10/11/12 — the voice
+pipeline is explicitly NOT built here; §14's design was only recorded. All
+verification in the project venv (`sys.prefix` ends `...\GitHub\Test\venv`).
+
+### STEP 0 — two verifications the task asked for first
+
+**0a — the "hardened-prompt 13/13 voice test" does not exist; the "13/13" in
+this log is unrelated.** There is no `backend/voice/`, no `intent_agent.py`,
+no STT bridge, and no transcript bench anywhere in the repo — Phase 11 has not
+started. The only `13/13` on record (2026-08-28 Stage 4 adversarial-audit
+entry) is `phase0_baselines`' Stage 4 seed-1 **emergency-proposal-quality**
+reproduction: 13 of 13 decidable ambulance junction-steps served by the
+policy's own proposal, chance 0.692. It has nothing to do with voice, and
+there is no 17-transcript (14+3) bench to reconcile it against. Recorded so a
+future session does not hunt for a voice test set that was never built.
+
+**0b — `explainability/narrator.py` renders `{lane}` 0-BASED today.**
+`_lane(entry)` returns `str(entry.lane_slot)` with no `+1`;
+`lane_slot = _lane_index(lane_id)` = the trailing int of the SUMO lane id
+(`N1_J1_0` -> 0). Actual current output (self-test): `J2 . Lane 1, North -
+selected. Wait threshold crossed.` for `lane_slot=1`, i.e. the physical first
+lane of an approach narrates as **"Lane 0"**. §14's example command is "give
+lane 3 more priority" — a human "lane 3" is NOT the narration's "Lane 3".
+Flagged for Phase 11 to reconcile; recorded in CLAUDE.md §8's voice-design
+bullet.
+
+### STEP 1 — security fixes
+
+**Decision:** treat the §13 control API as an unauthenticated LOCAL DEMO
+surface and add damage-limitation, not auth.
+- **1.1** `backend/control_api.py`: `math.isfinite` then range checks —
+  `set_lane_bias` weight in [0.1, 10.0], duration in [10, 900];
+  `inject_incident.estimated_duration_s` in [1, 7200]; `affected_lanes`
+  de-duped (order-preserving) and capped at `MAX_AFFECTED_LANES` = 16
+  (= MAX_APPROACHES*MAX_LANES; an incident is at one junction). Constants
+  exported (`LANE_BIAS_WEIGHT_RANGE`, `LANE_BIAS_DURATION_RANGE_S`,
+  `INCIDENT_DURATION_RANGE_S`).
+- **1.2** `SimRunner._run()` wraps each pass in try/except;
+  `_run_iteration()` extracted verbatim (pure re-indent, no logic change).
+  `_MAX_CONSECUTIVE_FAILURES` = 5 in a row re-raises to the existing fatal
+  handler; a transient error resets the counter and the thread survives.
+- **1.3** `backend/main.py::_host_rejection()` refuses a non-loopback
+  `--host` unless `--allow-lan` is passed (`parser.error`, exit 2); a
+  non-loopback bind with `--allow-lan` prints a `!!!` warning banner.
+- **1.4** `CORSMiddleware` with `allow_origins=ALLOWED_ORIGINS`
+  (`http://localhost:5173`, `http://127.0.0.1:5173` — the Vite dev server),
+  `allow_credentials=False`, methods `GET/POST/OPTIONS`.
+- **1.5** `set_topology`: `control_api` returns `applied:False,
+  "already at this topology"` when the combo matches the published
+  `lane_counts`; the sim thread additionally rate-limits rebuilds to one
+  per `_TOPOLOGY_COOLDOWN_S` = 10 s wall-clock and re-checks the no-op.
+- **1.6** sim thread caps simultaneously-active operator incidents at
+  `_MAX_ACTIVE_INCIDENTS` = 32 (checked against
+  `twin.incidents.get_active(now)`); every lane-referencing control call
+  (`set_lane_bias`, `trigger_emergency`, `inject_incident`) now FAILS
+  CLOSED with `applied:False` until the sim has published a lane set,
+  instead of accepting the call unvalidated.
+- **1.7** `/health` returns `sim_error` (bool) + `sim_error_class` (str,
+  first token of the traceback's last line, <=80 chars) — never the
+  traceback, which stays on the sim thread's stdout. `run_backend_smoke.py`
+  `wait_ready` / check 5c updated to the new field.
+- **1.8** `.claude/settings.local.json` added to the repo `.gitignore`
+  (it was only covered by `~/.gitignore_global`, which a collaborator / CI
+  checkout does not have).
+
+**Deviates from plan?** No — §17 gains a security-boundary bullet, §13.1's
+table notes the bounds; all additive. `env/reward.py` and
+`safety/validator.py` untouched, so `python -m env.reward` /
+`python -m safety.validator` were re-run only as regression (both green),
+not because a design-plan gate applied.
+
+### STEP 2 — server-side function allowlist
+
+`control_api.CONTROL_FUNCTIONS` (9 names) + `dispatch(state, name, args)`,
+the guarded entry point §14's voice agent is to use — rejects any name not
+on the tuple BEFORE argument binding, and turns an argument-shape
+`TypeError` into a clean `applied:False`. `_DISPATCH_TABLE` carries a
+module-level assert against drift. The sim thread mirrors it with
+`_APPLIABLE_KINDS` (unknown `Command.kind` -> logged no-op, never an
+`AttributeError`).
+
+### STEP 3 — force_phase / clear_override
+
+**Decision:** `force_phase(junction_id, phase)` pins a junction to a green
+`phase`; `clear_override(junction_id=None)` cancels it (None = all).
+- DEFERRED: `SimRunner._apply_forced_phases()` rewrites the junction's
+  action on the normal `_pick_action` path, so `env.step()` -> §10 still
+  runs and an emergency / ceiling override still outranks the pin.
+- MASK-CHECKED: the phase must be set in the live `action_masks()` slice
+  AND be a key in `phase_served_lanes()` (`self._served`), NOT
+  `_green_lanes()` (which is live RYG and would let a mid-yellow read
+  through). An invalid pin (e.g. left over after a topology change) is
+  dropped with a log line.
+- The §12.1 entry carries `reason="voice_command"` (§12.2). `_emit_junction`
+  now surfaces a `voice_command` entry ahead of an ordinary switch (rule 2
+  of 4) so a manual intervention is always on the frame's `decision`.
+- Pins clear on `clear_override`, a `set_topology` rebuild, or an episode
+  boundary (`_reset_counters`).
+- `explainability/decision_log.py::record_step` now copies
+  `transcript`/`action_taken` from the decision dict when present
+  (`.get()` -> None for every other producer -> `to_dict()` drops them),
+  so a `voice_command` row made via `record_step` narrates as
+  `Voice command received: '...' -> force_phase(J2, 0).` rather than with
+  `None`s. Self-test 5b added.
+
+### STEP 4 — docs
+
+Master plan §17: unauthenticated-API boundary bullet; "no round-robin /
+fixed-timer controller — §19 hook illustration only" bullet; voice
+"local-only" wording correction (browser STT via Web Speech API is NOT
+local — Chrome streams audio to Google; the hard rule is *no Claude API /
+no paid inference*). §13.1 table: `force_phase` / `clear_override` rows,
+bounds noted on `set_lane_bias` / `set_topology` / `inject_incident`,
+`set_mode` "or fixed timer" struck. CLAUDE.md §2 voice line corrected;
+§8 gained a backend-security-hardening bullet, a `force_phase`/`clear_override`
+bullet, and an APPROVED VOICE DESIGN bullet (model / allowlist scope /
+0-based lane-numbering caveat from 0b / fail-closed "VIP no-op" behaviour /
+`set_lane_bias`-inert-under-auto). The voice pipeline itself was NOT built.
+
+### Verified
+
+- **`python sim/run_backend_security_check.py` -> 58 passed, 0 failed**
+  (new harness — offline, no SUMO, no Tier 1 beacon: it never calls
+  `env.reset()`, same category as `training/scripts/stage4_contamination.py`).
+  Each check drives one fix and prints the raw rejection / behaviour: the
+  `nan`/`inf`/out-of-range rejections verbatim; `dispatch` refusing
+  `os.system` / `eval` / `set_enable_safety_validator` / `""` /
+  `__import__`; `_host_rejection` over loopback + 3 non-loopback hosts x
+  {no flag, --allow-lan}; the sim-thread inner guard both re-raising after
+  N and absorbing 2-then-recover; `set_topology` cooldown + no-op + expiry;
+  the 32-incident cap; live CORS (allowlisted origin echoed, foreign origin
+  not) and `/health` carrying only the class for an injected fake
+  traceback; live fail-closed over HTTP; `_apply_forced_phases` rewriting a
+  valid pin and dropping an invalid one.
+- **`python sim/run_backend_smoke.py` -> 50 passed, 0 failed** (was 45;
+  +5 is the new check 4f — `force_phase` rejects an out-of-range phase, a
+  valid deferred pin surfaces J2 as `voice_command` on the stream, the
+  narration reads back `force_phase(J2, 0)`, `phase_selected` == the pin,
+  `clear_override` accepted). `check_automode_decisionlog_contract` gained
+  one line (`r._forced_phase = {}` on the `__new__` instance). A
+  `sys.stdout.reconfigure(utf-8, replace)` guard was added to `__main__`
+  (the `voice_command` narration's arrow char crashed a cp1252 redirect).
+- **`python sim/run_shadow_advisor_check.py` -> 35 passed, 0 failed**,
+  unchanged — the `_run` refactor, the hoisted `action_masks()` read in
+  `_pick_action`, and the `_emit_junction` precedence change did not move
+  S1-S6 (S6's paired advisor-OFF/ON road-phase equality still holds).
+- **`python sim/run_explainability_episode.py`** — all checks passed
+  (decision_log passthrough change is backward-compatible).
+- Regression, all green: `python -m env.reward`, `python -m safety.validator`
+  (11/11), `python -m explainability.{decision_log,narrator,query_interface}`,
+  `python -m coordinator.{emergency_clearance,responder_messaging}`.
+- `python -m backend.main --help` lists `--allow-lan`;
+  `python -m backend.main --host 0.0.0.0 --fast` exits with the refusal
+  message and never starts uvicorn.
+
+**Committed on branch `backend-security-hardening`** (main is the default
+branch; per the session's git rule, work went to a branch). Logical commit
+groups: control_api input bounds + allowlist; main.py host guard + CORS +
+health; sim_runner inner guard + topology/incident caps + force_phase;
+decision_log passthrough; .gitignore; security-check harness + smoke 4f;
+docs.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.

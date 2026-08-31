@@ -52,11 +52,21 @@ stop and ask instead of working around it silently.
 
 \- Vision input = simulated mock (§7.2). No real detection model.
 
-\- Voice = local only — Web Speech API + Ollama/Gemma (§14). Never a
+\- Voice: intent parsing is local (Ollama/Gemma, §14); browser STT (Web
 
-&#x20; Claude API call anywhere in the runtime path. This is a hard budget
+&#x20; Speech API) is NOT local — in Chrome it streams audio to Google's
 
-&#x20; constraint, not a style preference.
+&#x20; speech service (free, no key, but off-device). The hard rule is \*\*no
+
+&#x20; Claude API call and no paid inference anywhere in the runtime path\*\* —
+
+&#x20; a budget constraint, not a style preference. Say "free local-model
+
+&#x20; intent parsing with browser speech-to-text", not "local-only" (§17
+
+&#x20; corrected this 2026-08-31). Truly-local STT is the optional Whisper
+
+&#x20; fallback in §14.
 
 \- Corridor = 3 junctions, linear, J1→J2→J3 (§0.1). Lane count 2/3/4
 
@@ -1244,6 +1254,89 @@ Pause and ask the user rather than proceeding when:
 &#x20; NOT the Stage 4 harness (still broken, still never reuse). §11.2's PHASE 8
 &#x20; BLOCKER got a RESOLVED pointer at its head. Cross-scenario aggregation is
 &#x20; Phase 12. Definition-level only — no eval harness built.
+
+\- \*\*BACKEND SECURITY HARDENING (2026-08-31) — `backend/` only, no Phase 10.
+&#x20; The §13 control API is UNAUTHENTICATED and stays a LOCAL DEMO SURFACE.\*\*
+&#x20; New standing rules:
+&#x20; (a) \*\*Loopback by default.\*\* `backend/main.py` refuses a non-loopback
+&#x20; `--host` unless `--allow-lan` is also passed (`_host_rejection()`), and
+&#x20; prints a warning banner when it is. Do NOT weaken this — there is no auth
+&#x20; layer behind it.
+&#x20; (b) \*\*All operator input is range-checked in `backend/control_api.py`\*\*
+&#x20; (`math.isfinite` first, then bounds): `set_lane_bias` weight ∈
+&#x20; `LANE_BIAS_WEIGHT_RANGE` (0.1–10.0), duration ∈
+&#x20; `LANE_BIAS_DURATION_RANGE_S` (10–900); `inject_incident`
+&#x20; `estimated_duration_s` ∈ `INCIDENT_DURATION_RANGE_S` (1–7200),
+&#x20; `affected_lanes` de-duped and capped at `MAX_AFFECTED_LANES` (16). The
+&#x20; sim thread TRUSTS whatever it dequeues, so the check has to be here.
+&#x20; (c) \*\*`control_api.dispatch(state, name, args)` is the guarded entry point
+&#x20; for §14 voice / any generic caller\*\* — rejects any `name` not in
+&#x20; `CONTROL_FUNCTIONS` before argument binding. `_DISPATCH_TABLE` has a
+&#x20; module-level assert against drift. The sim thread mirrors this with
+&#x20; `_APPLIABLE_KINDS`.
+&#x20; (d) \*\*`SimRunner._run()` wraps each iteration in try/except\*\*
+&#x20; (`_run_iteration()` extracted); `_MAX_CONSECUTIVE_FAILURES` (5) in a row
+&#x20; re-raises to the fatal handler. One transient error no longer kills the
+&#x20; demo.
+&#x20; (e) \*\*`set_topology`\*\*: no-op when the combo already matches; sim-thread
+&#x20; cooldown `_TOPOLOGY_COOLDOWN_S` (10 s wall-clock) between rebuilds.
+&#x20; \*\*`inject_incident`\*\*: sim-thread cap `_MAX_ACTIVE_INCIDENTS` (32) on
+&#x20; simultaneously-active operator incidents. All lane-referencing control
+&#x20; calls FAIL CLOSED (`applied: False`) until the sim publishes a lane set.
+&#x20; (f) \*\*CORS\*\*: `CORSMiddleware` with an explicit origin allowlist
+&#x20; (`ALLOWED_ORIGINS` = the Vite dev server only), `allow_credentials=False`.
+&#x20; (g) \*\*`/health`\*\* exposes `sim_error` (bool) + `sim_error_class` (str) —
+&#x20; never the traceback (that stays on stdout). If you add a `/health`
+&#x20; consumer, read `sim_error_class`, not a message body.
+&#x20; (h) `.claude/settings.local.json` added to the repo `.gitignore` (a
+&#x20; collaborator/CI checkout has no `~/.gitignore_global`).
+&#x20; \*\*Check: `venv/Scripts/python.exe sim/run_backend_security_check.py`\*\*
+&#x20; (offline, no SUMO, no beacon — launches nothing; same category as
+&#x20; `stage4_contamination.py`). \*\*Last run: 58/58 pass\*\* (2026-08-31).
+&#x20; Touched `explainability/decision_log.py` too: `record_step` now carries
+&#x20; `transcript`/`action_taken` through from the decision dict (was
+&#x20; `record_voice`-only) so a §13.1 `force_phase` row narrates properly;
+&#x20; `.get()`-guarded, transparent to every existing caller.
+
+\- \*\*§13.1 `force_phase(junction_id, phase)` / `clear_override(junction_id=None)`
+&#x20; (2026-08-31)\*\* — operator pins a junction to a green `phase`. DEFERRED
+&#x20; (applied on the normal action path at the next decision step, so §10 still
+&#x20; validates and an emergency/ceiling override still outranks it) and
+&#x20; MASK-CHECKED (`SimRunner._apply_forced_phases` tests the live
+&#x20; `action_masks()` slice AND `phase_served_lanes()` — NOT `_green_lanes()`);
+&#x20; an invalid pin is dropped with a log line. The §12.1 entry carries
+&#x20; `reason="voice_command"` (§12.2), and `_emit_junction` now surfaces a
+&#x20; force_phase ahead of an ordinary switch so a manual intervention is always
+&#x20; on the frame's `decision`. Pins are cleared by `clear_override`, a
+&#x20; `set_topology` rebuild, or an episode boundary (`_reset_counters`).
+&#x20; `run_backend_smoke.py` check 4f covers it live; \*\*Last run: 50/50 pass\*\*
+&#x20; (2026-08-31, was 45 — the 4f block is +5).
+
+\- \*\*APPROVED VOICE DESIGN (Phase 11, recorded 2026-08-31 — NOT yet built).\*\*
+&#x20; The pipeline itself is Phase 11 and stays unbuilt; these are the settled
+&#x20; decisions it must follow.
+&#x20; (1) \*\*Model\*\*: browser Web Speech API for STT (see §2 — this is NOT local,
+&#x20; it can hit Google's cloud; free, no key), local Gemma via Ollama
+&#x20; (`ollama pull gemma3`) for intent parsing. No Claude API, no paid
+&#x20; inference, ever (§0/§2).
+&#x20; (2) \*\*Scope = the `control_api.CONTROL_FUNCTIONS` allowlist\*\*, reached only
+&#x20; through `control_api.dispatch()`. §14's prompt names four
+&#x20; (`set_mode`, `set_lane_bias`, `get_stats`, `trigger_emergency`);
+&#x20; `force_phase`/`clear_override` are also allowlisted and voice-reachable.
+&#x20; (3) \*\*Lane-numbering convention\*\*: `explainability/narrator.py` renders
+&#x20; `{lane}` as the RAW 0-BASED SUMO lane index today
+&#x20; (`lane_slot = _lane_index(lane_id)` = trailing int of e.g. `N1_J1_0` ->
+&#x20; 0; NO `+1`). §14's example command says "give lane 3 more priority" —
+&#x20; a human "lane 3" ≠ the narration's "Lane 3". Phase 11 must reconcile
+&#x20; this (either +1 in the narration, or document that voice "lane N" means
+&#x20; 0-based slot N); do NOT silently assume they match.
+&#x20; (4) \*\*Fail-closed (VIP no-op)\*\*: an intent that is unparseable, or whose
+&#x20; function is not on the allowlist, does NOTHING — display "Command not
+&#x20; understood, please try again", log the miss, take no action. Never guess
+&#x20; a function or an argument. `dispatch()` already enforces the name half.
+&#x20; (5) `set_lane_bias` under `mode="auto"` is recorded but INERT (the RL
+&#x20; policy has no per-lane score) — the echo says so; same for a voice
+&#x20; `set_lane_bias`.
 
 \- \*\*`Tier0Controller.act()` now takes an optional `lane_weights:
 &#x20; dict[str, float]`\*\* — §13.1's `set_lane_bias(lane_id, weight, duration_s)`,
