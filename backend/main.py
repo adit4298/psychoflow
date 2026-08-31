@@ -27,11 +27,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.control_api import (
     ControlState,
     DEFAULT_INCIDENT_DURATION_S,
+    clear_override,
+    force_phase,
     get_stats,
     inject_incident,
     set_baseline_mode,
@@ -40,6 +43,31 @@ from backend.control_api import (
     set_topology,
     trigger_emergency,
 )
+
+# Dashboard dev server (Vite default). The §13 control API is unauthenticated,
+# so the browser-side allowlist is deliberately tiny and credential-less.
+ALLOWED_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
+
+# Hosts that are safe to bind without --allow-lan.
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _host_rejection(host: str, allow_lan: bool) -> str | None:
+    """Return an error string if binding `host` should be refused, else None.
+
+    The control API has no auth (see backend/control_api.py's SECURITY
+    BOUNDARY note); a non-loopback bind exposes set_topology /
+    trigger_emergency / inject_incident / force_phase to the whole network,
+    so it requires an explicit --allow-lan opt-in.
+    """
+    if host in LOOPBACK_HOSTS or allow_lan:
+        return None
+    return (
+        f"--host {host!r} is not loopback and --allow-lan was not given. The "
+        f"§13 control API is UNAUTHENTICATED; binding it to a reachable "
+        f"interface lets anyone on the network drive the simulation. Re-run "
+        f"with --allow-lan if that is genuinely intended."
+    )
 from backend.sim_runner import (
     DEFAULT_CHECKPOINT,
     DEFAULT_SHADOW_CHECKPOINT,
@@ -119,6 +147,15 @@ class InjectIncidentBody(BaseModel):
     estimated_duration_s: float = DEFAULT_INCIDENT_DURATION_S
 
 
+class ForcePhaseBody(BaseModel):
+    junction_id: str
+    phase: int
+
+
+class ClearOverrideBody(BaseModel):
+    junction_id: str | None = None
+
+
 def create_app(
     *,
     checkpoint: Path | None = DEFAULT_CHECKPOINT,
@@ -155,6 +192,16 @@ def create_app(
             runner.stop()
 
     app = FastAPI(title="PsychoFlow Backend (§13)", lifespan=lifespan)
+    # Explicit origin allowlist — the dashboard dev server only. No wildcard,
+    # and allow_credentials=False so a browser can never be coaxed into
+    # sending cookies/auth to this unauthenticated surface from another site.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(ALLOWED_ORIGINS),
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+    )
     app.state.control = state
     app.state.hub = hub
     app.state.runner = runner
@@ -193,13 +240,30 @@ def create_app(
             lane_id=body.lane_id, estimated_duration_s=body.estimated_duration_s,
         )
 
+    @router.post("/force_phase")
+    def _force_phase(body: ForcePhaseBody):
+        return force_phase(state, body.junction_id, body.phase)
+
+    @router.post("/clear_override")
+    def _clear_override(body: ClearOverrideBody):
+        return clear_override(state, body.junction_id)
+
     app.include_router(router)
 
     @app.get("/health")
     def _health():
+        # PUBLIC surface: a boolean plus the exception CLASS only. The full
+        # traceback stays server-side — the sim thread prints it to stdout
+        # and it never rides the wire.
+        err = runner.error
+        err_class = None
+        if err:
+            tail = err.strip().splitlines()[-1] if err.strip() else ""
+            err_class = (tail.split(":", 1)[0].strip() or "error")[:80]
         return {
             "sim_ready": runner._started.is_set(),
-            "sim_error": runner.error,
+            "sim_error": err is not None,
+            "sim_error_class": err_class,
             "has_checkpoint": state.has_checkpoint,
             "mode": state.mode,
             "baseline_mode": state.baseline_mode,
@@ -227,6 +291,10 @@ app = create_app()
 def _main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--allow-lan", action="store_true",
+                        help="Permit binding a non-loopback --host. The §13 "
+                             "control API is UNAUTHENTICATED — only use this "
+                             "on a trusted, isolated network.")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
     parser.add_argument("--no-checkpoint", action="store_true",
@@ -248,6 +316,20 @@ def _main() -> None:
                         help="Wall-clock seconds to sleep per decision step.")
     parser.add_argument("--fast", action="store_true", help="No pacing sleep.")
     args = parser.parse_args()
+
+    rejection = _host_rejection(args.host, args.allow_lan)
+    if rejection is not None:
+        parser.error(rejection)
+    if args.host not in LOOPBACK_HOSTS:
+        bang = "!" * 74
+        print(f"\n{bang}\n"
+              f"!!  PsychoFlow backend binding {args.host}:{args.port} — "
+              f"NON-LOOPBACK, UNAUTHENTICATED.\n"
+              f"!!  Anyone who can reach this port can drive the simulation "
+              f"(set_topology,\n"
+              f"!!  trigger_emergency, inject_incident, force_phase). "
+              f"--allow-lan was given.\n"
+              f"{bang}\n")
 
     import uvicorn
 
