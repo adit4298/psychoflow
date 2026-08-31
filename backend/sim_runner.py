@@ -80,8 +80,13 @@ from coordinator.responder_messaging import (
     build_responder_message,
     estimate_baseline_clearance_s,
 )
+from env.obs_action_spec import MAX_PHASES
 from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
-from explainability.decision_log import REASON_RL_POLICY, DecisionLog
+from explainability.decision_log import (
+    REASON_RL_POLICY,
+    REASON_VOICE_COMMAND,
+    DecisionLog,
+)
 from explainability.narrator import narrate
 from explainability.query_interface import QueryInterface
 from perception.lane_sensor import DEFAULT_STARVATION_THRESHOLD_S
@@ -207,6 +212,34 @@ _SPILLOVER_MIN_DELTA = 1.0
 # a demo left running, not a policy.
 _LOG_MAXLEN = 10_000
 
+# ---------------------------------------------------------------------------
+# CONTROL-COMMAND GUARDS (2026-08-31 security hardening). The API layer
+# range-checks operator input; these bound what repeated / hostile commands
+# can do to the running sim, and are enforced HERE because only the sim
+# thread knows the live sim_time / topology / active-incident set.
+# ---------------------------------------------------------------------------
+# set_topology tears down and restarts SUMO. Wall-clock rate limit so a
+# stuck key or a flood cannot thrash the rebuild.
+_TOPOLOGY_COOLDOWN_S = 10.0
+
+# Hard ceiling on simultaneously-active operator incidents, so an
+# inject_incident flood cannot grow digital_twin.active_incidents (and the
+# per-incident §8.2 forecast loop) without bound.
+_MAX_ACTIVE_INCIDENTS = 32
+
+# The per-iteration body of _run() is wrapped in a try/except so one
+# transient error does not kill the sim thread. This many CONSECUTIVE
+# failures re-raises to the outer handler (a genuinely broken env — e.g. a
+# lost TraCI connection — should stop, not spin).
+_MAX_CONSECUTIVE_FAILURES = 5
+
+# §13.1 control commands the sim thread will apply. `get_stats` is a pure
+# read and never queued; anything else is ignored with a log line.
+_APPLIABLE_KINDS = frozenset({
+    "set_mode", "set_baseline_mode", "set_lane_bias", "trigger_emergency",
+    "inject_incident", "set_topology", "force_phase", "clear_override",
+})
+
 
 def _jsonable(x):
     """Coerce numpy scalars/arrays and sets to JSON-native types, recursively."""
@@ -272,6 +305,11 @@ class SimRunner:
         self._baseline = state.baseline_mode
         self._bias: dict[str, tuple[float, float]] = {}     # lane -> (weight, expiry_sim_time)
         self._forced: dict[str, float] = {}                 # lane -> expiry_sim_time
+        # §13.1 force_phase: junction -> operator-pinned green phase. Applied
+        # on the normal action path (mask-checked, §10 still runs); cleared
+        # by clear_override, a set_topology rebuild, or an episode boundary.
+        self._forced_phase: dict[str, int] = {}
+        self._last_topology_change = 0.0                    # wall-clock; cooldown guard
         # READ-SIDE spillover predictor for the §13.2 `predictions` field.
         # Deliberately a SECOND SpilloverPredictor, separate from the one
         # inside the env that feeds obs indices 10/11: forecast() is
@@ -405,6 +443,10 @@ class SimRunner:
         # two different scenarios into one ratio.
         self._shadow_agree = 0
         self._shadow_slots = 0
+        # force_phase pins do not survive an episode boundary or a topology
+        # rebuild — the situation the operator pinned for is over, and the
+        # phase index may not even be valid for a new topology.
+        self._forced_phase = {}
         # The read-side spillover predictor is STATEFUL and per-episode,
         # exactly like the env's own (psychoflow_env.reset() resets that
         # one). Without this, episode 2's first forecast computes a rate
@@ -431,100 +473,24 @@ class SimRunner:
             self._load_shadow_model()
             self._build_env()
             self._started.set()
+            # INNER GUARD (2026-08-31): one transient error in an iteration must
+            # not kill the sim thread and take the whole demo down. Each
+            # iteration is caught, logged and retried; _MAX_CONSECUTIVE_FAILURES
+            # in a row re-raises to the outer handler (a genuinely broken env —
+            # a dropped TraCI connection — should stop, not spin forever).
+            consecutive_failures = 0
             while not self._stop.is_set():
-                # Tier 1 SUMO beacon: the backend owns a live SUMO instance for
-                # as long as it runs, so it BEATS like a training run rather
-                # than checking like a sweep. Rate-limited to once per
-                # _BEACON_EVERY_S: under --fast, _sleep_s is 0.0 and this loop
-                # runs flat out, so an unguarded beat would rewrite the file
-                # thousands of times a second.
-                now = time.time()
-                if now - self._last_beat > _BEACON_EVERY_S:
-                    self._last_beat = now
-                    _sumo_beat("backend", f"live demo, lane_counts={self._lane_counts}")
-                self._drain_commands()
-                if self._pending_lane_counts is not None:
-                    self._lane_counts = self._pending_lane_counts
-                    self._pending_lane_counts = None
-                    print(f"[sim] rebuilding network -> lane_counts={self._lane_counts}")
-                    self._build_env()
-
-                self._expire_windows()
-                # ONE tracked set of operator-forced lanes, read once per
-                # step and handed to BOTH consumers: §10's validator (via
-                # the env, psychoflow_env.py step 2b) and §11.1's clearance
-                # coordinator below. Not two implementations of the same
-                # tracking — `self._forced` is the only tracker, aged out by
-                # _expire_windows() against EMERGENCY_HOLD_S.
-                forced = frozenset(self._forced)
-                self._env.forced_emergency_lanes = forced
-
-                # PRE-step snapshot: the state §10 judged the action against
-                # and the observation was built from. env.step() rebinds the
-                # twin's snapshot, so this is a genuinely distinct object
-                # from the post-step one — see this module's docstring.
-                pre_snap = self._env.twin.snapshot
-
-                action, decisions = self._pick_action()
-
-                # SHADOW ADVISOR (§13.2 `shadow_advisor`) — read-only. HERE,
-                # not after step(): it must see the SAME pre-step observation
-                # and mask the deployed policy just used, or the two proposals
-                # would be answers to different states and the disagreement
-                # rate would be meaningless. `self._obs` is still the pre-step
-                # observation (step() rebinds it below), and action_masks() is
-                # a pure read of the current runtime — the second consecutive
-                # call returns what _pick_action() just saw (verified live,
-                # check S4 in sim/run_shadow_advisor_check.py).
-                #
-                # `action` is the deployed policy's PRE-SHIELD proposal, which
-                # is the only like-for-like comparison against the shadow's own
-                # pre-shield recommendation. `executed_phase` is filled in from
-                # info AFTER step() — deliberately not used for agreement.
-                shadow = self._shadow_advice(
-                    self._obs, self._env.action_masks(), action
-                )
-
-                obs, reward, terminated, truncated, info = self._env.step(action)
-                self._obs = obs
-                self._step_idx += 1
-                if shadow is not None:
-                    # Overwrites the placeholder set by _shadow_advice, keeping
-                    # the key in its documented wire position.
-                    shadow["executed_phase"] = {
-                        jid: int(info["executed_action"][i])
-                        for i, jid in enumerate(CORRIDOR_JUNCTIONS)
-                    }
-
-                # §12.1 against the PRE-step snapshot; §11.1 against POST.
-                entries = self._log.record_step(
-                    info["sim_time"], decisions, info, pre_snap, self._served
-                )
-                closed = self._coord.observe(
-                    info["sim_time"], self._env.twin.snapshot, self._env._runtime(),
-                    info, forced_emergency_lanes=forced,
-                )
-
-                self._update_metrics(info)
-                frame = self._assemble_frame(info, entries, closed, shadow)
-                if self._frame_sink is not None:
-                    self._frame_sink(frame)
-                self.state.publish_stats(self._stats_payload(info))
-
-                if terminated or truncated:
-                    print(f"[sim] episode end (terminated={terminated} "
-                          f"truncated={truncated}) — resetting")
-                    # Close any clearance episode still open, so its §11.2
-                    # message is not lost at the boundary (matches the Phase
-                    # 8 harness's finalize()). Done BEFORE _reset_counters
-                    # replaces the coordinator.
-                    self._coord.finalize(info["sim_time"])
-                    self._obs, _ = self._env.reset()
-                    self._served = self._env.phase_served_lanes()
-                    self._reset_counters()
-
-                if self._sleep_s:
-                    time.sleep(self._sleep_s)
+                try:
+                    self._run_iteration()
+                    consecutive_failures = 0
+                except Exception:
+                    consecutive_failures += 1
+                    print(f"[sim] iteration error "
+                          f"({consecutive_failures}/{_MAX_CONSECUTIVE_FAILURES}):\n"
+                          + traceback.format_exc())
+                    if consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                        raise
+                    time.sleep(0.5)
         except Exception:
             self._error = traceback.format_exc()
             print(f"[sim] FATAL:\n{self._error}")
@@ -533,6 +499,103 @@ class SimRunner:
             if self._env is not None:
                 self._env.close()
             _sumo_clear()   # release the Tier 1 beacon when the sim thread exits
+
+    def _run_iteration(self) -> None:
+        """One decision step of the live loop.
+
+        Called once per `while` pass by `_run()`, which wraps it in a
+        per-iteration try/except so a transient failure is survivable
+        rather than fatal to the sim thread.
+        """
+        # Tier 1 SUMO beacon: the backend owns a live SUMO instance for as
+        # long as it runs, so it BEATS like a training run rather than
+        # checking like a sweep. Rate-limited to once per _BEACON_EVERY_S:
+        # under --fast, _sleep_s is 0.0 and this loop runs flat out, so an
+        # unguarded beat would rewrite the file thousands of times a second.
+        now = time.time()
+        if now - self._last_beat > _BEACON_EVERY_S:
+            self._last_beat = now
+            _sumo_beat("backend", f"live demo, lane_counts={self._lane_counts}")
+        self._drain_commands()
+        if self._pending_lane_counts is not None:
+            self._lane_counts = self._pending_lane_counts
+            self._pending_lane_counts = None
+            print(f"[sim] rebuilding network -> lane_counts={self._lane_counts}")
+            self._build_env()
+
+        self._expire_windows()
+        # ONE tracked set of operator-forced lanes, read once per step and
+        # handed to BOTH consumers: §10's validator (via the env,
+        # psychoflow_env.py step 2b) and §11.1's clearance coordinator below.
+        # Not two implementations of the same tracking — `self._forced` is the
+        # only tracker, aged out by _expire_windows() against EMERGENCY_HOLD_S.
+        forced = frozenset(self._forced)
+        self._env.forced_emergency_lanes = forced
+
+        # PRE-step snapshot: the state §10 judged the action against and the
+        # observation was built from. env.step() rebinds the twin's snapshot,
+        # so this is a genuinely distinct object from the post-step one — see
+        # this module's docstring.
+        pre_snap = self._env.twin.snapshot
+
+        action, decisions = self._pick_action()
+
+        # SHADOW ADVISOR (§13.2 `shadow_advisor`) — read-only. HERE, not after
+        # step(): it must see the SAME pre-step observation and mask the
+        # deployed policy just used, or the two proposals would be answers to
+        # different states and the disagreement rate would be meaningless.
+        # `self._obs` is still the pre-step observation (step() rebinds it
+        # below), and action_masks() is a pure read of the current runtime —
+        # the second consecutive call returns what _pick_action() just saw
+        # (verified live, check S4 in sim/run_shadow_advisor_check.py).
+        #
+        # `action` is the deployed policy's PRE-SHIELD proposal, the only
+        # like-for-like comparison against the shadow's own pre-shield
+        # recommendation. `executed_phase` is filled in from info AFTER step()
+        # — deliberately not used for agreement.
+        shadow = self._shadow_advice(
+            self._obs, self._env.action_masks(), action
+        )
+
+        obs, reward, terminated, truncated, info = self._env.step(action)
+        self._obs = obs
+        self._step_idx += 1
+        if shadow is not None:
+            # Overwrites the placeholder set by _shadow_advice, keeping the
+            # key in its documented wire position.
+            shadow["executed_phase"] = {
+                jid: int(info["executed_action"][i])
+                for i, jid in enumerate(CORRIDOR_JUNCTIONS)
+            }
+
+        # §12.1 against the PRE-step snapshot; §11.1 against POST.
+        entries = self._log.record_step(
+            info["sim_time"], decisions, info, pre_snap, self._served
+        )
+        closed = self._coord.observe(
+            info["sim_time"], self._env.twin.snapshot, self._env._runtime(),
+            info, forced_emergency_lanes=forced,
+        )
+
+        self._update_metrics(info)
+        frame = self._assemble_frame(info, entries, closed, shadow)
+        if self._frame_sink is not None:
+            self._frame_sink(frame)
+        self.state.publish_stats(self._stats_payload(info))
+
+        if terminated or truncated:
+            print(f"[sim] episode end (terminated={terminated} "
+                  f"truncated={truncated}) — resetting")
+            # Close any clearance episode still open, so its §11.2 message is
+            # not lost at the boundary (matches the Phase 8 harness's
+            # finalize()). Done BEFORE _reset_counters replaces the coordinator.
+            self._coord.finalize(info["sim_time"])
+            self._obs, _ = self._env.reset()
+            self._served = self._env.phase_served_lanes()
+            self._reset_counters()
+
+        if self._sleep_s:
+            time.sleep(self._sleep_s)
 
     # ------------------------------------------------------------------
     # control commands
@@ -547,6 +610,12 @@ class SimRunner:
 
     def _apply_command(self, cmd: Command) -> None:
         now = self._env._sim_time if self._env is not None else 0.0
+        # Server-side allowlist mirror: control_api.dispatch() already refuses
+        # unknown NAMES; this refuses unknown queued KINDS, so a bad Command
+        # from anywhere is a no-op with a log line, never an AttributeError.
+        if cmd.kind not in _APPLIABLE_KINDS:
+            print(f"[sim] ignoring command outside the allowlist: {cmd.kind!r}")
+            return
         if cmd.kind == "set_mode":
             self._mode = cmd.args["mode"]
             self.state.mode = self._mode
@@ -564,6 +633,11 @@ class SimRunner:
             # active set on its next update(); from the next step it rides
             # digital_twin.active_incidents, §8.2's incident_impact and
             # (via the confidence penalty) §8.1's spillover forecast.
+            active = len(self._env.twin.incidents.get_active(now))
+            if active >= _MAX_ACTIVE_INCIDENTS:
+                print(f"[sim] inject_incident dropped — {active} incidents "
+                      f"already active (cap {_MAX_ACTIVE_INCIDENTS})")
+                return
             a = cmd.args
             self._env.twin.incidents.report(
                 a["incident_type"], a["junction_id"], a["lane_id"],
@@ -572,9 +646,27 @@ class SimRunner:
                 estimated_duration_s=a["estimated_duration_s"],
             )
         elif cmd.kind == "set_topology":
-            self._pending_lane_counts = tuple(cmd.args["lane_counts"])
-        else:  # pragma: no cover - control_api never emits anything else
-            print(f"[sim] ignoring unknown command {cmd.kind!r}")
+            combo = tuple(cmd.args["lane_counts"])
+            if combo == tuple(self._lane_counts):
+                print(f"[sim] set_topology({combo}) ignored — already at this "
+                      f"topology")
+                return
+            wall = time.time()
+            since = wall - self._last_topology_change
+            if since < _TOPOLOGY_COOLDOWN_S:
+                print(f"[sim] set_topology({combo}) ignored — cooldown "
+                      f"({_TOPOLOGY_COOLDOWN_S - since:.1f}s remaining)")
+                return
+            self._last_topology_change = wall
+            self._pending_lane_counts = combo
+        elif cmd.kind == "force_phase":
+            self._forced_phase[cmd.args["junction_id"]] = int(cmd.args["phase"])
+        elif cmd.kind == "clear_override":
+            jid = cmd.args.get("junction_id")
+            if jid is None:
+                self._forced_phase.clear()
+            else:
+                self._forced_phase.pop(jid, None)
 
     def _expire_windows(self) -> None:
         now = self._env._sim_time
@@ -585,9 +677,11 @@ class SimRunner:
     # action
     # ------------------------------------------------------------------
     def _pick_action(self):
+        # One mask read, shared by the policy/controller AND the force_phase
+        # check below — action_masks() is a pure read of the current runtime.
+        masks = self._env.action_masks()
         use_rl = self._mode == "auto" and self._model is not None
         if use_rl:
-            masks = self._env.action_masks()
             action, _ = self._model.predict(
                 self._obs, action_masks=masks, deterministic=True
             )
@@ -609,16 +703,60 @@ class SimRunner:
                 }
                 for i, jid in enumerate(CORRIDOR_JUNCTIONS)
             }
-            return action, decisions
+        else:
+            snap = self._env.twin.snapshot
+            runtime = self._env._runtime()
+            weights = {l: w for l, (w, _e) in self._bias.items()} or None
+            action, decisions = self._tier0.act(
+                snap, runtime, masks, self._served, lane_weights=weights
+            )
 
-        snap = self._env.twin.snapshot
-        runtime = self._env._runtime()
-        masks = self._env.action_masks()
-        weights = {l: w for l, (w, _e) in self._bias.items()} or None
-        action, decisions = self._tier0.act(
-            snap, runtime, masks, self._served, lane_weights=weights
-        )
+        action = self._apply_forced_phases(action, decisions, masks)
         return action, decisions
+
+    def _apply_forced_phases(self, action, decisions, masks):
+        """§13.1 force_phase — pin a junction to an operator-chosen green
+        phase for this decision step.
+
+        DEFERRED, not forced: the pinned phase becomes this junction's
+        proposed action and then goes through `env.step()` exactly like any
+        other, so §10's validator still runs and an emergency / starvation
+        override still outranks it. MASK-CHECKED: the phase must be set in
+        the live action mask AND be a real green slot in
+        `phase_served_lanes()` (`self._served`) — NOT `_green_lanes()`,
+        which is the live RYG state and would let a mid-yellow read through.
+        An invalid pin (e.g. left over after a topology change) is dropped
+        with a log line. The decision-log entry carries
+        reason=voice_command (§12.2 — operator-initiated).
+        """
+        if not self._forced_phase:
+            return action
+        action = np.asarray(action, dtype=int).copy()
+        for jid, phase in list(self._forced_phase.items()):
+            i = _JUNCTION_ORDER[jid]
+            lo = i * MAX_PHASES
+            slot_mask = masks[lo:lo + MAX_PHASES]
+            valid = (
+                0 <= phase < len(slot_mask)
+                and bool(slot_mask[phase])
+                and phase in self._served.get(jid, {})
+            )
+            if not valid:
+                self._forced_phase.pop(jid, None)
+                print(f"[sim] force_phase({jid}, {phase}) dropped — not a valid "
+                      f"green phase under the current mask / topology")
+                continue
+            action[i] = phase
+            decisions[jid] = {
+                "junction_id": jid,
+                "phase_selected": int(phase),
+                "score_breakdown": {},
+                "alternative_scores": {},
+                "reason": REASON_VOICE_COMMAND,
+                "transcript": f"force phase {phase} at {jid}",
+                "action_taken": f"force_phase({jid}, {phase})",
+            }
+        return action
 
     def _shadow_advice(self, obs, masks, deployed_action) -> dict | None:
         """§13.2 `shadow_advisor` — what the §9.5 MARL policy WOULD have done.
@@ -779,11 +917,13 @@ class SimRunner:
 
           1. a §10 override, emergency outranking the starvation ceiling,
              ties broken by corridor index (J1 < J2 < J3)
-          2. else the lowest-index junction that switched this step
-          3. else rotate by step index, so the panel stays live
+          2. else an operator force_phase this step (reason=voice_command),
+             so a manual intervention is always visible on the panel
+          3. else the lowest-index junction that switched this step
+          4. else rotate by step index, so the panel stays live
 
-        Same rule the deleted adapter used, so the stream's behaviour does
-        not change with the swap.
+        Rules 1/3/4 are the rule the deleted adapter used; rule 2 was added
+        with §13.1 force_phase (2026-08-31).
         """
         by_j = {e.junction_id: e for e in entries}
         for rule in (RULE_EMERGENCY, RULE_STARVATION):
@@ -794,6 +934,13 @@ class SimRunner:
             )
             if hits:
                 return by_j[hits[0]]
+        voiced = sorted(
+            (e.junction_id for e in entries
+             if e.reason == REASON_VOICE_COMMAND),
+            key=lambda j: _JUNCTION_ORDER[j],
+        )
+        if voiced:
+            return by_j[voiced[0]]
         switched = [j for j in info["switched_junctions"] if j in by_j]
         if switched:
             return by_j[sorted(switched, key=lambda j: _JUNCTION_ORDER[j])[0]]
