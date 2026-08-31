@@ -90,12 +90,13 @@ LANE_BIAS_DURATION_RANGE_S = (10.0, 900.0)
 # only risks an unbounded active-incident set.
 INCIDENT_DURATION_RANGE_S = (1.0, 7200.0)
 
-# An incident sits at ONE junction, so it cannot affect more lanes than a
-# junction has: MAX_APPROACHES (4) * MAX_LANES (4) = 16 (env/obs_action_spec.py).
-# Literal here to keep this module free of the SUMO import graph, same as
-# _VALID_LANE_COUNTS / _CORRIDOR_JUNCTIONS. When the live lane set is known,
-# the tighter "must be a subset of the real lanes" check also applies.
-MAX_AFFECTED_LANES = 16
+# inject_incident's affected_lanes list is bounded DYNAMICALLY by the real
+# lane count of the currently-loaded corridor — `len(state.snapshot_stats()
+# ["lanes"])`, the same published set set_lane_bias validates against — not
+# by a fixed literal. A 2/2/2 corridor and a 4/4/4 corridor have very
+# different real counts, and the bound tracks whichever is loaded. The
+# per-lane `unknown` / `misplaced` checks further constrain a valid list to
+# the incident junction's own lanes.
 
 # force_phase: MAX_PHASES from env/obs_action_spec.py is a measured 3.
 # Literal for the same SUMO-free reason; the sim thread re-checks the phase
@@ -330,18 +331,14 @@ def inject_incident(
     if not isinstance(affected_lanes, (list, tuple)) or not affected_lanes:
         return {"applied": False,
                 "reason": "affected_lanes must be a non-empty list of lane ids"}
-    # De-dup while preserving order, then cap the count. An incident is at
-    # one junction; it cannot plausibly name more lanes than a junction has.
+    # De-dup while preserving order. The length cap is applied below, once
+    # the live lane set is in hand — it is the corridor's real lane count,
+    # not a fixed literal.
     _seen: set[str] = set()
     affected_lanes = [
         s for l in affected_lanes
         if (s := str(l)) not in _seen and not _seen.add(s)
     ]
-    if len(affected_lanes) > MAX_AFFECTED_LANES:
-        return {"applied": False,
-                "reason": f"affected_lanes has {len(affected_lanes)} entries; an "
-                          f"incident at one junction can affect at most "
-                          f"{MAX_AFFECTED_LANES}"}
     try:
         estimated_duration_s = float(estimated_duration_s)
     except (TypeError, ValueError):
@@ -369,6 +366,14 @@ def inject_incident(
         return {"applied": False,
                 "reason": "the simulation has not published a lane set yet — "
                           "try again in a moment"}
+    # DYNAMIC cap: the currently-loaded corridor's real lane count. A valid
+    # list (deduped, all lanes real, all at this junction) can never exceed
+    # it anyway — this is the cheap early reject for a garbage oversized list
+    # before the set-difference below.
+    if len(affected_lanes) > len(known):
+        return {"applied": False,
+                "reason": f"affected_lanes has {len(affected_lanes)} entries; the "
+                          f"loaded corridor has only {len(known)} lanes"}
     unknown = sorted({lane_id, *affected_lanes} - set(known))
     if unknown:
         return {"applied": False,

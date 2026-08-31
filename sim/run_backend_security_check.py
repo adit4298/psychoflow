@@ -10,7 +10,8 @@ Fixes covered (task STEP 1-3):
 
   1  math.isfinite + range checks on set_lane_bias (weight, duration_s)
   1  math.isfinite + upper bound on inject_incident.estimated_duration_s
-  1  affected_lanes length cap
+  1  affected_lanes length cap == the loaded corridor's real lane count
+     (DYNAMIC, not a fixed 16)
   1  sim-thread inner try/except — one bad iteration is survivable
   1  --host loopback guard (_host_rejection) + --allow-lan
   1  CORSMiddleware with an explicit credential-less origin allowlist
@@ -43,7 +44,6 @@ from backend.control_api import (  # noqa: E402
     INCIDENT_DURATION_RANGE_S,
     LANE_BIAS_DURATION_RANGE_S,
     LANE_BIAS_WEIGHT_RANGE,
-    MAX_AFFECTED_LANES,
     clear_override,
     dispatch,
     force_phase,
@@ -134,10 +134,12 @@ def check_inject_incident_bounds() -> None:
         check(f"1.1 inject_incident rejects {label}",
               r["applied"] is False, r.get("reason", ""))
 
-    too_many = [f"N1_J1_{i}" for i in range(MAX_AFFECTED_LANES + 1)]
-    r = inject_incident(s, "J1", too_many)
-    check(f"1.1 rejects affected_lanes longer than {MAX_AFFECTED_LANES}",
-          r["applied"] is False and "affect at most" in r.get("reason", ""),
+    # This state publishes 3 lanes, so the DYNAMIC cap here is 3, not 16.
+    r = inject_incident(s, "J1", [f"N1_J1_{i}" for i in range(4)])
+    check("1.1 rejects an affected_lanes list longer than the loaded "
+          "corridor's real lane count",
+          r["applied"] is False
+          and "has only 3 lanes" in r.get("reason", ""),
           r.get("reason", ""))
 
     # de-dup: 3 copies of one id is length 1 after de-dup, and still gets the
@@ -146,6 +148,58 @@ def check_inject_incident_bounds() -> None:
     check("1.1 de-dups affected_lanes before the cap / lane checks",
           r["applied"] is True and r["incident"]["affected_lanes"] == ["N1_J1_0"],
           str(r.get("incident", r)))
+
+
+# ---------------------------------------------------------------------------
+# STEP 1.1 (follow-up) — the affected_lanes cap is DYNAMIC: it tracks the
+# real lane count of the loaded corridor, not a fixed 16.
+# ---------------------------------------------------------------------------
+def check_affected_lanes_dynamic_cap() -> None:
+    print("\n-- STEP 1.1 follow-up  affected_lanes cap tracks the loaded "
+          "topology (not a fixed 16) --")
+
+    def _state(n_lanes: int) -> ControlState:
+        s = ControlState()
+        s.publish_stats({
+            "lane_counts": [2, 2, 2],
+            "lanes": {f"L_J1_{i}": {"junction_id": "J1"} for i in range(n_lanes)},
+        })
+        return s
+
+    # Small corridor: real count 6 -> a 7-lane list is refused, and the
+    # message cites 6, NOT 16.
+    s6 = _state(6)
+    r = inject_incident(s6, "J1", [f"L_J1_{i}" for i in range(7)])
+    check("1.1f a 6-lane corridor caps affected_lanes at 6 (well below the "
+          "old fixed 16)",
+          r["applied"] is False
+          and "has only 6 lanes" in r.get("reason", "")
+          and "16" not in r.get("reason", ""),
+          r.get("reason", ""))
+
+    # Large corridor: real count 20 -> a 17-lane list of REAL lanes is
+    # ACCEPTED. Under the old fixed cap of 16 this would have been rejected;
+    # it proves the bound rose above 16 with the topology.
+    s20 = _state(20)
+    r = inject_incident(s20, "J1", [f"L_J1_{i}" for i in range(17)])
+    check("1.1f a 20-lane corridor ACCEPTS a 17-lane list "
+          "(the old fixed 16 would have rejected it)",
+          r["applied"] is True
+          and len(r["incident"]["affected_lanes"]) == 17,
+          str(r.get("reason", r.get("incident", r))))
+
+    # ...but 21 on the same 20-lane corridor is refused, citing 20.
+    r = inject_incident(s20, "J1", [f"L_J1_{i}" for i in range(21)])
+    check("1.1f the same 20-lane corridor still refuses a 21-lane list "
+          "(cap == the real count, 20)",
+          r["applied"] is False and "has only 20 lanes" in r.get("reason", ""),
+          r.get("reason", ""))
+
+    # The constant is gone — the module must not re-introduce a fixed literal.
+    import backend.control_api as _capi
+    check("1.1f control_api no longer exports a fixed MAX_AFFECTED_LANES",
+          not hasattr(_capi, "MAX_AFFECTED_LANES"),
+          "still present" if hasattr(_capi, "MAX_AFFECTED_LANES") else "removed")
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +562,7 @@ def main() -> None:
 
     check_lane_bias_bounds()
     check_inject_incident_bounds()
+    check_affected_lanes_dynamic_cap()
     check_fail_closed_no_lane_set()
     check_dispatch_allowlist()
     check_force_phase_api()

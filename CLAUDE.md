@@ -1267,8 +1267,11 @@ Pause and ask the user rather than proceeding when:
 &#x20; `LANE_BIAS_WEIGHT_RANGE` (0.1–10.0), duration ∈
 &#x20; `LANE_BIAS_DURATION_RANGE_S` (10–900); `inject_incident`
 &#x20; `estimated_duration_s` ∈ `INCIDENT_DURATION_RANGE_S` (1–7200),
-&#x20; `affected_lanes` de-duped and capped at `MAX_AFFECTED_LANES` (16). The
-&#x20; sim thread TRUSTS whatever it dequeues, so the check has to be here.
+&#x20; `affected_lanes` de-duped and capped at the loaded corridor's REAL lane
+&#x20; count — `len(state.snapshot_stats()["lanes"])`, dynamic per topology, NOT
+&#x20; a fixed literal (corrected 2026-08-31; there is no `MAX_AFFECTED_LANES`
+&#x20; constant). The sim thread TRUSTS whatever it dequeues, so the check has
+&#x20; to be here.
 &#x20; (c) \*\*`control_api.dispatch(state, name, args)` is the guarded entry point
 &#x20; for §14 voice / any generic caller\*\* — rejects any `name` not in
 &#x20; `CONTROL_FUNCTIONS` before argument binding. `_DISPATCH_TABLE` has a

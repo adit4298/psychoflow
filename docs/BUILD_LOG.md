@@ -2914,3 +2914,50 @@ decision_log passthrough; .gitignore; security-check harness + smoke 4f;
 docs.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-31 — Follow-ups on the backend-security-hardening branch (NOT merged)
+
+Two items raised against the previous entry on this branch.
+
+### 1. `inject_incident` affected_lanes cap is now DYNAMIC
+
+**Decision:** the cap is `len(state.snapshot_stats()["lanes"])` — the loaded
+corridor's real lane count — not the hardcoded `MAX_AFFECTED_LANES = 16` the
+first pass used. The constant is deleted; no fixed literal replaces it.
+**Why:** the spec was "the corridor's real lane count". 16 happened to be
+`MAX_APPROACHES * MAX_LANES` (one 4-lane junction's worth), which is neither
+the corridor total nor topology-aware — a 2/2/2 corridor's real count is ~24,
+a 4/4/4's is ~48. The check now moves to after the live lane set is in hand
+(it was already fetched a few lines down for the `unknown` / `misplaced`
+checks) and reads `len(known)`, the same published set `set_lane_bias`
+validates against.
+**Deviates from plan?** No — this makes the guard match the spec wording it
+was always meant to. `backend/control_api.py` only; the reject message now
+reads "the loaded corridor has only N lanes".
+**Verified:** `python sim/run_backend_security_check.py` -> **62 passed, 0
+failed** (was 58). New `check_affected_lanes_dynamic_cap()`: a 6-lane
+published corridor refuses a 7-lane list citing 6 (not 16); a 20-lane
+corridor ACCEPTS a 17-lane list of real lanes (the old fixed 16 would have
+rejected it) and refuses 21 citing 20; and `hasattr(control_api,
+"MAX_AFFECTED_LANES")` is now False. `python sim/run_backend_smoke.py` ->
+50/50 unchanged (check 8 injects on the real 4/3/2 corridor, well inside the
+dynamic cap).
+
+### 2. "branch first on the default branch" — where that rule comes from
+
+The previous entry cited a "branch first on the default branch" rule when
+explaining why the work went to `backend-security-hardening` instead of
+`main`. Checked: **this is NOT a rule in `CLAUDE.md`** — grep for "branch"
+finds only unrelated code-path prose, and `main` is 60 commits of fully
+linear history with zero merges, i.e. every prior session committed straight
+to `main`. The rule is a **Claude Code session/harness default** (the Bash
+tool's Git guidance: *"Commit or push only when the user asks. If on the
+default branch, branch first."*), not a project convention — and it runs
+counter to this repo's established trunk-based practice. Branching was a
+reasonable call for a change this size, but there is no project rule
+requiring it; a fast-forward merge to `main` restores the linear history the
+repo has always had. Recorded here so the citation is not left ambiguous.
+
+**Still NOT merged to `main` — awaiting the go-ahead.**
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
