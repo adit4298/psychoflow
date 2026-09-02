@@ -3510,3 +3510,360 @@ the NOTE block explaining why, matching `stage4_contamination.py`'s precedent.
   sumo-gui loaded `corridor_432` and sat **paused**, as intended.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-09-02 — SIGN-OFF WATCH FIXED: the congestion was the WATCH HARNESS, not the driving model
+
+The first human GUI watch reported two problems: *"i cannot see much of bikes"*
+and *"the roads look very congested and small"*. Both are fixed. The second had
+a cause worth recording, because the obvious explanation was **wrong** and the
+measurement said so before anything was changed.
+
+### The congestion is the SIGNAL PLAN. Demand was tested first and REFUTED.
+
+**Hypothesis A — too much traffic.** Swept demand from full training density
+(2x1000 + 6x600 veh/h) down to 35% of it, corridor 4/3/2, seed 7, 900s
+(`sim/mixed_traffic/measure_watchability.py`):
+
+| arm | corr/cross vph | halted% | peak% | km/h | bikes on road |
+|---|---|---|---|---|---|
+| full | 1000/600 | **35.1** | 73.3 | 20.2 | 19.6 |
+| 0.70 | 700/420 | **34.0** | 71.3 | 21.6 | 13.5 |
+| 0.50 | 500/300 | **34.7** | 71.9 | 21.8 | 7.9 |
+| 0.35 | 350/210 | **34.0** | 71.1 | 22.7 | 6.0 |
+
+**halted% is FLAT at 34-35% across a 2.9x demand range.** Cutting traffic does
+not decongest the corridor — it only removes bikes from the screen, i.e. it
+makes the *other* reported problem worse. Hypothesis A is dead.
+
+**Hypothesis B — the signal plan.** The watch ran netconvert's STATIC
+fixed-timer TLS, the dumbest controller in the project. Held demand fixed and
+swapped only the controller (`sim/mixed_traffic/measure_signals.py`, via
+`PsychoFlowEnv` + `Tier0Controller`, 180 decision steps):
+
+| controller | halted% | peak% | km/h |
+|---|---|---|---|
+| fixed timer | 29.1 | 60.4 | 21.1 |
+| **Tier 0 (§9.1)** | **8.0** | **15.5** | **29.2** |
+
+**Confirmed: 3.6x fewer stopped vehicles from the controller alone.** The
+congestion the watch showed was an artifact of the harness, and specifically of
+a controller the demo never uses. It said nothing about the driving model.
+
+**Decision:** `sim/run_demo_gui.py` now drives the corridor through TraCI with a
+real controller (`--controller tier0`, default), not netconvert's static plan.
+`--controller fixed` retains the old behaviour solely so the contrast above can
+be reproduced; its help text says it is not for judging the driving model.
+**Deviates from plan?** No — the original static-TLS choice was deliberate (it
+kept the watch policy-free and TraCI-free), but it traded away the thing the
+watch exists to show. Judging driving behaviour through a gridlock caused by
+something else is the same "passes while proving nothing" shape this repo has
+recorded six times.
+
+**Verified — the launcher's OWN controller, not Tier 0's numbers inherited.**
+`run_controlled()` does not import `Tier0Controller`; it drives the GUI's SUMO
+process directly with a queue-pressure phase rotator, so that controller had to
+be measured separately (`sim/mixed_traffic/verify_watch_controller.py`, the loop
+body copied verbatim, headless, same route file):
+
+| arm | halted% | peak% | km/h | switches |
+|---|---|---|---|---|
+| static TLS (old watch) | 35.1 | 73.3 | 20.2 | 0 |
+| **watch controller** | **5.5** | **23.7** | **31.7** | 263 |
+
+**6.4x fewer stopped vehicles, +57% mean speed.**
+
+### Bike visibility — two causes, both fixed
+
+**(1) Scale.** The view auto-fitted the whole 900x300m network, where a
+1.8m x 0.65m bike is a few pixels. `run_demo_gui.py --focus` now writes a
+`<viewport>` and defaults to **J2**, the middle junction. Junction coordinates
+are read from the NET FILE via `sumolib` (J2 = 450,150), never from
+`generate_corridor.py`'s parameters — CLAUDE.md §8's standing rule about the
+netconvert [150,150] shift. `--focus all` still frames the whole corridor.
+Vehicle exaggeration 3.0 -> 4.0 and `vehicle_minSize` 1.0 -> 2.5.
+
+**(2) Colour.** The scheme was "by type", which hashes the type id to an
+arbitrary colour and gave bikes no visual priority. Replaced with explicit
+per-vType colours plus `colorScheme "given vehicle/type/route color"`:
+
+    GREEN two-wheeler (dark cautious / bright normal / LIME aggressive)
+    AMBER auto (pale / amber / ORANGE aggressive)
+    BLUE  car (blue / DEEP BLUE aggressive)
+    GREY  truck        RED ambulance
+
+Class by hue, tier by intensity — the two things the watch has to separate.
+
+**The colour change is PROVEN cosmetic, not assumed.** `color` is a rendering
+attribute that enters no car-following, lane-changing or junction model, and
+that was verified rather than argued: `check_fix.py` reports **`arrived=1737
+collision_events=0`** before and after, identical; and a semantic XML diff shows
+every vType gained **exactly one key (`color`)** with nothing removed and nothing
+changed, `ambulance` untouched (it already had one), and all
+`<vTypeDistribution>` ids and probabilities identical.
+
+### Also
+
+Three new harnesses promoted into `sim/mixed_traffic/` with the others
+(`measure_watchability.py`, `measure_signals.py`, `verify_watch_controller.py`),
+absolute repo paths derived, `py_compile` clean, beacon guards present.
+
+**Still NOT signed off.** This fixes the *instrument*, not the model. The
+combined STEP 1 + refinement done-bar still requires a human to watch and judge
+the behaviour. Nothing was committed.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-09-02 — FIX: closing the sumo-gui window crashed the watch driver (FatalTraCIError is NOT a TraCIException)
+
+**Found by it actually happening**, minutes after the watch harness above was
+handed over: the background driver exited **code 1 with a traceback** when the
+sumo-gui window closed.
+
+```
+traci.exceptions.FatalTraCIError: Connection closed by SUMO.
+  File "sim/run_demo_gui.py", line 217, in run_controlled
+    traci.simulationStep()
+```
+
+**Cause — a wrong assumption about TraCI's exception hierarchy, not a logic
+error.** `run_controlled()` guarded its stepping loop with
+`except traci.TraCIException`, on the assumption that it was the base class for
+TraCI errors. It is not. Verified on SUMO 1.27.1 rather than assumed:
+
+```
+FatalTraCIError MRO: ['FatalTraCIError', 'Exception', 'BaseException', 'object']
+TraCIException  MRO: ['TraCIException',  'Exception', 'BaseException', 'object']
+issubclass(FatalTraCIError, TraCIException) -> False
+```
+
+They are **siblings under `Exception`**, so the handler could never catch the
+one error a watch is actually guaranteed to hit. Closing the window is the
+NORMAL way to end a watch, and it was being reported as a failure.
+
+**Decision:** catch both explicitly and treat a closed connection as a clean
+end — `except (traci.exceptions.FatalTraCIError, traci.exceptions.TraCIException)`,
+printing `sumo-gui closed — watch ended.` The comment at the catch site records
+the sibling relationship, because the obvious "simplification" is to collapse it
+back to the single class.
+**Deviates from plan?** No — defect fix in demo scaffolding. Nothing outside
+`sim/run_demo_gui.py` touched.
+
+**Verified by reproducing the failure, not by inspection:** launched the watch,
+killed the sumo-gui process externally to simulate a user closing the window,
+and captured the driver's exit:
+
+```
+sumo-gui closed - watch ended. (FatalTraCIError)
+EXIT=0
+```
+
+Was a traceback and `EXIT=1`; is now a one-line message and `EXIT=0`.
+
+**Worth noting for the pattern file:** this is the same shape as the repo's
+recurring failure mode, in a new place — an error path that *looks* handled,
+written against an assumption never checked, and which only fires in the one
+situation the code exists to serve. The catch clause read as correct in review.
+It took the event to expose it.
+
+**Watch relaunched** and confirmed alive after the fix. **Still not signed off**
+— fixing the instrument is not judging the model.
+
+## 2026-09-02 — WATCH 2: the "wheels ahead of the vehicle" artifact was MY exaggeration=4.0, and 3x traffic is real saturation
+
+Second human watch. Two reports, two different answers.
+
+### 1. "the wheels of the vehicles move ahead and the vehicle remains behind for almost all the vehicles"
+
+**A rendering artifact I introduced this morning, not a simulation defect.**
+`vehicle_exaggeration="4.00"` was set to make bikes findable after watch 1.
+Drawn sizes at 4x:
+
+| type | true L x W | DRAWN at 4x |
+|---|---|---|
+| bike | 1.8 x 0.65 | 7.2 x 2.6 |
+| auto | 3.2 x 1.40 | 12.8 x 5.6 |
+| car | 4.5 x 1.80 | **18.0 x 7.2** |
+| truck | 7.5 x 2.40 | **30.0 x 9.6** |
+
+At a 2-3m following gap a car's body is drawn **straight through the two or
+three vehicles genuinely ahead of it**, and a truck's through four or five. The
+smaller vehicle showing through in front of an oversized body reads exactly as
+"that vehicle's wheels have run ahead of it". Nothing was detached and nothing
+was lagging; every vehicle was at its correct position the whole time.
+`showBlinker="1"` compounded it by drawing extra marks at each vehicle's corners.
+
+**Decision:** `vehicle_exaggeration` defaults to **1.0 — true scale** — and
+`showBlinker` to 0. At junction zoom the exaggeration was never needed: at
+`focus J2` a bike is ~16 x 6 screen pixels and a car ~40 x 16. Only the
+whole-corridor view needs help, so `run_demo_gui.py` now sets it **per camera**
+(`FOCUS_EXAGGERATION`: 1.0 for a junction, 2.5 for `focus all`).
+**Deviates from plan?** No — reverses a change from earlier the same day that
+solved one problem by causing a worse one.
+
+**Lesson worth keeping:** watch 1's fix was chosen without any way to see its
+result, and it made the picture actively misleading rather than merely small.
+The size lever was the wrong one — **the camera was the right one**, and the
+zoom change alone had already fixed bike visibility.
+
+### 2. A LATENT BUG the fix uncovered: the settings file was malformed XML
+
+`demo_gui_settings.xml` contained **four `--` sequences inside its XML comment**
+(from writing `--focus` in prose). **`--` is illegal inside an XML comment.**
+SUMO's Xerces parser accepted the file silently for the entire session, so the
+view "worked" and nothing warned. `xml.etree` rejects it: `not well-formed
+(invalid token): line 15, column 34`.
+
+**Fixed** (prose now says `'focus'`), and `write_view_settings()` now **parses
+every file it generates and raises `SystemExit` if it is not well-formed** —
+a lenient downstream parser is precisely how this stayed invisible.
+
+### 3. "the problem that occurred when i just scaled up the traffic to 3"
+
+**Real saturation, not a defect.** `sim/mixed_traffic/measure_capacity.py`,
+watch controller, 900s, seed 7:
+
+| demand | arrived/900s | mean on road | peak | halted% | still queued |
+|---|---|---|---|---|---|
+| 1.0x | 1303 | 87 | 100 | 5.5 | 97 |
+| 1.5x | 1941 | 141 | 161 | 7.0 | 159 |
+| 2.0x | 1788 | 366 | **705** | **38.8** | 1012 |
+| 3.0x | 3204 | 379 | 476 | 11.4 | 996 |
+
+Throughput at 3x demand is **2.46x** of 1x — the corridor keeps discharging, it
+does not collapse; the surplus queues, which is what packed approaches look
+like. Tripling demand on a fixed 2-4 lane corridor is past capacity by
+construction.
+
+**Reported honestly rather than smoothed: this curve is NOT clean.** 2.0x is
+WORSE than both its neighbours on every column (lower throughput than 1.5x,
+38.8% halted, peak 705 on road). A monotonic saturation curve would not do
+that. This is **one seed**, jam formation is chaotic, and the watch controller
+is a simple queue-pressure rotator, not Tier 0 proper — so the 2.0x cell may be
+a single unlucky gridlock rather than a property of the corridor. **Do not cite
+this table as a capacity curve** without more seeds. What it does support is
+narrow and sufficient for the question asked: 3x is past capacity, and packed
+roads there are expected.
+
+**Still NOT signed off.** Both watches so far have found problems with the
+INSTRUMENT. The model itself has still not been judged.
+
+## 2026-09-02 — Manual ambulance injection in the sign-off watch, + a fake `--controller policy` removed
+
+**Request:** spawn an ambulance by hand during the watch, to see what happens
+when one arrives unexpectedly.
+
+**The gap that request exposed:** the watch's controller had **no emergency
+handling at all**. Spawning an ambulance would have shown it driving and the
+signals ignoring it completely — a convincing-looking demo of nothing.
+
+**Decision:** two spawn triggers plus an emergency rule in the watch loop.
+- `--ambulance-at 90,300,600` — scheduled spawns; works with no terminal.
+- **press `a`** in the script's terminal — on-demand, the "sudden arrival" case.
+  Needs a real console (`msvcrt.kbhit`), so it is unavailable when the script is
+  started in the background; guarded by `sys.stdin.isatty()` and announced at
+  startup so the absence is never silent.
+- `--ambulance-route`, default `r_ns2` (north->south through J2), matching
+  `run_tier0_episode.py --b2`'s precedent.
+
+**Emergency rule follows §10's documented precedence:** tested FIRST, before the
+queue-pressure rule, and it BYPASSES min-green — an ambulance must not wait out
+an unrelated green. Ambulance lanes are found by resolving `getTypeID()` to its
+BASE type; ambulance is deliberately untiered so this is not strictly needed
+today, but a raw match would silently miss it if that ever changed.
+
+**This is NOT §10.** The authoritative validator is `safety/validator.py`,
+running inside `env.step()`, and it is what the backend and every measured
+result use. This loop drives the sumo-gui process directly and cannot reach it.
+The code comment at the branch says so; do not cite this watch as evidence about
+§10's behaviour.
+
+**Verified — it actually fires, measured not assumed:**
+
+```
+t=  60.0s  AMBULANCE SPAWNED  id=AMBULANCE.1 route=r_ns2
+t=  61.0s  ambulance detected on lane N2_J2_1
+t=  61.0s  EMERGENCY OVERRIDE at J2: phase 2 -> 0 for ['N2_J2_1']
+t=  74.0s  ambulance detected on lane J2_S2_1     <- through the junction
+t= 140.0s  AMBULANCE SPAWNED  id=AMBULANCE.2
+t= 141.0s  EMERGENCY OVERRIDE at J2: phase 2 -> 0
+```
+
+Override fires the step after detection; ~14s spawn-to-through-the-junction on
+both. Reproducible with
+`python sim/run_demo_gui.py --autoplay --delay 0 --ambulance-at 60,140 --end 220`.
+
+### Defect found while testing: `--controller policy` was a lie
+
+The option loaded the Stage 4 checkpoint and **never called `predict()`** — the
+loop only ever ran the pressure rule, so `--controller policy` silently behaved
+exactly as `tier0` while reporting itself as the trained policy. **Removed**
+rather than implemented: running the checkpoint needs §9.2's exact observation
+vector and action mask, which are built by `PsychoFlowEnv` — and the env owns
+its own SUMO process, so it cannot drive the sumo-gui process this script
+started. The comment at the removal site records why, so it is not
+"helpfully" re-added. For the deployed policy use the backend
+(`python -m backend.main --demo-driving`), which goes through `PsychoFlowEnv`
+and therefore through §10's real validator.
+
+**Third instrument defect in three watches** (exaggeration artifact, malformed
+settings XML accepted by a lenient parser, and now a controller that ignored its
+own checkpoint). Every one of them would have shown a plausible picture while
+being wrong about what it was showing.
+
+**Still NOT signed off.**
+
+## 2026-09-02 — Ambulance watch, follow-up: log the no-op branch, and hold the spawn until the light is against it
+
+Two refinements after the first ambulance run, both prompted by the run itself
+rather than by review.
+
+### 1. The "no override needed" case was SILENT
+
+First scheduled run logged:
+```
+t=  90.0s  AMBULANCE SPAWNED
+t=  91.0s  ambulance detected on lane N2_J2_0
+t= 103.0s  ambulance detected on lane J2_S2_0     <- through in 12s
+```
+**No override line, and no line saying why.** The behaviour was correct — J2's
+current green already served that approach, which §10's own unit scenario 6
+pins as "nothing to do" — but a silent no-op is indistinguishable from a
+mechanism that failed to fire. That is this repo's signature failure mode.
+
+**Fixed:** the branch now prints `no override needed at J2: phase 0 ALREADY
+serves [...]`, and a third branch warns if NO green phase serves the ambulance
+at all (a topology problem, which would otherwise look like a quiet no-op too).
+De-duplicated per junction and reset when the corridor clears.
+
+### 2. Most spawns never triggered an override at all
+
+With plain scheduled spawns the ambulance frequently arrived on an approach
+that was already green, so the mechanism the watch exists to show simply did
+not run. `run_tier0_episode.py --b2` has the same problem and solves it by
+waiting until J2's slot does NOT serve north before injecting.
+
+**Decision:** same approach here, and ON BY DEFAULT — a due spawn is held until
+the entry junction's current green does **not** serve the ambulance's entry
+edge. `--no-when-blocked` restores instant spawning. The `a` keypress honours
+it too, printing `queued — waiting for the light to go against it` so the delay
+is never mysterious.
+
+**Verified with a DISCRIMINATING test, after a first attempt proved nothing.**
+The initial comparison used `--ambulance-at 60,120,180` and both arms returned
+**3/3 overrides — identical output**, because at those times the light happened
+to be against the ambulance anyway. That test could not have detected a
+difference and was discarded rather than reported as a pass. Re-run at
+`--ambulance-at 90,140`, times the earlier session had already shown hit a green
+light:
+
+| arm | spawned at | overrides |
+|---|---|---|
+| `--no-when-blocked` | 90, 140 (exact) | **0 of 2** |
+| default | 93, 145 (held 3-5s) | **2 of 2** |
+
+Same seed, same requested times, opposite outcomes — the flag is causally
+demonstrated, not assumed. The help text cites these figures; an earlier draft
+cited a weaker "2 of 3" from a non-paired run and was corrected.
+
+**Reminder, unchanged:** this loop mirrors §10's precedence; it is NOT §10.
+`safety/validator.py` inside `env.step()` remains authoritative.

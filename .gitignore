@@ -43,3 +43,8 @@ training/checkpoints/_sweeps/*
 # Tier 1 SUMO-activity beacon (sim/sumo_activity.py) — per-machine runtime
 # state announcing which process currently drives SUMO. Never committed.
 .sumo_active.json
+
+# Generated sumo-gui view settings — sim/run_demo_gui.py writes one per --focus
+# on every launch, from sim/networks/demo_gui_settings.xml (which IS tracked).
+# Derived per-invocation artifacts; the base settings file is the source.
+sim/routes/_demo_view_*.xml

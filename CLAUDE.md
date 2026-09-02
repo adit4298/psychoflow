@@ -2232,35 +2232,38 @@ third bullet — that reservation is an assumption, not a confirmed rule).
 
 \- \*\*THE HUMAN GUI WATCH AND SIGN-OFF (§10, blocking).\*\* Launch:
 
-
-
 &#x20;   `venv/Scripts/python.exe sim/run_demo_gui.py`
 
+&#x20;   Defaults: corridor 4/3/2, tiered demo vTypes, \*\*Tier 0 signals\*\*,
+&#x20;   camera on \*\*J2\*\*. It opens PAUSED — press Play. The script keeps
+&#x20;   running and steps the sim; Ctrl-C stops it.
+&#x20;   Useful flags: `--focus all|J1|J2|J3` (camera only — the whole corridor
+&#x20;   is always simulated), `--zoom`, `--exaggeration 1.0` (to judge real
+&#x20;   physical clearance — the default 4.0 makes vehicles LOOK overlapped
+&#x20;   when they are not), `--delay`, `--controller policy` (the deployed
+&#x20;   Stage 4 checkpoint), `--autoplay`.
 
+&#x20;   \*\*COLOUR KEY\*\* — class by hue, aggressiveness tier by intensity:
+&#x20;   \*\*GREEN = two-wheeler\*\* (dark cautious / bright normal / \*\*LIME
+&#x20;   aggressive\*\*) · \*\*AMBER = auto\*\* (pale / amber / \*\*ORANGE aggressive\*\*)
+&#x20;   · \*\*BLUE = car\*\* (blue / \*\*DEEP BLUE aggressive\*\*) · \*\*GREY = truck\*\*
+&#x20;   · \*\*RED = ambulance\*\*. Anything green is a two-wheeler; if the model
+&#x20;   works you should see green filtering forward past stopped ambers and
+&#x20;   blues at a queue front, with the lime ones doing it hardest.
 
-&#x20;   Or by hand, if that harness is unavailable:
+&#x20;   \*\*DO NOT judge the driving model under `--controller fixed`\*\* (the old
+&#x20;   default, netconvert's static plan). Measured 2026-09-02: static TLS
+&#x20;   \*\*35.1%\*\* of vehicles halted / 20.2 km/h against the watch
+&#x20;   controller's \*\*5.5%\*\* / 31.7 km/h — a \*\*6.4x\*\* difference from the
+&#x20;   signal plan alone. The first watch reported the corridor as \"very
+&#x20;   congested\" and that was the harness, not the driving model.
+&#x20;   \*\*Lowering `--density` does NOT help\*\* and is a trap: halted% is flat
+&#x20;   at 34-35% from full demand down to 0.35x, so it only removes bikes
+&#x20;   from the screen (19.6 -> 6.0 on road). The controller is the lever.
 
-
-
-&#x20;   `sumo-gui -n sim/networks/generated/corridor_432.net.xml -a sim/networks/vehicle_types_demo.add.xml -r <routes> --lateral-resolution 0.4 --collision.action warn --collision.mingap-factor 0 --step-length 1.0 --seed 7 --waiting-time-memory 1000 --time-to-teleport 600 --end 1200 --quit-on-end false --delay 250 -g sim/networks/demo_gui_settings.xml`
-
-
-
-&#x20;   \*\*`--end` plus `--quit-on-end false` is the already-diagnosed fix\*\* for the
-
-&#x20;   window closing before it can be watched — without both, sumo-gui exits at
-
-&#x20;   the end of the run and the watch is lost. \*\*Colour-by-type must be on\*\*
-
-&#x20;   (the settings file sets it; if it is missing, set it manually as the very
-
-&#x20;   first action: View Settings -> Vehicles -> Color by "type"). Two decisions
-
-&#x20;   ride on this watch besides the pass/fail: whether the `bike_over_car`
-
-&#x20;   36.29% -> 31.73% drop is accepted, and whether bike lane-sharing at 51.38%
-
-&#x20;   against a ~62% target is close enough.
+&#x20;   Two decisions ride on this watch besides pass/fail: whether the
+&#x20;   `bike_over_car` 36.29% -> 31.73% drop is accepted, and whether bike
+&#x20;   lane-sharing at 51.38% against a ~62% target is close enough.
 
 
 

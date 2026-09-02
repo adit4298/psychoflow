@@ -1,48 +1,104 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  sumo-gui view settings for the MIXED-TRAFFIC DEMO WATCH (§10/§11 of CLAUDE.md).
+  sumo-gui view settings for the MIXED-TRAFFIC DEMO WATCH (CLAUDE.md §10/§11).
 
   Purpose: make the human sign-off watch reproducible, so the reviewer is not
-  hand-setting colour-by-type every time and is not left staring at one lane
-  segment mistaking it for the whole corridor.
+  hand-setting the view every time and is not left squinting at vehicles too
+  small to judge.
 
-  What this sets, and why each one matters for THIS watch:
+  REVISED 2026-09-02 after the first watch. Three things were wrong and all
+  three are fixed here or in sim/run_demo_gui.py:
 
-  * colorScheme "by type"  — the whole point. Under the demo driving model the
-    vType ids are the CONCRETE TIER members (bike.cautious / bike.normal /
-    bike.aggressive, auto.*, car.*, plus untiered truck and ambulance), so
-    "by type" gives each TIER its own colour. That is what makes driver
-    heterogeneity visible rather than merely measured — you should be able to
-    see one bike filtering hard to the stop line while another queues.
+    1. BIKES WERE INVISIBLE. Two causes. (a) The view auto-fitted the whole
+       900x300m corridor, at which scale a 1.8m x 0.65m bike is a few pixels.
+       Fixed by defaulting the viewport to ONE junction — run_demo_gui.py
+       writes the viewport, see 'focus'. (b) Colour was "by type", which hashes
+       the type id to an arbitrary colour and gave bikes no visual priority.
+       Fixed by explicit per-vType colours (see below) plus the matching
+       colorScheme here.
 
-  * vehicle_exaggeration 3.0 — the corridor is 900m x 300m. Zoomed out far
-    enough to see J1, J2 and J3 at once, a 1.8m bike is sub-pixel. Scaling
-    vehicles up is what makes the wide view watchable at all. It exaggerates
-    SIZE only; positions, lateral offsets and dynamics are untouched, so the
-    lane-straddling and queue-front filtering you are judging are real.
-    NOTE: at 3.0 vehicles LOOK like they overlap when they do not — do not
-    read apparent overlap as a collision. Drop this to 1.0 and zoom in if you
-    want to judge physical clearance.
+    2. THE ROADS LOOKED CONGESTED. Measured, not guessed: that was the WATCH
+       HARNESS, not the driving model. The old watch ran netconvert's static
+       fixed-timer TLS, the dumbest controller in the project. Same corridor,
+       same demand, same seed, only the controller swapped:
+           fixed timer : 29.1% of vehicles halted, peak 60.4%, 21.1 km/h
+           Tier 0      :  8.0% halted,             peak 15.5%, 29.2 km/h
+       run_demo_gui.py now drives with Tier 0 by default. Demand was tested
+       first and REFUTED as the cause: halted% sat at 34-35% at every density
+       from full training load down to 35% of it, so cutting traffic does not
+       decongest — it only removes bikes from the screen (19.6 -> 6.0 on road).
 
-  * showBlinker — lane-change intent is visible, which is what distinguishes
-    a deliberate overtake from a drift.
+    3. Vehicles were hard to pick out at any zoom. Addressed by the viewport
+       change in (1) rather than by drawing them bigger - see the exaggeration
+       block below, and note watch 2 showed that oversizing them caused a worse
+       problem than it solved.
 
-  * junction/lane detail left on so the sublane straddling is legible.
+  ===========================================================================
+  COLOUR KEY - explicit per-vType colours, set in vehicle_types_demo.add.xml
+  ===========================================================================
+  The colorScheme below is "given vehicle/type/route color", NOT "by type", so
+  the vType colours are what you see. Palette is by CLASS with intensity by
+  TIER, which is exactly the two things this watch has to separate:
+
+      TWO-WHEELERS   green    cautious (dark) -> normal (bright) -> aggressive (lime)
+      AUTOS          amber    cautious (pale) -> normal          -> aggressive (orange)
+      CARS           blue     normal          -> aggressive (deep blue)
+      TRUCK          grey
+      AMBULANCE      red
+
+  So: anything GREEN is a two-wheeler. If the model is working you should see
+  green filtering forward through stopped ambers and blues at a queue front,
+  and the LIME ones doing it hardest.
+
+  vType `color` is a RENDERING attribute only — it enters no car-following,
+  lane-changing or junction model. Proven rather than asserted: check_fix.py
+  reports the identical arrived count (1737) and collision count (0) before and
+  after the colours were added, and a semantic XML diff shows every vType
+  gained exactly one key (`color`) with nothing removed and nothing changed.
+
+  ===========================================================================
+  vehicle_exaggeration DEFAULTS TO 1.0 (TRUE SCALE) - revised after watch 2
+  ===========================================================================
+  Watch 2 reported "the wheels of the vehicles move ahead and the vehicle
+  remains behind for almost all the vehicles". That is what exaggeration 4.0
+  looks like at density: a 4.5m car is DRAWN 18m long and a 7.5m truck 30m,
+  so a vehicle's body is drawn straight through the two or three vehicles
+  genuinely in front of it. The small shape apparently "ahead" of a body is a
+  DIFFERENT, SMALLER VEHICLE (bike or auto) that the oversized body is drawn
+  over the top of. Nothing is detached and no vehicle is lagging its own
+  wheels - the geometry was a rendering artifact of the exaggeration.
+
+  So exaggeration now defaults to 1.0: every vehicle is drawn at its true
+  length and width, and what you see is the real geometry. At junction zoom
+  that is perfectly legible - at 'focus' J2 a bike is roughly 16 x 6 screen
+  pixels and a car 40 x 16 - so the exaggeration was never needed there. It
+  is only needed for the whole-corridor view, and run_demo_gui.py raises it
+  to 2.5 automatically for 'focus' all.
+
+  showBlinker is also now 0. Blinkers are drawn as small marks at vehicle
+  corners, which adds a second set of "extra bits around each vehicle" at
+  exactly the densities where the picture is already hard to read.
+
+  Exaggeration scales drawn SIZE only; positions, lateral offsets and dynamics
+  are never touched, so the lane-straddling and queue-front filtering being
+  judged are real at any setting. But ANY value above 1.0 makes vehicles look
+  overlapped when they are not, so at 1.0 what you see is what the simulation
+  actually has - including real physical clearance.
 
   This file is DEMO-ONLY scaffolding, like vehicle_types_demo.add.xml itself.
-  Nothing in training or evaluation reads it (nothing headless reads a GUI
-  settings file at all).
+  Nothing headless reads a GUI settings file at all.
+
+  NOTE: run_demo_gui.py writes a COPY of this file with a <viewport> element
+  appended for the requested 'focus'. Editing this file changes the defaults
+  for every future watch; editing the generated copy changes nothing.
 -->
 <viewsettings>
 
-    <!-- Playback speed. This is a sumo-gui WALL-CLOCK sleep between rendered
-         steps and has ZERO effect on the simulation (CLAUDE.md §8, ITEM 3a).
-         250ms/step makes a ~15s green last ~3.7 wall-seconds, which is roughly
-         real-time-feeling. Raise it to slow the picture down; it changes
-         nothing measurable. -->
+    <!-- Playback speed. A sumo-gui WALL-CLOCK sleep between rendered steps,
+         with ZERO effect on the simulation (CLAUDE.md §8, ITEM 3a). -->
     <delay value="250"/>
 
-    <scheme name="psychoflow demo (colour by type)">
+    <scheme name="psychoflow demo (mixed traffic)">
 
         <opengl antialiase="1" dither="0"/>
         <background backgroundColor="255,255,255"
@@ -64,12 +120,13 @@
             <scalingScheme name="default"/>
         </edges>
 
-        <!-- THE LOAD-BEARING BLOCK FOR THIS WATCH. -->
+        <!-- THE LOAD-BEARING BLOCK. colorScheme must stay "given vehicle/type/
+             route color" for the vType palette above to be what you see. -->
         <vehicles vehicleMode="0"
                   vehicleQuality="2"
                   vehicle_minSize="1.00"
-                  vehicle_exaggeration="3.00"
-                  showBlinker="1"
+                  vehicle_exaggeration="1.00"
+                  showBlinker="0"
                   drawLaneChangePreference="0"
                   drawMinGap="0"
                   showBTRange="0"
@@ -77,7 +134,7 @@
                   scaleLength="1"
                   drawReversed="0"
                   showParkingInfo="0">
-            <colorScheme name="by type"/>
+            <colorScheme name="given vehicle/type/route color"/>
             <scalingScheme name="uniform"/>
         </vehicles>
 

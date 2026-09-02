@@ -204,7 +204,8 @@
                latAlignment="center"
                impatience="0.2"
                jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="0.6" />
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="0.6"
+           color="0.20,0.75,0.25" />
 
         <vType id="bike.normal" probability="0.45"
                vClass="bicycle" guiShape="bicycle"
@@ -221,7 +222,8 @@
                latAlignment="arbitrary"
                impatience="0.6"
                jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.0" jmStoplineGap="0.4" />
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.0" jmStoplineGap="0.4"
+           color="0.10,1.00,0.15" />
 
         <!-- STEP 1's signed-off bike table, kept as the ceiling. Two changes:
              tau 0.9 -> 1.0 (the STEP_LENGTH_S bound) and lcTimeToImpatience
@@ -242,7 +244,8 @@
                impatience="1.0"
                jmDriveAfterRedTime="1.0" jmDriveAfterYellowTime="4.0"
                jmDriveRedSpeed="7.0" jmIgnoreFoeProb="0.10" jmIgnoreFoeSpeed="3.0"
-               jmTimegapMinor="0.8" jmStoplineGap="0.2" />
+               jmTimegapMinor="0.8" jmStoplineGap="0.2"
+           color="0.75,1.00,0.00" />
 
     </vTypeDistribution>
 
@@ -267,7 +270,8 @@
                latAlignment="center"
                impatience="0.15"
                jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.8" jmStoplineGap="0.8" />
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.8" jmStoplineGap="0.8"
+           color="1.00,0.85,0.35" />
 
         <vType id="auto.normal" probability="0.50"
                vClass="passenger" guiShape="passenger"
@@ -284,7 +288,8 @@
                latAlignment="arbitrary"
                impatience="0.5"
                jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.2" jmStoplineGap="0.6" />
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.2" jmStoplineGap="0.6"
+           color="1.00,0.68,0.00" />
 
         <!-- STEP 1's signed-off auto table, kept as the ceiling. One change:
              lcTimeToImpatience 8.0 -> 20.0. -->
@@ -304,7 +309,8 @@
                impatience="0.8"
                jmDriveAfterRedTime="0.8" jmDriveAfterYellowTime="3.0"
                jmDriveRedSpeed="7.0" jmIgnoreFoeProb="0.06" jmIgnoreFoeSpeed="3.0"
-               jmTimegapMinor="1.0" jmStoplineGap="0.5" />
+               jmTimegapMinor="1.0" jmStoplineGap="0.5"
+           color="1.00,0.42,0.00" />
 
     </vTypeDistribution>
 
@@ -341,7 +347,8 @@
                latAlignment="center"
                impatience="0.3"
                jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="1.0" />
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="1.0"
+           color="0.40,0.60,0.95" />
 
         <vType id="car.aggressive" probability="0.10"
                vClass="passenger" guiShape="passenger"
@@ -359,7 +366,8 @@
                impatience="0.6"
                jmDriveAfterRedTime="0.3" jmDriveAfterYellowTime="1.5"
                jmDriveRedSpeed="4.0" jmIgnoreFoeProb="0.02" jmIgnoreFoeSpeed="2.0"
-               jmTimegapMinor="1.3" jmStoplineGap="0.8" />
+               jmTimegapMinor="1.3" jmStoplineGap="0.8"
+           color="0.08,0.22,0.78" />
 
     </vTypeDistribution>
 
@@ -405,7 +413,8 @@
            latAlignment="center"
            impatience="0.0"
            jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
-           jmIgnoreFoeProb="0.0" jmTimegapMinor="2.0" jmStoplineGap="1.0" />
+           jmIgnoreFoeProb="0.0" jmTimegapMinor="2.0" jmStoplineGap="1.0"
+           color="0.45,0.45,0.52" />
 
     <!-- ==================================================================
          AMBULANCE - single type, UNCHANGED from STEP 1. The deliberate
