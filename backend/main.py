@@ -166,6 +166,7 @@ def create_app(
     realtime_factor: float = 0.3,
     fast: bool = False,
     seed: int = 7,
+    demo_driving: bool = False,
 ) -> FastAPI:
     state = ControlState()
     hub = Hub()
@@ -180,6 +181,7 @@ def create_app(
         fast=fast,
         seed=seed,
         frame_sink=hub.publish_from_thread,
+        demo_driving=demo_driving,
     )
 
     @asynccontextmanager
@@ -308,6 +310,12 @@ def _main() -> None:
                         default=DEFAULT_SHADOW_CHECKPOINT,
                         help="§9.5 MARL checkpoint to run in read-only "
                              "shadow mode alongside the deployed policy.")
+    parser.add_argument(
+        "--demo-driving", action="store_true",
+        help="Use the DEMO-ONLY mixed-traffic driving model "
+             "(sim/networks/vehicle_types_demo.add.xml + SUMO sublane). "
+             "Changes vehicle dynamics, so figures produced under it are NOT "
+             "comparable to any recorded evaluation number. Default off.")
     parser.add_argument("--no-shadow", action="store_true",
                         help="Disable the shadow advisor (no "
                              "`shadow_advisor` key on the §13.2 stream).")
@@ -337,6 +345,7 @@ def _main() -> None:
     globals()["app"] = create_app(
         checkpoint=None if args.no_checkpoint else args.checkpoint,
         shadow_checkpoint=None if args.no_shadow else args.shadow_checkpoint,
+        demo_driving=args.demo_driving,
         lane_counts=lane_counts,
         realtime_factor=args.realtime_factor,
         fast=args.fast,

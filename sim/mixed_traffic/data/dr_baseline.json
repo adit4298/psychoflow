@@ -1,0 +1,513 @@
+{
+  "label": "baseline",
+  "vtypes": "sim/networks/vehicle_types.add.xml",
+  "lateral_resolution": null,
+  "seconds": 1200,
+  "collisions_vehicle_steps": 0,
+  "collisions_distinct_vehicles": 0,
+  "total_vehicles_seen": 1868,
+  "collision_rate_pct": 0.0,
+  "n_queue_samples": 152,
+  "speeds": {
+    "bike": {
+      "n_samples": 28048,
+      "mean_all": 4.13,
+      "mean_moving": 5.79,
+      "p85": 6.71,
+      "max": 7.0
+    },
+    "auto": {
+      "n_samples": 44611,
+      "mean_all": 5.6,
+      "mean_moving": 8.55,
+      "p85": 10.63,
+      "max": 11.0
+    },
+    "car": {
+      "n_samples": 72758,
+      "mean_all": 6.25,
+      "mean_moving": 9.78,
+      "p85": 12.91,
+      "max": 16.7
+    },
+    "truck": {
+      "n_samples": 16293,
+      "mean_all": 5.96,
+      "mean_moving": 9.09,
+      "p85": 12.15,
+      "max": 12.5
+    }
+  },
+  "spawn": {
+    "r_ew": {
+      "n_departures": 334,
+      "mean_gap_s": 3.601,
+      "stdev_gap_s": 0.4898,
+      "cv": 0.136,
+      "distinct_gaps": [
+        3.0,
+        4.0
+      ],
+      "n_distinct_gaps": 2
+    },
+    "r_ns1": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_ns2": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_ns3": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_sn1": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_sn2": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_sn3": {
+      "n_departures": 200,
+      "mean_gap_s": 6.0,
+      "stdev_gap_s": 0.0,
+      "cv": 0.0,
+      "distinct_gaps": [
+        6.0
+      ],
+      "n_distinct_gaps": 1
+    },
+    "r_we": {
+      "n_departures": 334,
+      "mean_gap_s": 3.601,
+      "stdev_gap_s": 0.4898,
+      "cv": 0.136,
+      "distinct_gaps": [
+        3.0,
+        4.0
+      ],
+      "n_distinct_gaps": 2
+    }
+  },
+  "filtering_all": {
+    "n_queue_samples_used": 152,
+    "mean_advancement": {
+      "auto": 0.293,
+      "bike": -1.474,
+      "car": 0.376,
+      "truck": 0.169
+    },
+    "n_ranked": {
+      "auto": 447,
+      "bike": 289,
+      "car": 704,
+      "truck": 178
+    },
+    "pair_inversion_rate": {
+      "auto_over_auto": {
+        "later_arrivals": 667,
+        "overtook": 60,
+        "rate": 0.09
+      },
+      "auto_over_bike": {
+        "later_arrivals": 647,
+        "overtook": 157,
+        "rate": 0.2427
+      },
+      "auto_over_car": {
+        "later_arrivals": 975,
+        "overtook": 115,
+        "rate": 0.1179
+      },
+      "auto_over_truck": {
+        "later_arrivals": 286,
+        "overtook": 42,
+        "rate": 0.1469
+      },
+      "bike_over_auto": {
+        "later_arrivals": 247,
+        "overtook": 9,
+        "rate": 0.0364
+      },
+      "bike_over_bike": {
+        "later_arrivals": 266,
+        "overtook": 16,
+        "rate": 0.0602
+      },
+      "bike_over_car": {
+        "later_arrivals": 322,
+        "overtook": 13,
+        "rate": 0.0404
+      },
+      "bike_over_truck": {
+        "later_arrivals": 75,
+        "overtook": 4,
+        "rate": 0.0533
+      },
+      "car_over_auto": {
+        "later_arrivals": 1323,
+        "overtook": 140,
+        "rate": 0.1058
+      },
+      "car_over_bike": {
+        "later_arrivals": 1074,
+        "overtook": 235,
+        "rate": 0.2188
+      },
+      "car_over_car": {
+        "later_arrivals": 1792,
+        "overtook": 223,
+        "rate": 0.1244
+      },
+      "car_over_truck": {
+        "later_arrivals": 524,
+        "overtook": 56,
+        "rate": 0.1069
+      },
+      "truck_over_auto": {
+        "later_arrivals": 287,
+        "overtook": 34,
+        "rate": 0.1185
+      },
+      "truck_over_bike": {
+        "later_arrivals": 291,
+        "overtook": 60,
+        "rate": 0.2062
+      },
+      "truck_over_car": {
+        "later_arrivals": 343,
+        "overtook": 38,
+        "rate": 0.1108
+      },
+      "truck_over_truck": {
+        "later_arrivals": 117,
+        "overtook": 12,
+        "rate": 0.1026
+      }
+    }
+  },
+  "filtering_halted": {
+    "n_queue_samples_used": 151,
+    "mean_advancement": {
+      "auto": 0.322,
+      "bike": -1.699,
+      "car": 0.418,
+      "truck": 0.042
+    },
+    "n_ranked": {
+      "auto": 351,
+      "bike": 219,
+      "car": 605,
+      "truck": 143
+    },
+    "pair_inversion_rate": {
+      "auto_over_auto": {
+        "later_arrivals": 455,
+        "overtook": 47,
+        "rate": 0.1033
+      },
+      "auto_over_bike": {
+        "later_arrivals": 478,
+        "overtook": 139,
+        "rate": 0.2908
+      },
+      "auto_over_car": {
+        "later_arrivals": 754,
+        "overtook": 106,
+        "rate": 0.1406
+      },
+      "auto_over_truck": {
+        "later_arrivals": 199,
+        "overtook": 39,
+        "rate": 0.196
+      },
+      "bike_over_auto": {
+        "later_arrivals": 138,
+        "overtook": 9,
+        "rate": 0.0652
+      },
+      "bike_over_bike": {
+        "later_arrivals": 182,
+        "overtook": 13,
+        "rate": 0.0714
+      },
+      "bike_over_car": {
+        "later_arrivals": 214,
+        "overtook": 12,
+        "rate": 0.0561
+      },
+      "bike_over_truck": {
+        "later_arrivals": 34,
+        "overtook": 4,
+        "rate": 0.1176
+      },
+      "car_over_auto": {
+        "later_arrivals": 918,
+        "overtook": 136,
+        "rate": 0.1481
+      },
+      "car_over_bike": {
+        "later_arrivals": 816,
+        "overtook": 216,
+        "rate": 0.2647
+      },
+      "car_over_car": {
+        "later_arrivals": 1424,
+        "overtook": 215,
+        "rate": 0.151
+      },
+      "car_over_truck": {
+        "later_arrivals": 371,
+        "overtook": 54,
+        "rate": 0.1456
+      },
+      "truck_over_auto": {
+        "later_arrivals": 218,
+        "overtook": 26,
+        "rate": 0.1193
+      },
+      "truck_over_bike": {
+        "later_arrivals": 213,
+        "overtook": 42,
+        "rate": 0.1972
+      },
+      "truck_over_car": {
+        "later_arrivals": 298,
+        "overtook": 35,
+        "rate": 0.1174
+      },
+      "truck_over_truck": {
+        "later_arrivals": 85,
+        "overtook": 8,
+        "rate": 0.0941
+      }
+    }
+  },
+  "filtering_queuejoin": {
+    "n_queue_samples_used": 151,
+    "mean_advancement": {
+      "auto": 0.205,
+      "bike": 1.151,
+      "car": -0.397,
+      "truck": -0.587
+    },
+    "n_ranked": {
+      "auto": 351,
+      "bike": 219,
+      "car": 605,
+      "truck": 143
+    },
+    "pair_inversion_rate": {
+      "auto_over_auto": {
+        "later_arrivals": 455,
+        "overtook": 38,
+        "rate": 0.0835
+      },
+      "auto_over_bike": {
+        "later_arrivals": 298,
+        "overtook": 11,
+        "rate": 0.0369
+      },
+      "auto_over_car": {
+        "later_arrivals": 872,
+        "overtook": 147,
+        "rate": 0.1686
+      },
+      "auto_over_truck": {
+        "later_arrivals": 220,
+        "overtook": 48,
+        "rate": 0.2182
+      },
+      "bike_over_auto": {
+        "later_arrivals": 318,
+        "overtook": 61,
+        "rate": 0.1918
+      },
+      "bike_over_bike": {
+        "later_arrivals": 182,
+        "overtook": 14,
+        "rate": 0.0769
+      },
+      "bike_over_car": {
+        "later_arrivals": 588,
+        "overtook": 191,
+        "rate": 0.3248
+      },
+      "bike_over_truck": {
+        "later_arrivals": 104,
+        "overtook": 35,
+        "rate": 0.3365
+      },
+      "car_over_auto": {
+        "later_arrivals": 800,
+        "overtook": 59,
+        "rate": 0.0737
+      },
+      "car_over_bike": {
+        "later_arrivals": 442,
+        "overtook": 21,
+        "rate": 0.0475
+      },
+      "car_over_car": {
+        "later_arrivals": 1424,
+        "overtook": 166,
+        "rate": 0.1166
+      },
+      "car_over_truck": {
+        "later_arrivals": 370,
+        "overtook": 52,
+        "rate": 0.1405
+      },
+      "truck_over_auto": {
+        "later_arrivals": 197,
+        "overtook": 14,
+        "rate": 0.0711
+      },
+      "truck_over_bike": {
+        "later_arrivals": 143,
+        "overtook": 3,
+        "rate": 0.021
+      },
+      "truck_over_car": {
+        "later_arrivals": 299,
+        "overtook": 34,
+        "rate": 0.1137
+      },
+      "truck_over_truck": {
+        "later_arrivals": 85,
+        "overtook": 12,
+        "rate": 0.1412
+      }
+    }
+  },
+  "filtering_halted_by_tier": {
+    "n_queue_samples_used": 151,
+    "mean_advancement": {
+      "auto": 0.322,
+      "bike": -1.699,
+      "car": 0.418,
+      "truck": 0.042
+    },
+    "n_ranked": {
+      "auto": 351,
+      "bike": 219,
+      "car": 605,
+      "truck": 143
+    },
+    "pair_inversion_rate": {
+      "auto_over_auto": {
+        "later_arrivals": 455,
+        "overtook": 47,
+        "rate": 0.1033
+      },
+      "auto_over_bike": {
+        "later_arrivals": 478,
+        "overtook": 139,
+        "rate": 0.2908
+      },
+      "auto_over_car": {
+        "later_arrivals": 754,
+        "overtook": 106,
+        "rate": 0.1406
+      },
+      "auto_over_truck": {
+        "later_arrivals": 199,
+        "overtook": 39,
+        "rate": 0.196
+      },
+      "bike_over_auto": {
+        "later_arrivals": 138,
+        "overtook": 9,
+        "rate": 0.0652
+      },
+      "bike_over_bike": {
+        "later_arrivals": 182,
+        "overtook": 13,
+        "rate": 0.0714
+      },
+      "bike_over_car": {
+        "later_arrivals": 214,
+        "overtook": 12,
+        "rate": 0.0561
+      },
+      "bike_over_truck": {
+        "later_arrivals": 34,
+        "overtook": 4,
+        "rate": 0.1176
+      },
+      "car_over_auto": {
+        "later_arrivals": 918,
+        "overtook": 136,
+        "rate": 0.1481
+      },
+      "car_over_bike": {
+        "later_arrivals": 816,
+        "overtook": 216,
+        "rate": 0.2647
+      },
+      "car_over_car": {
+        "later_arrivals": 1424,
+        "overtook": 215,
+        "rate": 0.151
+      },
+      "car_over_truck": {
+        "later_arrivals": 371,
+        "overtook": 54,
+        "rate": 0.1456
+      },
+      "truck_over_auto": {
+        "later_arrivals": 218,
+        "overtook": 26,
+        "rate": 0.1193
+      },
+      "truck_over_bike": {
+        "later_arrivals": 213,
+        "overtook": 42,
+        "rate": 0.1972
+      },
+      "truck_over_car": {
+        "later_arrivals": 298,
+        "overtook": 35,
+        "rate": 0.1174
+      },
+      "truck_over_truck": {
+        "later_arrivals": 85,
+        "overtook": 8,
+        "rate": 0.0941
+      }
+    }
+  }
+}

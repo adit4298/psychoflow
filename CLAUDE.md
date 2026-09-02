@@ -936,24 +936,179 @@ Pause and ask the user rather than proceeding when:
 &#x20; caught at design time. Apply this to any future eval work that varies
 &#x20; density (Stage 4/5's own checkpoints included).
 
-\- \*\*CURRENT STATUS (2026-08-28): Phases 1-9 COMPLETE. Next is §18 Phase 10 —
-&#x20; Frontend.\*\* Read this line before any of the stage history below it.
-&#x20; Training (Phase 6/7) is DONE: Stages 1-5 all trained, §9.5's MARL A/B
-&#x20; decided (`graph_attention` beat `shared_policy` 12/12). Phase 8
-&#x20; (coordinator + explainability, commit `9cf19af`) and Phase 9 (backend §13,
-&#x20; commit `f062eb1`) have both LANDED with their done-bars verified.
+\- \*\*CURRENT STATUS (2026-09-02) — READ THIS BULLET ALONE AND YOU KNOW WHERE
+&#x20; THE PROJECT STANDS. Everything below it in this file is supporting detail
+&#x20; and history; nothing below it overrides it.\*\*
+
+&#x20; \*\*THE SINGLE MOST IMPORTANT NEXT ACTION: a human must watch `sumo-gui` and
+&#x20; sign off the mixed-traffic driving model. Nothing else is blocking. No test
+&#x20; suite can substitute for it, and until it happens the driving-realism work
+&#x20; is NOT DONE and stays uncommitted.\*\* The exact command is in the
+&#x20; "PENDING — BEFORE THE EVENT" section further down.
+
+&#x20; \*\*Phases 1-9: COMPLETE and hardened.\*\* Unchanged. Corridor generator,
+&#x20; perception, env+reward, Tier 0 + safety validator, prediction, PPO training
+&#x20; (Stages 1-5), MARL A/B, coordinator + explainability, backend — all
+&#x20; done-bars verified and recorded in `docs/BUILD_LOG.md`.
 &#x20; \*\*The deployed policy is Stage 4 SINGLE-AGENT PPO\*\*
-&#x20; (`psychoflow_stage4_153600_steps_final.zip`), chosen by the 4a bake-off —
-&#x20; see the "Backend auto-mode checkpoint" bullet below. Still unbuilt:
-&#x20; Phase 10 (frontend), Phase 11 (voice), Phase 12 (evaluation suite).
-&#x20; D1 (persistent-seed-counter), which tests whether the post-51k collapse
-&#x20; was data-diversity-driven, has FINISHED TRAINING — it completed
-&#x20; 2026-08-28 17:59:54 at `num_timesteps=156624`
-&#x20; (`training/checkpoints/stage5_graph_attention_d1/`). No background run is
-&#x20; live. \*\*Its checkpoint has NOT yet been evaluated\*\*, so the
-&#x20; data-diversity hypothesis is still open and the three "re-evaluate once D1
-&#x20; completes" flags (this file's backend-checkpoint bullet,
-&#x20; `backend/sim_runner.py`, BUILD_LOG's 4a entry) are now actionable.
+&#x20; (`training/checkpoints/stage4/psychoflow_stage4_153600_steps_final.zip`),
+&#x20; chosen by the 4a bake-off, run `deterministic=True`. `COORDINATION_MODE`
+&#x20; stays `graph_attention` as the answer to §9.5's ARCHITECTURE question
+&#x20; (attention beat shared_policy 12/12) — a separate axis from which
+&#x20; checkpoint the backend serves. \*\*Say "single-agent PPO" out loud on demo
+&#x20; day\*\* (§20).
+
+&#x20; \*\*Three post-Phase-9 bodies of work — all BUILT, all VERIFIED, all
+&#x20; COMMITTED ON `main`:\*\*
+&#x20; (1) \*\*Phase 8/9 seam CLOSED\*\* (commit `ad9e4df`). The adapter in
+&#x20; `backend/sim_runner.py` is DELETED; the §13.2 frame's `decision` is
+&#x20; `DecisionLogEntry.to_dict()` and its `narration` is
+&#x20; `explainability.narrator.narrate(entry)`. §11.2 responder messages ride the
+&#x20; wire, additive. One known imperfection stays OPEN: `served_on_arrival` can
+&#x20; fire for a lane §10 had to clear inside the same decision step — see its
+&#x20; own bullet below; the fix is a §11.1 semantic change and the call is the
+&#x20; user's.
+&#x20; (2) \*\*§13.2 `shadow_advisor`\*\* (commits `ae51049`, `3c4f4e3`). The
+&#x20; `graph_attention` checkpoint runs a READ-ONLY forward pass alongside the
+&#x20; deployed policy and its recommendation rides every frame as an additive
+&#x20; key. \*\*It never drives the road, and it is the WORSE policy\*\* — carry the
+&#x20; honesty note wherever the field is displayed.
+&#x20; `sim/run_shadow_advisor_check.py` -> \*\*35/35\*\*.
+&#x20; (3) \*\*Backend security hardening + §13.1 `force_phase` / `clear_override`\*\*
+&#x20; (commits `e8b2e46` .. `803afbc`). Loopback-by-default host guard,
+&#x20; operator-input range checks, `dispatch()` function allowlist, per-iteration
+&#x20; sim-thread guard, CORS allowlist, non-leaky `/health`. \*\*The §13 control
+&#x20; API is still UNAUTHENTICATED by design and is a LOCAL DEMO SURFACE\*\*
+&#x20; (§17). `sim/run_backend_security_check.py` -> \*\*62/62\*\*;
+&#x20; `sim/run_backend_smoke.py` -> \*\*50/50\*\*.
+&#x20; \*\*Branch state — checked, not assumed:\*\* `backend-security-hardening` WAS
+&#x20; merged into `main` on 2026-08-31 12:03 as a FAST-FORWARD (reflog:
+&#x20; `merge backend-security-hardening: Fast-forward`). `main`, `origin/main`
+&#x20; and that branch all sit at `803afbc`; `git log --merges main` is empty and
+&#x20; history is 67 linear commits. The branch ref is now a redundant pointer at
+&#x20; `main`'s tip — deleting it is safe. \*\*BUILD_LOG claimed "NOT merged" for
+&#x20; three days; corrected 2026-09-02.\*\*
+
+&#x20; \*\*MIXED-TRAFFIC DRIVING REALISM — BUILT and MEASURED, but NOT SIGNED OFF
+&#x20; and NOT COMMITTED.\*\* Demo-only; never reachable from training or
+&#x20; evaluation.
+&#x20; \*\*BUILT:\*\* SUMO's SL2015 sublane model behind two default-off
+&#x20; `PsychoFlowEnv` kwargs (`vtype_file`, `lateral_resolution`) — with both
+&#x20; omitted the `traci.start()` argv is byte-identical to pre-STEP-1 HEAD;
+&#x20; `sim/networks/vehicle_types_demo.add.xml` carrying per-type gap and `tau`
+&#x20; tuning, a `jm*` junction-model group gated to the AGGRESSIVE TIER ONLY, and
+&#x20; driver heterogeneity as nested `<vTypeDistribution>` tiers (bike 20/45/35,
+&#x20; auto 25/50/25, car 0/90/10 cautious/normal/aggressive; truck and ambulance
+&#x20; deliberately untiered); two consequent perception fixes
+&#x20; (`lane_sensor.base_vtype()`, `weather.WeatherModel._resolve_members()`),
+&#x20; both provably inert on the default file; a `training/train.py` assert that
+&#x20; refuses both kwargs before `model.learn()`; and `backend/main.py
+&#x20; --demo-driving` (default OFF).
+&#x20; \*\*MEASURED\*\* — all raw SUMO, one pinned route file, corridor 4/3/2, seed 7,
+&#x20; 1200s, 1868 vehicles; full tables in `docs/MIXED_TRAFFIC_RESEARCH.md` §6:
+&#x20; queue-front filtering `bike_over_car` \*\*5.61% baseline -> 31.73% tiered\*\*
+&#x20; while `car_over_bike` falls 26.47% -> 10.81%, so the bike/car ratio goes
+&#x20; 0.21x -> \*\*2.94x\*\* and the ordering INVERTS; bike mean queue advancement
+&#x20; −1.699 -> \*\*+1.717\*\* places, per tier aggressive \*\*2.500\*\* / normal 1.462
+&#x20; / cautious 0.889, so the tiers are genuinely distinguishable on screen;
+&#x20; strict same-lane sharing bike \*\*51.38%\*\* against research §1.3's ~62%
+&#x20; target (\*\*~10.6 points short — flagged, not fixed\*\*), with the LC2013
+&#x20; baseline control correctly reading \*\*0.00%\*\* as it must by construction;
+&#x20; red-eligible population \*\*17.18% observed vs 16.50% computed\*\*;
+&#x20; collisions \*\*0.00%\*\* after the truck lateral-recentring fix
+&#x20; (root-caused 2026-09-01, independently re-verified 2026-09-02).
+&#x20; \*\*NOT DONE — THE BLOCKING ITEM: THE HUMAN GUI WATCH.\*\* STEP 1 and its
+&#x20; refinement share ONE combined done-bar, and neither is closed until a human
+&#x20; has watched `sumo-gui` coloured by type and confirmed the behaviour
+&#x20; actually looks right. Two decisions ride on that same watch: whether the
+&#x20; `bike_over_car` 36.29% -> 31.73% drop (tiering working as designed, but a
+&#x20; drop) is accepted, and whether bike lane-sharing at 51.38% against a ~62%
+&#x20; target is close enough.
+&#x20; \*\*UNCOMMITTED, deliberately — 9 MODIFIED + 38 UNTRACKED = \*\*47 FILES\*\*
+
+&#x20; (counted 2026-09-02, not estimated; reproduce with `git diff HEAD
+
+&#x20; --name-only` and `git ls-files --others --exclude-standard`).\*\*
+
+&#x20; \*\*Modified (9):\*\* `CLAUDE.md`, `backend/main.py`,
+
+&#x20; `backend/sim_runner.py`, `docs/BUILD_LOG.md`,
+
+&#x20; `docs/PsychoFlow_Master_Plan.md`, `env/psychoflow_env.py`,
+
+&#x20; `perception/lane_sensor.py`, `perception/weather.py`,
+
+&#x20; `training/train.py`.
+
+&#x20; \*\*Untracked (38):\*\* `docs/MIXED_TRAFFIC_RESEARCH.md`;
+
+&#x20; `sim/networks/vehicle_types_demo.add.xml`;
+
+&#x20; `sim/networks/demo_gui_settings.xml`; `sim/run_demo_gui.py`;
+
+&#x20; `sim/routes/demo_gui_432_seed7.rou.xml`; and \*\*34 files under
+
+&#x20; `sim/mixed_traffic/`\*\* (15 harness scripts + `README.md` + the pinned
+
+&#x20; `measure.rou.xml` / `measure3000.rou.xml` + 2 probe fixtures + 4
+
+&#x20; comparison-arm vType tables + 9 raw JSONs under `data/`).
+
+&#x20; \*\*The count was 14 before the 2026-09-02 harness relocation\*\* — the jump
+
+&#x20; is the 34 relocated files, nothing else changed hands.
+
+&#x20; Committing the generated route file follows existing convention:
+
+&#x20; `sim/networks/generated/` already tracks 84 generated network files.
+
+&#x20; \*\*A fresh clone, a `git checkout .` or a `git stash` DESTROYS ALL OF IT.\*\*
+
+&#x20; Commit it once the GUI watch passes.
+
+&#x20; \*\*Phase 11 (VOICE): design APPROVED, pipeline UNBUILT — correctly reserved
+&#x20; for the event.\*\* Settled and recorded: browser Web Speech API for STT
+&#x20; (\*\*NOT local\*\* — §2; in Chrome it streams to Google's speech service),
+&#x20; local Gemma via Ollama for intent parsing, \*\*no Claude API and no paid
+&#x20; inference anywhere in the runtime path\*\*; scope is exactly the
+&#x20; `control_api.CONTROL_FUNCTIONS` allowlist reached only through
+&#x20; `dispatch()`, which is the safety argument — the server rejects any name
+&#x20; not on the allowlist before argument binding, so a mis-parsed intent cannot
+&#x20; reach an unintended function; fail-closed on an unparsed intent (display
+&#x20; "Command not understood, please try again", log the miss, take NO action,
+&#x20; never guess a function or an argument); and the 0-based-vs-1-based
+&#x20; lane-numbering mismatch must be reconciled explicitly rather than assumed
+&#x20; to match. Full design in the "APPROVED VOICE DESIGN" bullet below.
+&#x20; \*\*LOST BENCHMARK DATA — caveat, not a blocker.\*\* The model-selection and
+&#x20; latency numbers behind the Gemma choice were lost and are reproduced
+&#x20; nowhere in this repo. Treat any remembered figure as \*\*UNVERIFIED\*\*: do a
+&#x20; quick sanity pass (one timed `ollama run` on the actual demo machine)
+&#x20; before trusting it. \*\*Do NOT re-derive the design from scratch\*\* — the
+&#x20; decisions are sound and settled; only the supporting numbers are unbacked.
+
+&#x20; \*\*GENUINELY UNBUILT — this is the entire remaining list:\*\*
+&#x20; \*\*Phase 10 (frontend)\*\* — nothing exists under `frontend/`. Read the
+&#x20; "PHASE 10 BEHAVIOR SPEC" bullet below, and
+&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md`, before writing a line of it.
+&#x20; \*\*Phase 11's actual pipeline\*\* — `backend/voice/` is empty.
+&#x20; \*\*Phase 12 (evaluation suite)\*\* — including the \*\*Greedy baseline\*\*
+&#x20; (`set_baseline_mode("greedy")` is plumbed but STUBBED and returns
+&#x20; `applied: false`) and \*\*STEP 2's signal-violation detector\*\*. Both are
+&#x20; deliberately deferred until Phase 10 exists to give them somewhere to
+&#x20; render — a violation detector with no UI proves nothing to a judge, and
+&#x20; §19 names Greedy-vs-PsychoFlow as the strongest demo beat.
+&#x20; `evaluation/heldout.py` (the §15.4 held-out seed set) IS built; the eval
+&#x20; harness that consumes it is not.
+&#x20; \*\*Y-merge (§3)\*\* — untouched, and stays that way unless everything above
+&#x20; is done with real time to spare.
+
+&#x20; \*\*Open items carried forward, none of them blocking:\*\* D1
+&#x20; (`training/checkpoints/stage5_graph_attention_d1/`, finished 2026-08-28 at
+&#x20; `num_timesteps=156624`) is trained but \*\*NEVER EVALUATED\*\*, so the
+&#x20; data-diversity hypothesis for the post-51k collapse remains open;
+&#x20; `served_on_arrival` can over-report (§11.2); STEP 1's recorded baseline
+&#x20; does not reproduce bit-for-bit. \*\*No background run is live and the SUMO
+&#x20; beacon is free\*\* (`python -m sim.sumo_activity`, confirmed 2026-09-02).
 
 \- \*\*Stage-3-era status note (2026-08-15), kept for history — SUPERSEDED by the
 &#x20; CURRENT STATUS bullet above; do not read this as the project's state.\*\*
@@ -1159,7 +1314,10 @@ Pause and ask the user rather than proceeding when:
 &#x20; --host --port`. Phase 9 done-bar check: `venv/Scripts/python.exe
 &#x20; sim/run_backend_smoke.py` (boots the app in-process via `TestClient`, no
 &#x20; external server needed; 7-point §13.1/§13.2 checklist + a no-SUMO unit
-&#x20; check of the new Tier 0 `lane_weights` param). \*\*Last run: 45/45 pass\*\*
+&#x20; check of the new Tier 0 `lane_weights` param). \*\*Last run: 50/50 pass\*\*
+&#x20; (2026-08-31; the 45/45 this line quoted was pre-`force_phase` — check 4f is
+&#x20; +5. Corrected 2026-09-02, NOT re-run in that pass: it needs SUMO and a
+&#x20; sign-off GUI window was open. Re-run it to confirm.)  \*\*was 45/45\*\*
 &#x20; (2026-08-30, project venv, against the deployed Stage 4 checkpoint). The
 &#x20; count has moved five times since the 21/21 this line used to quote, and went
 &#x20; uncorrected for the first two: `3496057` added checks 1b/1c (the auto-mode
@@ -1295,7 +1453,10 @@ Pause and ask the user rather than proceeding when:
 &#x20; collaborator/CI checkout has no `~/.gitignore_global`).
 &#x20; \*\*Check: `venv/Scripts/python.exe sim/run_backend_security_check.py`\*\*
 &#x20; (offline, no SUMO, no beacon — launches nothing; same category as
-&#x20; `stage4_contamination.py`). \*\*Last run: 58/58 pass\*\* (2026-08-31).
+&#x20; `stage4_contamination.py`). \*\*Last run: 62/62 pass\*\* (RE-RUN 2026-09-02
+&#x20; during the closure pass, project venv). \*\*This line said 58/58\*\* — stale
+&#x20; since the same-day `803afbc` commit made `inject_incident`'s affected_lanes
+&#x20; cap dynamic and added `check_affected_lanes_dynamic_cap()` (+4).
 &#x20; Touched `explainability/decision_log.py` too: `record_step` now carries
 &#x20; `transcript`/`action_taken` through from the decision dict (was
 &#x20; `record_voice`-only) so a §13.1 `force_phase` row narrates properly;
@@ -1650,6 +1811,230 @@ Pause and ask the user rather than proceeding when:
 &#x20; bash reads as dead and the harness runs anyway. Drive the test from Python
 &#x20; with `subprocess.Popen(...).pid`.
 
+\- \*\*DEMO-ONLY MIXED-TRAFFIC DRIVING MODEL (STEP 1, 2026-08-31; REFINED to
+&#x20; aggressiveness tiers same day). Built and measured. NEVER reachable from
+&#x20; training or evaluation.\*\*
+&#x20; \*\*STATUS CORRECTION 2026-09-02: "verified" overstated it and is withdrawn.\*\*
+&#x20; The mechanical guarantees below ARE verified (byte-identical default argv,
+&#x20; the `train.py` assert, the backend default-off switch — all re-checked). What
+&#x20; is NOT done is the model's actual DONE-BAR: \*\*a human watching `sumo-gui`\*\*.
+&#x20; Until that happens this work is unsigned-off AND uncommitted — see §10/§11
+&#x20; and the CURRENT STATUS bullet. Read this bullet for the SEAM (how the demo
+&#x20; model is reached and how it is kept off the training path); read
+&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md` §6 for the shipped model's actual numbers,
+&#x20; since the ones quoted here are STEP 1's untiered arm.
+&#x20; \*\*The file:\*\* `sim/networks/vehicle_types_demo.add.xml`. The default
+&#x20; `sim/networks/vehicle_types.add.xml` is UNCHANGED, byte-for-byte, and remains
+&#x20; the only file training/eval/the 4a bake-off ever load.
+&#x20; \*\*The seam:\*\* `PsychoFlowEnv.__init__` gained two kwargs, both defaulting to
+&#x20; today's behaviour — `vtype_file=ADD_FILE` and `lateral_resolution=None`.
+&#x20; With both omitted the `traci.start()` argv is \*\*BYTE-IDENTICAL to pre-STEP-1
+&#x20; HEAD (18 tokens, asserted against `git show HEAD:` — not inspected)\*\*. Passing
+&#x20; `lateral_resolution` also appends `--collision.action warn` and
+&#x20; `--collision.mingap-factor 0`; neither appears on the default path.
+&#x20; \*\*The guard:\*\* `training/train.py` asserts `vtype_file == ADD_FILE` and
+&#x20; `lateral_resolution is None` before `model.learn()`, beside the existing
+&#x20; spillover assert. Verified non-vacuously: passes on default, raises on each
+&#x20; demo kwarg. \*\*Backend:\*\* `backend/main.py --demo-driving` (default OFF) ->
+&#x20; `SimRunner(demo_driving=...)` -> `DEMO_VTYPE_FILE` /
+&#x20; `DEMO_LATERAL_RESOLUTION` (0.4) in `backend/sim_runner.py`.
+&#x20; \*\*THE ONE TRAP THAT COST FOUR TUNING PASSES — `tau` MUST BE >= `STEP_LENGTH_S`
+&#x20; (1.0).\*\* bike tau=0.5 / auto tau=0.6 produced \*\*14.55% of all vehicles in a
+&#x20; collision\*\* (272 of 1870). Krauss's safe-velocity cannot guarantee a
+&#x20; collision-free follow below the step size. Diagnosed by measurement, not
+&#x20; guesswork: \*\*3557 of 3565 collision events were on-lane, only 8 at junctions\*\*,
+&#x20; so the `jm*` group was innocent and two earlier guesses (lcMaxSpeedLatStanding,
+&#x20; then lateral softening) were both wrong. Raising tau to 0.9/1.0/1.2/1.6/1.0
+&#x20; gave \*\*0.00% collisions\*\* while KEEPING the per-type ordering. If you ever
+&#x20; lower tau again, re-measure collisions — do not assume.
+&#x20; \*\*`lcMaxSpeedLatStanding` is load-bearing and must stay set explicitly:\*\* it
+&#x20; defaults to 0 for every vClass except bicycle/pedestrian, so a STOPPED `auto`
+&#x20; cannot move sideways at all and queue-front filtering becomes impossible
+&#x20; regardless of `minGapLat`/`lcPushy`.
+&#x20; \*\*Honest boundary (§17 class):\*\* this approximates mixed traffic with SUMO's
+&#x20; sublane model, the best lever SUMO has. It is NOT lane-free driving — the road
+&#x20; is still lanes with centre-lines and lane-to-lane connections; SL2015 adds a
+&#x20; continuous LATERAL position. Say that, not "lane-free".
+&#x20; \*\*Every recorded number was measured WITHOUT this.\*\* Never re-measure a
+&#x20; checkpoint under demo driving and compare to a recorded figure.
+
+\- \*\*STEP 1 MEASURED RESULTS (2026-08-31) — the A/B that signed it off.\*\*
+&#x20; \*\*SUPERSEDED 2026-09-02 FOR THE SHIPPED MODEL — this bullet describes STEP
+&#x20; 1's UNIFORM (untiered) arm, which is NOT what the file ships today.\*\* The
+&#x20; shipped model is TIERED, and its numbers are different: `bike_over_car`
+&#x20; \*\*31.73%\*\* (not 37.13%), bike mean advancement \*\*+1.717\*\* (not +1.949),
+&#x20; collisions \*\*0.00%\*\* only after the 2026-09-01 truck lateral-recentring fix.
+&#x20; \*\*Worse, this bullet's BASELINE column is not a valid comparator at all\*\* —
+&#x20; STEP 1's baseline does not reproduce bit-for-bit (1868 vehicles vs its
+&#x20; recorded 1870; `bike_over_car` 5.61% vs the 4.17% below), so the 4.17% ->
+&#x20; 37.13% contrast spans two different route files. \*\*Cite
+&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md` §6, which is same-route-file throughout,
+&#x20; for any current figure.\*\* Retained below because the METHOD (1s resolution,
+&#x20; the advancement metric's definition, the speed calibration, the item-5
+&#x20; spawn-patterning finding) is still exactly right and is what §6 re-ran.
+&#x20; Harness `measure_driving.py` (`sim/mixed_traffic/`): standalone SUMO, netconvert's
+&#x20; static TLS, \*\*1s resolution\*\* (5s would alias the crossing entirely — a
+&#x20; 13.9 m/s vehicle covers 69m in 5s), corridor 4/3/2, seed 7, 1200s, 1870
+&#x20; vehicles, 151-152 red->green queue samples. No `PsychoFlowEnv`, no checkpoint
+&#x20; — it measures the DRIVING MODEL, so it cannot perturb Stage 4.
+&#x20; \*\*Item 1, queue-front filtering — CONFIRMED, and the ordering INVERTED.\*\*
+&#x20; Metric: at each green onset, rank queued (halted) vehicles by arrival time
+&#x20; and by distance to the stop line; advancement = arrival\_rank − stopline\_rank,
+&#x20; positive = filtered forward.
+&#x20; | | baseline | demo |
+&#x20; |---|---|---|
+&#x20; | bike mean advancement | \*\*−1.578\*\* | \*\*+1.949\*\* |
+&#x20; | `bike_over_car` | 4.17% | \*\*37.13%\*\* |
+&#x20; | `bike_over_truck` | 10.81% | \*\*41.18%\*\* |
+&#x20; | `car_over_bike` | 25.00% | 11.58% |
+&#x20; | `truck_over_bike` | 17.50% | 8.82% |
+&#x20; | collisions | 0.00% | \*\*0.00%\*\* |
+&#x20; Baseline: a car overtook a bike \*\*6x\*\* more often than the reverse. Demo: a
+&#x20; bike overtakes a car \*\*3.2x\*\* more often than the reverse. `auto` sits mid-pack
+&#x20; by design (gains on car/truck, loses to bike), which is why its mean
+&#x20; advancement is slightly negative — expected, not a regression.
+&#x20; \*\*Item 2, urban speed calibration.\*\* Baseline car reached \*\*16.70 m/s = 60.1
+&#x20; km/h\*\* (its own maxSpeed, above the road's 50 km/h limit, since SUMO's default
+&#x20; speedFactor spread allows ~1.2x) — a highway desired speed on a 300m-spaced
+&#x20; signalised arterial. Demo, observed mean\_moving / p85 / max in \*\*km/h\*\*:
+&#x20; bike \*\*30.9 / 37.0 / 39.6\*\*, auto \*\*27.8 / 33.0 / 34.2\*\*,
+&#x20; car \*\*33.1 / 43.1 / 45.0\*\*, truck \*\*28.0 / 35.4 / 36.0\*\*,
+&#x20; ambulance \*\*38.9 / 48.6 / 53.2\*\*. \*\*`DEFAULT_SPEED_MPS` (13.89 m/s) in
+&#x20; `generate_corridor.py` is NOT touched\*\* — changing it would require
+&#x20; regenerating all 27 networks, including the ones every checkpoint trained on.
+&#x20; \*\*Item 5, spawn variety — TOO PATTERNED, reported not fixed.\*\*
+&#x20; `write_route_file` uses `<flow vehsPerHour=...>`, which SUMO inserts
+&#x20; \*\*equally spaced\*\*. Measured: every cross route has gap \*\*exactly 6.000s,
+&#x20; stdev 0.0000, ONE distinct gap value\*\*; corridor routes alternate 3.0/4.0s
+&#x20; (3600/1000 = 3.6s rounded to the 1s step). Within-episode variety today is
+&#x20; only `departLane="random"` + the vType draw. The fix, if wanted, is
+&#x20; `probability=` (Bernoulli/Poisson-ish) instead of `vehsPerHour=`, and/or
+&#x20; randomised `departPos`. \*\*NOT changed\*\* — it would alter the scenario draw
+&#x20; that every recorded number depends on. Cross-run reproducibility is
+&#x20; unaffected either way and is a feature.
+
+\- \*\*ITEM 3 — "the signals switch too fast" DISENTANGLED (2026-08-31,
+&#x20; measurement only; Stage 4 timing NOT touched).\*\* Three separate things:
+&#x20; \*\*(a) GUI `--delay` is cosmetic, zero effect on anything measured.\*\* It is a
+&#x20; `sumo-gui` wall-clock sleep between rendered steps and does not enter the
+&#x20; simulation. Proof: the headless runs carry no delay concept at all and
+&#x20; reproduce Stage 4's recorded row bit-for-bit. At `--delay 120` a 15s green is
+&#x20; 1.8 wall-seconds; at `--delay 300` it is 4.5. That alone explains most of the
+&#x20; "fast" impression.
+&#x20; \*\*(b) Vehicle speed does NOT meaningfully change actual durations.\*\* Measured
+&#x20; A/B, same checkpoint/corridor/seed, baseline vs demo driving: median
+&#x20; slot-interval \*\*15.0s in BOTH\*\*, mean 19.88 -> 20.58s, p75 25.0 both, arrived
+&#x20; \*\*4668 in both\*\*. So faster/denser traffic changes the LOOK (more motion per
+&#x20; phase), not the cadence.
+&#x20; \*\*(c) THE REAL NUMBER, Stage 4 @153,600 on (4,3,2) seed 7, 465 phase changes
+&#x20; over a 3145s episode:\*\* slot-to-slot interval \*\*min 15.0s, p25 15.0, median
+&#x20; 15.0, p75 25.0, p90 25.0, max 50.0, mean 19.88s\*\*; per junction J1 20.03 /
+&#x20; J2 19.69 / J3 19.94; ~150-159 switches each. \*\*This interval INCLUDES the
+&#x20; ~3s yellow\*\* (it is measured green-slot-to-green-slot), so effective green is
+&#x20; ~12s and ~22s — a bimodal 15/25 pattern giving a ~40s cycle per junction.
+&#x20; Constants that shape it: `DECISION_INTERVAL_S=5.0`, `MIN_GREEN_S=10.0`.
+&#x20; \*\*So "fast" is mostly playback, but ~12s effective green is genuinely short
+&#x20; for an urban arterial — both are true, say both.\*\* Command:
+&#x20; `measure_phases.py` (`sim/mixed_traffic/`), `--demo` for the demo-driving arm.
+&#x20; \*\*Stage 4's decision timing is LOCKED (§2/§16) and was not modified.\*\*
+
+\- \*\*`docs/MIXED_TRAFFIC_RESEARCH.md` is the evidence base for the demo driving
+&#x20; model — read it before retuning `vehicle_types_demo.add.xml` (added
+&#x20; 2026-08-31).\*\* It separates, explicitly and by section, three things this
+&#x20; project must not let blur together: \*\*§1 SOURCED\*\* findings from Indian
+&#x20; traffic-engineering literature (relayed second-hand in the refinement brief,
+&#x20; \*\*not\*\* retrieved or verified here — directional evidence, never quotable as
+&#x20; something PsychoFlow measured); \*\*§2 REASONED DEFAULTS\*\* (the tier split
+&#x20; ratios and every parameter value — engineering starting points, \*\*no sourced
+&#x20; proportion anywhere in that section\*\*); and \*\*§3 MEASURED IN THIS REPO\*\*
+&#x20; (the only numbers that are ours, each with its harness and raw-data path).
+&#x20; Four things in it are load-bearing beyond the tuning: \*\*(a)\*\* item 2 is
+&#x20; SETTLED and the overtake-logic worry is CLOSED — `lcSpeedGain` is correctly
+&#x20; speed-gated at BOTH the wish level (rate 0.0100 -> 0.2737, a 27.4x span) and
+&#x20; the outcome level (\*\*exactly ZERO passes\*\* where the leader is already at or
+&#x20; above the follower's desired speed). \*\*An earlier reading in this same file
+&#x20; said execution was ungated; it is WITHDRAWN\*\* — that came from bucketing each
+&#x20; pass by the delta at relationship OPEN, and a `≤0` relationship runs 16-17s
+&#x20; median while the leader slows. \*\*Bucket outcomes at the PASS INSTANT, never
+&#x20; at open.\*\* What IS real is VOLUME: the demo completes ~2x the baseline's
+&#x20; passes (1527 vs 818), which is what reads as constant overtaking on screen.
+&#x20; \*\*(b)\*\* §4's structural consequence — `getTypeID()` returns the
+&#x20; CONCRETE sub-type (`bike.normal`), so `perception/lane_sensor.py`'s
+&#x20; `VEHICLE_TYPES` match silently zeroes `type_composition` (obs
+&#x20; `LF_TYPE_START+0..4`) for every tiered type. Ambulance is single-type so §10
+&#x20; is unaffected; the fix is a base-name resolution that is inert on the default
+&#x20; file. \*\*(c)\*\* §4b — a SECOND silent breakage the same audit found:
+&#x20; `traci.vehicletype.getTau("bike")`/`setTau` do NOT raise on a distribution id,
+&#x20; they resolve to \*\*one RANDOMLY SAMPLED member\*\* (measured: a read hit
+&#x20; `bike.aggressive`, the next write hit `bike.normal`, 1 of 3 tiers reached), so
+&#x20; `perception/weather.py` would have made §7.4 ~1/3 true, silently and
+&#x20; non-reproducibly. Fixed via `WeatherModel._resolve_members()`. \*\*Never address
+&#x20; a vType by base name under the demo model — resolve to concrete members.\*\*
+&#x20; \*\*(d)\*\* §2.4 — `tau` MUST be >= `STEP_LENGTH_S` (1.0); every tier now
+&#x20; complies and SUMO's load warning is gone.
+&#x20; Harnesses (all now in `sim/mixed_traffic/`): `measure_overtake.py` (items 2/3),
+&#x20; `verify_perception_fixes.py` (the BEFORE/AFTER type_composition evidence),
+&#x20; `probe_dist.py` / `probe_weather_propagation.py` (the two SUMO-semantics
+&#x20; probes) — all standalone raw SUMO, no env, no checkpoint.
+&#x20; \*\*The baseline arm is a real control, not decoration\*\*: LC2013 has no
+&#x20; sublane, so its strict lane-sharing share MUST read 0.00%, and that is what
+&#x20; caught a same-edge-vs-same-lane bug in the first classifier.
+&#x20; \*\*STEP 1's recorded baseline does NOT reproduce bit-for-bit\*\* (1868 vehicles
+&#x20; vs its recorded 1870; `bike_over_car` 5.61% vs 4.17%), so its recorded
+&#x20; \*\*37.13%\*\* demo figure is NOT a valid comparator — re-run STEP 1's own table
+&#x20; on the same route file instead, as §6 does.
+
+\- \*\*PHASE 10 BEHAVIOR SPEC — what the frontend must know, so it is not
+&#x20; re-derived during the event (recorded 2026-08-31).\*\*
+&#x20; \*\*1. Vehicles do NOT stay in arrival order. Render actual position every
+&#x20; frame; never infer order from arrival.\*\* Measured (above): a bike that
+&#x20; arrives later reaches the stop line ahead of an earlier car \*\*31.7%\*\* of the
+&#x20; time on the SHIPPED TIERED model (5.6% on the lane-disciplined baseline
+&#x20; control), and bike mean advancement is \*\*+1.717\*\* queue places against the
+&#x20; baseline's \*\*−1.699\*\*, i.e. the ordering INVERTS. \*\*(Corrected 2026-09-02:
+&#x20; this line previously read 37.1% / 4.2% / +1.949, which are STEP 1's untiered
+&#x20; arm measured on a route file that does not reproduce. The conclusion is
+&#x20; unchanged and if anything the per-tier spread makes it stronger — see the
+&#x20; next sentence.)\*\* Per tier the effect separates further —
+&#x20; bike.aggressive \*\*+2.500\*\*, bike.normal \*\*+1.462\*\*, bike.cautious
+&#x20; \*\*+0.889\*\* — so not all bikes behave alike and a renderer that treats them
+&#x20; as one class loses visible detail.
+&#x20; A frontend that draws a queue as an arrival-ordered list \*\*will be visibly
+&#x20; wrong\*\*, most obviously for bikes and autos. Vehicles also have a continuous
+&#x20; LATERAL offset within a lane and may straddle a lane boundary or sit
+&#x20; two-abreast — position is `(x, y)`, not `(lane, index)`.
+&#x20; \*\*2. Speed ranges for animation sanity-checks (km/h, mean\_moving / p85 /
+&#x20; max):\*\* bike 30.9 / 37.0 / 39.6 · auto 27.8 / 33.0 / 34.2 · car 33.1 / 43.1 /
+&#x20; 45.0 · truck 28.0 / 35.4 / 36.0 · ambulance 38.9 / 48.6 / 53.2. If rendered
+&#x20; motion implies something far outside these, the animation timing is wrong,
+&#x20; not the sim.
+&#x20; \*\*3. Signal phase durations:\*\* expect a switch every \*\*15-25s of SIM time\*\*
+&#x20; (median 15, mean ~20, occasional 30-50), ~40s cycle per junction, ~3s yellow
+&#x20; inside each interval. A judge asking "why did it just switch?" is asking
+&#x20; about a real 15-25s number, and §12.1's `decision.reason` on that frame is
+&#x20; the answer. Note SIM time != wall time — pacing is `realtime_factor`.
+&#x20; \*\*4. The frontend NEVER simulates or approximates any of this.\*\* Every value
+&#x20; above arrives as live TraCI-derived state on the §13.2 WebSocket frame, every
+&#x20; frame, already computed correctly by the backend. Render what is on the
+&#x20; frame; do not interpolate physics, re-order queues, or infer signal state.
+&#x20; \*\*5. Positions are in the netconvert-shifted frame\*\* (J1 is at (150,150), not
+&#x20; the authored (0,0)) — read coordinates from the net file, never from
+&#x20; `generate_corridor.py`'s parameters. See the existing standing rule above.
+&#x20; \*\*6. AGGRESSIVENESS TIERS EXIST IN THE DATA — optional for Phase 10, not
+&#x20; required (added 2026-08-31 with the STEP 1 refinement).\*\* Under demo driving
+&#x20; the vehicle types are `bike.cautious` / `bike.normal` / `bike.aggressive`,
+&#x20; `auto.{cautious,normal,aggressive}`, `car.{normal,aggressive}`, plus untiered
+&#x20; `truck` / `ambulance`. \*\*The §13.2 frame does NOT carry the tier today\*\* —
+&#x20; §7.1's `type_composition` is keyed by BASE type (`bike`, `auto`, …) and stays
+&#x20; that way, because the observation schema (§9.2's `LF_TYPE_START+0..4`) is
+&#x20; locked to five types. If the frontend ever wants to distinguish them visually
+&#x20; (a faster, more weaving bike reading as a different sprite), the tier is
+&#x20; available from `traci.vehicle.getTypeID()` and would need a new ADDITIVE
+&#x20; frame field — do not repurpose `type_composition` for it. Per-tier behaviour
+&#x20; is genuinely distinguishable on screen: measured mean queue advancement is
+&#x20; bike.aggressive \*\*2.500\*\* / bike.normal \*\*1.462\*\* / bike.cautious
+&#x20; \*\*0.889\*\*, and mean moving speed 31.3 / 29.3 / 27.5 km/h.
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops
@@ -1671,4 +2056,400 @@ the same session — don't leave it only in your response to the user.
 This file staying accurate is what makes the next session fast instead
 
 of a re-discovery exercise.
+
+
+\---
+
+
+
+\## 10. WHAT A FRESH SESSION CANNOT VERIFY — HUMAN OR EXTERNAL ACTION REQUIRED
+
+
+
+Everything in this section is \*\*outside what any Claude Code session can
+
+check\*\*, no matter how much time it spends. A session that reports these as
+
+"done", "confirmed" or "verified" is wrong by construction — it has no
+
+instrument that reaches them. Do not run a test and infer any of them; do not
+
+soften them into "should be fine"; hand them to the human and say plainly that
+
+they are unverified.
+
+
+
+\- \*\*THE SUMO GUI WATCH for the mixed-traffic driving model. This is the
+
+&#x20; single blocking item on the whole project.\*\* STEP 1 and its refinement share
+
+&#x20; ONE combined done-bar, and it is not closed until a \*\*human\*\* has watched
+
+&#x20; `sumo-gui`, coloured by vehicle type, and confirmed that the behaviour
+
+&#x20; \*looks\* right: bikes and autos genuinely filtering to the queue front rather
+
+&#x20; than sitting in arrival order; the three aggressiveness tiers visibly
+
+&#x20; differing within a single type; vehicles straddling lane boundaries and
+
+&#x20; sitting two-abreast without looking broken; overtakes happening when the
+
+&#x20; leader is actually slower rather than constantly; and nothing that reads as
+
+&#x20; a glitch (jitter, vehicles inside one another, a truck stuck sideways).
+
+&#x20; \*\*No test suite substitutes for this and none ever will.\*\* Every number in
+
+&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md` §3/§6 is a summary statistic; the failure
+
+&#x20; modes that matter here are visual, and this project has already recorded
+
+&#x20; five instances of a measurement that passed while proving nothing. The
+
+&#x20; \*\*GUI watch is precisely the check that cannot be gamed that way\*\*, which is
+
+&#x20; why it is the done-bar rather than a table. The launch command is in §11.
+
+
+
+\- \*\*Kannada voice recognition — cannot be tested headlessly, at all.\*\* It needs
+
+&#x20; three things no session has: a \*\*live browser\*\* (the Web Speech API exists
+
+&#x20; only in a real browser context — there is no CLI or Python entry point to
+
+&#x20; it), a \*\*real microphone\*\* capturing real audio, and a \*\*human Kannada
+
+&#x20; speaker\*\* to judge whether the transcription is actually right. A session
+
+&#x20; can build the pipeline and can verify that a given TEXT string parses to the
+
+&#x20; correct intent; it \*\*cannot\*\* verify that spoken Kannada becomes that text.
+
+&#x20; Note also §2's standing correction: browser STT is \*\*not local\*\* — in Chrome
+
+&#x20; it streams audio to Google's speech service — so Kannada support is a
+
+&#x20; property of \*that service\*, not of anything in this repo, and cannot be
+
+&#x20; fixed here if it turns out to be poor. Test it early with the actual mic in
+
+&#x20; an actually-noisy room (§20 already requires this for the four English
+
+&#x20; commands); if Kannada recognition is unreliable, the fallback options are
+
+&#x20; the optional local-Whisper path (§14) or demoing in English — both are
+
+&#x20; \*\*human decisions\*\*, not something to be silently chosen in code.
+
+
+
+\- \*\*Whether the hackathon's rules actually require Phase 10-12 code to be
+
+&#x20; written live during the 48-hour event.\*\* The entire "reserve Phase 10/11/12
+
+&#x20; for the event" plan rests on this, and \*\*it was never confirmed against the
+
+&#x20; real event rules — it was assumed.\*\* Nobody has checked whether the
+
+&#x20; organisers timestamp-check commits, require a fresh repo, allow
+
+&#x20; pre-existing work with disclosure, or say nothing at all. These lead to
+
+&#x20; materially different strategies: if pre-built work is allowed, building
+
+&#x20; Phase 10 now is strictly better than building it under time pressure; if
+
+&#x20; commits are timestamp-checked, the current discipline is correct and
+
+&#x20; necessary. \*\*Read the actual rules before the event and record the answer
+
+&#x20; here.\*\* Until then this is a self-imposed discipline that may be costing
+
+&#x20; real preparation time for no required reason.
+
+
+
+\- \*\*The demo laptop's actual hardware — RAM and VRAM — under the real
+
+&#x20; simultaneous load.\*\* Phase 11 runs a local Gemma model via Ollama at the
+
+&#x20; same time as SUMO, the FastAPI backend and a React frontend, all on one
+
+&#x20; machine, live in front of judges. This was \*\*measured once, on one
+
+&#x20; machine\*\*, and it has never been confirmed that machine \*\*is the actual demo
+
+&#x20; machine\*\*. Two separate things to check, both human: (1) which physical
+
+&#x20; laptop is being used on the day, and (2) the four processes running
+
+&#x20; together on it — not benchmarked one at a time, which is the measurement
+
+&#x20; that would pass while proving nothing. If the demo machine differs from the
+
+&#x20; one measured, the numbers do not transfer. Note also that this repo's
+
+&#x20; recorded training numbers are CPU-bound SUMO figures and say nothing about
+
+&#x20; the voice model's memory footprint.
+
+
+
+\- \*\*Anything about team logistics, the 5-person task assignments, or event-day
+
+&#x20; scheduling.\*\* Who is building what, who is presenting which beat, when
+
+&#x20; rehearsals happen, submission deadlines and format, travel and setup time,
+
+&#x20; who has the backup video — \*\*no code session can know or verify any of
+
+&#x20; this\*\*, and none of it is derivable from the repo. It is not recorded here
+
+&#x20; and should not be guessed at. If a session is asked "are we ready?", the
+
+&#x20; honest answer covers the code only, and must say so.
+
+
+
+\## 11. PENDING WORK — split by WHEN, deliberately
+
+
+
+Two lists. The split is the point: the first is small, finishable now, and
+
+mostly unblocking; the second is the actual build and is reserved (see §10's
+
+third bullet — that reservation is an assumption, not a confirmed rule).
+
+
+
+\### 11.1 PENDING — SHOULD BE DONE BEFORE THE EVENT
+
+
+
+\- \*\*THE HUMAN GUI WATCH AND SIGN-OFF (§10, blocking).\*\* Launch:
+
+
+
+&#x20;   `venv/Scripts/python.exe sim/run_demo_gui.py`
+
+
+
+&#x20;   Or by hand, if that harness is unavailable:
+
+
+
+&#x20;   `sumo-gui -n sim/networks/generated/corridor_432.net.xml -a sim/networks/vehicle_types_demo.add.xml -r <routes> --lateral-resolution 0.4 --collision.action warn --collision.mingap-factor 0 --step-length 1.0 --seed 7 --waiting-time-memory 1000 --time-to-teleport 600 --end 1200 --quit-on-end false --delay 250 -g sim/networks/demo_gui_settings.xml`
+
+
+
+&#x20;   \*\*`--end` plus `--quit-on-end false` is the already-diagnosed fix\*\* for the
+
+&#x20;   window closing before it can be watched — without both, sumo-gui exits at
+
+&#x20;   the end of the run and the watch is lost. \*\*Colour-by-type must be on\*\*
+
+&#x20;   (the settings file sets it; if it is missing, set it manually as the very
+
+&#x20;   first action: View Settings -> Vehicles -> Color by "type"). Two decisions
+
+&#x20;   ride on this watch besides the pass/fail: whether the `bike_over_car`
+
+&#x20;   36.29% -> 31.73% drop is accepted, and whether bike lane-sharing at 51.38%
+
+&#x20;   against a ~62% target is close enough.
+
+
+
+\- \*\*COMMIT the mixed-traffic work, immediately after the watch passes.\*\* 8
+
+&#x20; modified tracked files + 2 untracked, listed in the CURRENT STATUS bullet.
+
+&#x20; \*\*A fresh clone, a `git checkout .` or a `git stash` destroys all of it\*\*,
+
+&#x20; including `docs/MIXED_TRAFFIC_RESEARCH.md`, which is the only record of why
+
+&#x20; any parameter in the demo vType file has the value it has. This is the
+
+&#x20; highest-consequence, lowest-effort item on either list.
+
+
+
+\- \*\*DONE 2026-09-02 — the mixed-traffic harnesses are now IN THE REPO at
+
+&#x20; `sim/mixed_traffic/`.\*\* They previously lived only in a session-scoped OS
+
+&#x20; temp scratchpad, which put the entire evidence base for
+
+&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md` §3/§6 one directory-clear away from being
+
+&#x20; unreproducible. Relocated: 15 scripts, the \*\*pinned `measure.rou.xml`\*\*
+
+&#x20; every §6 arm shares (the thing that makes §6 internally controlled), the
+
+&#x20; four comparison-arm vType tables §6.1's columns need, the two probe
+
+&#x20; fixtures, and 9 raw-result JSONs under `data/`.
+
+&#x20; \*\*`sim/mixed_traffic/README.md`\*\* maps each script to the research section
+
+&#x20; that cites it, and records the two conventions they must keep.
+
+&#x20; Each script's hardcoded absolute repo path became
+
+&#x20; `Path(__file__).resolve().parents[2]`; `check_fix.py` gained the
+
+&#x20; `require_free()` beacon guard it was missing (it launches SUMO and had no
+
+&#x20; `__main__` guard at all); `verify_argv.py` and `inspect_geometry.py`
+
+&#x20; deliberately keep NO guard — they start no SUMO — and gained the NOTE
+
+&#x20; block saying so, matching `stage4_contamination.py`'s precedent.
+
+&#x20; \*\*Verified FROM THE NEW LOCATION, not assumed:\*\* `py_compile` on all 15;
+
+&#x20; `verify_argv.py` -> ALL CHECKS PASS (default argv byte-identical to HEAD,
+
+&#x20; 18 tokens); `probe_dist.py` -> nested distribution resolves, bike share
+
+&#x20; 0.140 vs the 0.15 target; `probe_weather_propagation.py` -> reproduces the
+
+&#x20; 1-of-3-tiers finding; `verify_perception_fixes.py` -> default-file
+
+&#x20; inertness control identical on every row (18/37/64/13/0);
+
+&#x20; `probe_collisions.py` -> 0 collision events; `check_fix.py` ->
+
+&#x20; `arrived=1737 collision_events=0`, matching §6.6's recorded post-fix
+
+&#x20; figures exactly.
+
+
+
+
+\- \*\*Resolve the STEP 1 baseline non-reproducibility (minor, open).\*\* STEP 1's
+
+&#x20; recorded baseline does not reproduce bit-for-bit — 1868 vehicles against its
+
+&#x20; recorded 1870, `bike_over_car` 5.61% against 4.17% — so the route file the
+
+&#x20; refinement session generated is not byte-identical to STEP 1's, and STEP 1's
+
+&#x20; recorded \*\*37.13%\*\* demo figure is \*\*not a valid comparator\*\*. Already
+
+&#x20; handled correctly (the refinement re-ran STEP 1's own table on its own route
+
+&#x20; file, so every §6 number is same-route-file and internally controlled), and
+
+&#x20; `flows_end_s` has been tested and ruled out. \*\*This affects no conclusion\*\*
+
+&#x20; — it is a harness-trust loose end. Fix by pinning the route file itself
+
+&#x20; alongside the harnesses in the item above.
+
+
+
+\- \*\*Optional, non-blocking:\*\* evaluate the D1 checkpoint
+
+&#x20; (`training/checkpoints/stage5_graph_attention_d1/`, trained to 156,624 and
+
+&#x20; never evaluated) via `python -m training.scripts.checkpoint_bakeoff` — it is
+
+&#x20; the only outstanding test of the data-diversity hypothesis for the post-51k
+
+&#x20; collapse. \*\*It cannot change the deployment decision unless it wins the
+
+&#x20; bake-off outright\*\*, so it is a curiosity, not a dependency. Also optional:
+
+&#x20; delete the redundant `backend-security-hardening` branch ref.
+
+
+
+\- \*\*Rehearsal items already in §20 of the master plan\*\* — voice with real
+
+&#x20; background noise, the Greedy/PsychoFlow toggle and emergency override run
+
+&#x20; live multiple times, the backup demo video, and everyone able to state out
+
+&#x20; loud what is rule-based vs RL-learned vs simulated-mock. Several of these
+
+&#x20; depend on Phase 10/11/12 existing and so realistically happen at the event.
+
+
+
+\### 11.2 PENDING — TO BE DONE DURING THE EVENT
+
+
+
+\- \*\*Phase 10 — Frontend (§18.10).\*\* Intersection view, metrics panel, decision
+
+&#x20; log, voice panel, Greedy/PsychoFlow toggle. \*\*Read the "PHASE 10 BEHAVIOR
+
+&#x20; SPEC" bullet in §8 and `docs/MIXED_TRAFFIC_RESEARCH.md` before writing any
+
+&#x20; of it\*\* — rendering the heterogeneous traffic authentically is a real
+
+&#x20; constraint, not a polish item: vehicles do \*\*not\*\* stay in arrival order
+
+&#x20; (a bike beats an earlier car to the stop line 37.1% of the time), position
+
+&#x20; is `(x, y)` with a continuous lateral offset rather than `(lane, index)`,
+
+&#x20; and coordinates are in the netconvert-shifted frame. A frontend that draws
+
+&#x20; a queue as an arrival-ordered list \*\*will be visibly wrong on stage.\*\* The
+
+&#x20; frontend never simulates or approximates any of this — every value arrives
+
+&#x20; on the §13.2 frame already computed.
+
+
+
+\- \*\*Phase 11 — the actual voice pipeline (§18.11, §14).\*\* Design is approved
+
+&#x20; and recorded (see CURRENT STATUS and the APPROVED VOICE DESIGN bullet);
+
+&#x20; what is unbuilt is `backend/voice/stt.py` and
+
+&#x20; `backend/voice/intent_agent.py` plus the frontend panel. Build it against
+
+&#x20; `control_api.dispatch()` from the first line — that allowlist \*\*is\*\* the
+
+&#x20; safety argument. Reconcile the 0-based vs 1-based lane numbering explicitly.
+
+&#x20; Sanity-check the lost benchmark numbers rather than trusting or re-deriving
+
+&#x20; them.
+
+
+
+\- \*\*Phase 12 — Evaluation suite (§18.12, §15).\*\* The \*\*Greedy baseline\*\*
+
+&#x20; (currently stubbed — this is §19's strongest beat, so it needs real
+
+&#x20; rehearsal runway, not a last-hour build), the \*\*held-out evaluation\*\*
+
+&#x20; consuming the already-built `evaluation/heldout.py` (§15.4 requires
+
+&#x20; programmatic disjointness assertion, not inspection), emissions (§15.3),
+
+&#x20; and \*\*STEP 2's signal-violation detector if time allows\*\* — deferred to here
+
+&#x20; deliberately, because it has nowhere to render until Phase 10 exists.
+
+
+
+\- \*\*Y-merge (§3, Tier 2) — ONLY if everything above is done with real time to
+
+&#x20; spare.\*\* This is a locked decision (§2), not a judgement call: do not write,
+
+&#x20; extend or "quickly fix" Y-merge code before Tiers 0/1/1.5/3 are all built
+
+&#x20; and demo-rehearsed. It maps to no bullet in the problem statement and buys
+
+&#x20; nothing against the rubric.
 

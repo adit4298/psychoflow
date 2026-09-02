@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<routes>
+    <vTypeDistribution id="mixed" vTypes="bike auto car truck" probabilities="0.15 0.25 0.5 0.1"/>
+    <route id="r_we" edges="W1_J1 J1_J2 J2_J3 J3_E3"/>
+    <route id="r_ns1" edges="N1_J1 J1_S1"/>
+    <flow id="f_we" type="mixed" route="r_we" begin="0" end="600" vehsPerHour="1000" departLane="random" departSpeed="max"/>
+    <flow id="f_ns1" type="mixed" route="r_ns1" begin="0" end="600" vehsPerHour="600" departLane="random" departSpeed="max"/>
+</routes>

@@ -36,6 +36,32 @@ DEFAULT_STARVATION_THRESHOLD_S = 90.0
 WAITING_TIME_MEMORY_S = 1000
 
 
+def base_vtype(type_id: str) -> str:
+    """Resolve a live SUMO vType id back to one of VEHICLE_TYPES.
+
+    Two suffixes have to come off, and they are different mechanisms:
+
+    "@"  SUMO appends "@<vehicle id>" when a vehicle has been given a
+         singular (per-vehicle modified) type — e.g. "car@veh_12".
+
+    "."  The DEMO-ONLY driving model (sim/networks/vehicle_types_demo.add.xml)
+         declares `bike`/`auto`/`car` as <vTypeDistribution>s of aggressiveness
+         tiers, so getTypeID() returns the CONCRETE MEMBER — "bike.normal",
+         never "bike". Measured on SUMO 1.27.1, not assumed.
+
+         Without this, every tiered vehicle fell through to `unknown_types`
+         and contributed ZERO to type_composition, which feeds §9.2's
+         observation features LF_TYPE_START+0..4. The policy would have run
+         the demo on silently-zeroed type channels with nothing raising —
+         this repo's named failure mode. See docs/MIXED_TRAFFIC_RESEARCH.md §4.
+
+    INERT on the default file: sim/networks/vehicle_types.add.xml contains no
+    dotted ids, so no training or evaluation path can observe a difference and
+    no recorded number moves.
+    """
+    return type_id.split("@")[0].split(".")[0]
+
+
 @dataclass
 class LaneReading:
     """One lane, one simulation step — the §7.1 contract.
@@ -79,9 +105,7 @@ class LaneSensor:
         max_single_wait = 0.0
 
         for vehicle_id in vehicle_ids:
-            # SUMO appends "@..." to the type id when a vehicle has been given
-            # a singular (per-vehicle modified) type; strip it back to the base.
-            type_id = traci.vehicle.getTypeID(vehicle_id).split("@")[0]
+            type_id = base_vtype(traci.vehicle.getTypeID(vehicle_id))
             if type_id in composition:
                 composition[type_id] += 1
             else:

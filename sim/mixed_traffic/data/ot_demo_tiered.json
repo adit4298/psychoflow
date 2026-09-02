@@ -1,0 +1,1402 @@
+{
+  "label": "demo_tiered",
+  "vtypes": "sim/networks/vehicle_types_demo.add.xml",
+  "routes": "C:/Users/aditp/AppData/Local/Temp/claude/C--Users-aditp-OneDrive-Documents-GitHub-Test/9585f3f5-abfb-4ddf-a20a-bcd43708b378/scratchpad/measure.rou.xml",
+  "lateral_resolution": 0.4,
+  "seconds": 1200,
+  "total_vehicles_seen": 1868,
+  "collisions_distinct_vehicles": 2,
+  "collision_rate_pct": 0.107,
+  "tiers_observed": [
+    "auto.aggressive",
+    "auto.cautious",
+    "auto.normal",
+    "bike.aggressive",
+    "bike.cautious",
+    "bike.normal",
+    "car.aggressive",
+    "car.normal"
+  ],
+  "n_passes": 1527,
+  "n_aborted_relationships": 5416,
+  "item2_mechanism_speedgain_by_delta": {
+    "MOVING_ALL": {
+      "<=0": {
+        "follower_steps": 8475,
+        "speedgain_wish": 85,
+        "speedgain_rate": 0.01,
+        "any_lc_wish_rate": 0.1093,
+        "blocked_rate": 0.0354
+      },
+      "0-1": {
+        "follower_steps": 12419,
+        "speedgain_wish": 391,
+        "speedgain_rate": 0.0315,
+        "any_lc_wish_rate": 0.1486,
+        "blocked_rate": 0.0507
+      },
+      "1-2": {
+        "follower_steps": 4754,
+        "speedgain_wish": 436,
+        "speedgain_rate": 0.0917,
+        "any_lc_wish_rate": 0.1834,
+        "blocked_rate": 0.0759
+      },
+      "2-4": {
+        "follower_steps": 12794,
+        "speedgain_wish": 2328,
+        "speedgain_rate": 0.182,
+        "any_lc_wish_rate": 0.3712,
+        "blocked_rate": 0.2105
+      },
+      "4-6": {
+        "follower_steps": 7382,
+        "speedgain_wish": 1921,
+        "speedgain_rate": 0.2602,
+        "any_lc_wish_rate": 0.4637,
+        "blocked_rate": 0.2559
+      },
+      ">6": {
+        "follower_steps": 17220,
+        "speedgain_wish": 4713,
+        "speedgain_rate": 0.2737,
+        "any_lc_wish_rate": 0.3708,
+        "blocked_rate": 0.1239
+      }
+    },
+    "STOPPED_ALL": {
+      "<=0": {
+        "follower_steps": 2,
+        "speedgain_wish": 1,
+        "speedgain_rate": 0.5,
+        "any_lc_wish_rate": 1.0,
+        "blocked_rate": 0.0
+      },
+      "0-1": {
+        "follower_steps": 4,
+        "speedgain_wish": 1,
+        "speedgain_rate": 0.25,
+        "any_lc_wish_rate": 0.25,
+        "blocked_rate": 0.0
+      },
+      "1-2": {
+        "follower_steps": 4,
+        "speedgain_wish": 2,
+        "speedgain_rate": 0.5,
+        "any_lc_wish_rate": 0.75,
+        "blocked_rate": 0.0
+      },
+      "2-4": {
+        "follower_steps": 13,
+        "speedgain_wish": 7,
+        "speedgain_rate": 0.5385,
+        "any_lc_wish_rate": 0.9231,
+        "blocked_rate": 0.2308
+      },
+      "4-6": {
+        "follower_steps": 86,
+        "speedgain_wish": 38,
+        "speedgain_rate": 0.4419,
+        "any_lc_wish_rate": 0.8605,
+        "blocked_rate": 0.1977
+      },
+      ">6": {
+        "follower_steps": 37617,
+        "speedgain_wish": 9517,
+        "speedgain_rate": 0.253,
+        "any_lc_wish_rate": 0.4991,
+        "blocked_rate": 0.2401
+      }
+    },
+    "POOLED_ALL": {
+      "<=0": {
+        "follower_steps": 8477,
+        "speedgain_wish": 86,
+        "speedgain_rate": 0.0101,
+        "any_lc_wish_rate": 0.1095,
+        "blocked_rate": 0.0354
+      },
+      "0-1": {
+        "follower_steps": 12423,
+        "speedgain_wish": 392,
+        "speedgain_rate": 0.0316,
+        "any_lc_wish_rate": 0.1486,
+        "blocked_rate": 0.0507
+      },
+      "1-2": {
+        "follower_steps": 4758,
+        "speedgain_wish": 438,
+        "speedgain_rate": 0.0921,
+        "any_lc_wish_rate": 0.1839,
+        "blocked_rate": 0.0759
+      },
+      "2-4": {
+        "follower_steps": 12807,
+        "speedgain_wish": 2335,
+        "speedgain_rate": 0.1823,
+        "any_lc_wish_rate": 0.3717,
+        "blocked_rate": 0.2105
+      },
+      "4-6": {
+        "follower_steps": 7468,
+        "speedgain_wish": 1959,
+        "speedgain_rate": 0.2623,
+        "any_lc_wish_rate": 0.4683,
+        "blocked_rate": 0.2552
+      },
+      ">6": {
+        "follower_steps": 54837,
+        "speedgain_wish": 14230,
+        "speedgain_rate": 0.2595,
+        "any_lc_wish_rate": 0.4588,
+        "blocked_rate": 0.2036
+      }
+    },
+    "MOVING_base:bike": {
+      "<=0": {
+        "follower_steps": 2311,
+        "speedgain_wish": 35,
+        "speedgain_rate": 0.0151,
+        "any_lc_wish_rate": 0.0982,
+        "blocked_rate": 0.0247
+      },
+      "0-1": {
+        "follower_steps": 1555,
+        "speedgain_wish": 35,
+        "speedgain_rate": 0.0225,
+        "any_lc_wish_rate": 0.1383,
+        "blocked_rate": 0.0489
+      },
+      "1-2": {
+        "follower_steps": 1613,
+        "speedgain_wish": 162,
+        "speedgain_rate": 0.1004,
+        "any_lc_wish_rate": 0.1476,
+        "blocked_rate": 0.0732
+      },
+      "2-4": {
+        "follower_steps": 1113,
+        "speedgain_wish": 147,
+        "speedgain_rate": 0.1321,
+        "any_lc_wish_rate": 0.2093,
+        "blocked_rate": 0.0845
+      },
+      "4-6": {
+        "follower_steps": 389,
+        "speedgain_wish": 101,
+        "speedgain_rate": 0.2596,
+        "any_lc_wish_rate": 0.347,
+        "blocked_rate": 0.1028
+      },
+      ">6": {
+        "follower_steps": 2619,
+        "speedgain_wish": 688,
+        "speedgain_rate": 0.2627,
+        "any_lc_wish_rate": 0.3372,
+        "blocked_rate": 0.0836
+      }
+    },
+    "MOVING_base:auto": {
+      "<=0": {
+        "follower_steps": 6005,
+        "speedgain_wish": 39,
+        "speedgain_rate": 0.0065,
+        "any_lc_wish_rate": 0.1122,
+        "blocked_rate": 0.0396
+      },
+      "0-1": {
+        "follower_steps": 6798,
+        "speedgain_wish": 99,
+        "speedgain_rate": 0.0146,
+        "any_lc_wish_rate": 0.114,
+        "blocked_rate": 0.0422
+      },
+      "1-2": {
+        "follower_steps": 1576,
+        "speedgain_wish": 101,
+        "speedgain_rate": 0.0641,
+        "any_lc_wish_rate": 0.1453,
+        "blocked_rate": 0.059
+      },
+      "2-4": {
+        "follower_steps": 948,
+        "speedgain_wish": 141,
+        "speedgain_rate": 0.1487,
+        "any_lc_wish_rate": 0.2795,
+        "blocked_rate": 0.0876
+      },
+      "4-6": {
+        "follower_steps": 928,
+        "speedgain_wish": 222,
+        "speedgain_rate": 0.2392,
+        "any_lc_wish_rate": 0.361,
+        "blocked_rate": 0.1013
+      },
+      ">6": {
+        "follower_steps": 5170,
+        "speedgain_wish": 1174,
+        "speedgain_rate": 0.2271,
+        "any_lc_wish_rate": 0.2828,
+        "blocked_rate": 0.0785
+      }
+    },
+    "MOVING_base:car": {
+      "<=0": {
+        "follower_steps": 159,
+        "speedgain_wish": 11,
+        "speedgain_rate": 0.0692,
+        "any_lc_wish_rate": 0.1572,
+        "blocked_rate": 0.0314
+      },
+      "0-1": {
+        "follower_steps": 4066,
+        "speedgain_wish": 257,
+        "speedgain_rate": 0.0632,
+        "any_lc_wish_rate": 0.2103,
+        "blocked_rate": 0.0657
+      },
+      "1-2": {
+        "follower_steps": 1565,
+        "speedgain_wish": 173,
+        "speedgain_rate": 0.1105,
+        "any_lc_wish_rate": 0.2588,
+        "blocked_rate": 0.0958
+      },
+      "2-4": {
+        "follower_steps": 10733,
+        "speedgain_wish": 2040,
+        "speedgain_rate": 0.1901,
+        "any_lc_wish_rate": 0.3961,
+        "blocked_rate": 0.2344
+      },
+      "4-6": {
+        "follower_steps": 6065,
+        "speedgain_wish": 1598,
+        "speedgain_rate": 0.2635,
+        "any_lc_wish_rate": 0.4869,
+        "blocked_rate": 0.2894
+      },
+      ">6": {
+        "follower_steps": 9431,
+        "speedgain_wish": 2851,
+        "speedgain_rate": 0.3023,
+        "any_lc_wish_rate": 0.4284,
+        "blocked_rate": 0.16
+      }
+    },
+    "MOVING_tier:auto.aggressive": {
+      "<=0": {
+        "follower_steps": 1217,
+        "speedgain_wish": 11,
+        "speedgain_rate": 0.009,
+        "any_lc_wish_rate": 0.0238,
+        "blocked_rate": 0.0025
+      },
+      "0-1": {
+        "follower_steps": 1373,
+        "speedgain_wish": 29,
+        "speedgain_rate": 0.0211,
+        "any_lc_wish_rate": 0.0335,
+        "blocked_rate": 0.0109
+      },
+      "1-2": {
+        "follower_steps": 837,
+        "speedgain_wish": 64,
+        "speedgain_rate": 0.0765,
+        "any_lc_wish_rate": 0.0896,
+        "blocked_rate": 0.0478
+      },
+      "2-4": {
+        "follower_steps": 244,
+        "speedgain_wish": 41,
+        "speedgain_rate": 0.168,
+        "any_lc_wish_rate": 0.1885,
+        "blocked_rate": 0.0861
+      },
+      "4-6": {
+        "follower_steps": 232,
+        "speedgain_wish": 60,
+        "speedgain_rate": 0.2586,
+        "any_lc_wish_rate": 0.2931,
+        "blocked_rate": 0.0905
+      },
+      ">6": {
+        "follower_steps": 1383,
+        "speedgain_wish": 298,
+        "speedgain_rate": 0.2155,
+        "any_lc_wish_rate": 0.2386,
+        "blocked_rate": 0.0615
+      }
+    },
+    "MOVING_tier:auto.cautious": {
+      "<=0": {
+        "follower_steps": 2192,
+        "speedgain_wish": 12,
+        "speedgain_rate": 0.0055,
+        "any_lc_wish_rate": 0.2304,
+        "blocked_rate": 0.0867
+      },
+      "0-1": {
+        "follower_steps": 1779,
+        "speedgain_wish": 12,
+        "speedgain_rate": 0.0067,
+        "any_lc_wish_rate": 0.2771,
+        "blocked_rate": 0.1062
+      },
+      "1-2": {
+        "follower_steps": 217,
+        "speedgain_wish": 13,
+        "speedgain_rate": 0.0599,
+        "any_lc_wish_rate": 0.4194,
+        "blocked_rate": 0.1475
+      },
+      "2-4": {
+        "follower_steps": 270,
+        "speedgain_wish": 32,
+        "speedgain_rate": 0.1185,
+        "any_lc_wish_rate": 0.4481,
+        "blocked_rate": 0.137
+      },
+      "4-6": {
+        "follower_steps": 253,
+        "speedgain_wish": 52,
+        "speedgain_rate": 0.2055,
+        "any_lc_wish_rate": 0.5178,
+        "blocked_rate": 0.1107
+      },
+      ">6": {
+        "follower_steps": 1538,
+        "speedgain_wish": 372,
+        "speedgain_rate": 0.2419,
+        "any_lc_wish_rate": 0.3576,
+        "blocked_rate": 0.0988
+      }
+    },
+    "MOVING_tier:auto.normal": {
+      "<=0": {
+        "follower_steps": 2596,
+        "speedgain_wish": 16,
+        "speedgain_rate": 0.0062,
+        "any_lc_wish_rate": 0.0539,
+        "blocked_rate": 0.0173
+      },
+      "0-1": {
+        "follower_steps": 3646,
+        "speedgain_wish": 58,
+        "speedgain_rate": 0.0159,
+        "any_lc_wish_rate": 0.0647,
+        "blocked_rate": 0.0228
+      },
+      "1-2": {
+        "follower_steps": 522,
+        "speedgain_wish": 24,
+        "speedgain_rate": 0.046,
+        "any_lc_wish_rate": 0.1207,
+        "blocked_rate": 0.0402
+      },
+      "2-4": {
+        "follower_steps": 434,
+        "speedgain_wish": 68,
+        "speedgain_rate": 0.1567,
+        "any_lc_wish_rate": 0.2258,
+        "blocked_rate": 0.0576
+      },
+      "4-6": {
+        "follower_steps": 443,
+        "speedgain_wish": 110,
+        "speedgain_rate": 0.2483,
+        "any_lc_wish_rate": 0.307,
+        "blocked_rate": 0.1016
+      },
+      ">6": {
+        "follower_steps": 2249,
+        "speedgain_wish": 504,
+        "speedgain_rate": 0.2241,
+        "any_lc_wish_rate": 0.2588,
+        "blocked_rate": 0.0751
+      }
+    },
+    "MOVING_tier:bike.aggressive": {
+      "<=0": {
+        "follower_steps": 634,
+        "speedgain_wish": 20,
+        "speedgain_rate": 0.0315,
+        "any_lc_wish_rate": 0.0568,
+        "blocked_rate": 0.011
+      },
+      "0-1": {
+        "follower_steps": 235,
+        "speedgain_wish": 7,
+        "speedgain_rate": 0.0298,
+        "any_lc_wish_rate": 0.0468,
+        "blocked_rate": 0.0128
+      },
+      "1-2": {
+        "follower_steps": 600,
+        "speedgain_wish": 31,
+        "speedgain_rate": 0.0517,
+        "any_lc_wish_rate": 0.0783,
+        "blocked_rate": 0.0283
+      },
+      "2-4": {
+        "follower_steps": 637,
+        "speedgain_wish": 59,
+        "speedgain_rate": 0.0926,
+        "any_lc_wish_rate": 0.1334,
+        "blocked_rate": 0.0377
+      },
+      "4-6": {
+        "follower_steps": 110,
+        "speedgain_wish": 32,
+        "speedgain_rate": 0.2909,
+        "any_lc_wish_rate": 0.3091,
+        "blocked_rate": 0.0636
+      },
+      ">6": {
+        "follower_steps": 1109,
+        "speedgain_wish": 278,
+        "speedgain_rate": 0.2507,
+        "any_lc_wish_rate": 0.3003,
+        "blocked_rate": 0.0586
+      }
+    },
+    "MOVING_tier:bike.cautious": {
+      "<=0": {
+        "follower_steps": 694,
+        "speedgain_wish": 5,
+        "speedgain_rate": 0.0072,
+        "any_lc_wish_rate": 0.1988,
+        "blocked_rate": 0.0634
+      },
+      "0-1": {
+        "follower_steps": 581,
+        "speedgain_wish": 9,
+        "speedgain_rate": 0.0155,
+        "any_lc_wish_rate": 0.2892,
+        "blocked_rate": 0.1067
+      },
+      "1-2": {
+        "follower_steps": 153,
+        "speedgain_wish": 8,
+        "speedgain_rate": 0.0523,
+        "any_lc_wish_rate": 0.2549,
+        "blocked_rate": 0.0392
+      },
+      "2-4": {
+        "follower_steps": 98,
+        "speedgain_wish": 15,
+        "speedgain_rate": 0.1531,
+        "any_lc_wish_rate": 0.5,
+        "blocked_rate": 0.1327
+      },
+      "4-6": {
+        "follower_steps": 90,
+        "speedgain_wish": 23,
+        "speedgain_rate": 0.2556,
+        "any_lc_wish_rate": 0.4778,
+        "blocked_rate": 0.1778
+      },
+      ">6": {
+        "follower_steps": 447,
+        "speedgain_wish": 112,
+        "speedgain_rate": 0.2506,
+        "any_lc_wish_rate": 0.4116,
+        "blocked_rate": 0.094
+      }
+    },
+    "MOVING_tier:bike.normal": {
+      "<=0": {
+        "follower_steps": 983,
+        "speedgain_wish": 10,
+        "speedgain_rate": 0.0102,
+        "any_lc_wish_rate": 0.0539,
+        "blocked_rate": 0.0061
+      },
+      "0-1": {
+        "follower_steps": 739,
+        "speedgain_wish": 19,
+        "speedgain_rate": 0.0257,
+        "any_lc_wish_rate": 0.0487,
+        "blocked_rate": 0.0149
+      },
+      "1-2": {
+        "follower_steps": 860,
+        "speedgain_wish": 123,
+        "speedgain_rate": 0.143,
+        "any_lc_wish_rate": 0.1767,
+        "blocked_rate": 0.1105
+      },
+      "2-4": {
+        "follower_steps": 378,
+        "speedgain_wish": 73,
+        "speedgain_rate": 0.1931,
+        "any_lc_wish_rate": 0.2619,
+        "blocked_rate": 0.1508
+      },
+      "4-6": {
+        "follower_steps": 189,
+        "speedgain_wish": 46,
+        "speedgain_rate": 0.2434,
+        "any_lc_wish_rate": 0.3069,
+        "blocked_rate": 0.0899
+      },
+      ">6": {
+        "follower_steps": 1063,
+        "speedgain_wish": 298,
+        "speedgain_rate": 0.2803,
+        "any_lc_wish_rate": 0.3443,
+        "blocked_rate": 0.1054
+      }
+    },
+    "MOVING_tier:car.aggressive": {
+      "<=0": {
+        "follower_steps": 11,
+        "speedgain_wish": 0,
+        "speedgain_rate": 0.0,
+        "any_lc_wish_rate": 0.0,
+        "blocked_rate": 0.0
+      },
+      "0-1": {
+        "follower_steps": 286,
+        "speedgain_wish": 20,
+        "speedgain_rate": 0.0699,
+        "any_lc_wish_rate": 0.0944,
+        "blocked_rate": 0.028
+      },
+      "1-2": {
+        "follower_steps": 269,
+        "speedgain_wish": 33,
+        "speedgain_rate": 0.1227,
+        "any_lc_wish_rate": 0.1859,
+        "blocked_rate": 0.0483
+      },
+      "2-4": {
+        "follower_steps": 708,
+        "speedgain_wish": 161,
+        "speedgain_rate": 0.2274,
+        "any_lc_wish_rate": 0.2698,
+        "blocked_rate": 0.1469
+      },
+      "4-6": {
+        "follower_steps": 1019,
+        "speedgain_wish": 318,
+        "speedgain_rate": 0.3121,
+        "any_lc_wish_rate": 0.3572,
+        "blocked_rate": 0.1982
+      },
+      ">6": {
+        "follower_steps": 969,
+        "speedgain_wish": 307,
+        "speedgain_rate": 0.3168,
+        "any_lc_wish_rate": 0.3849,
+        "blocked_rate": 0.1176
+      }
+    },
+    "MOVING_tier:car.normal": {
+      "<=0": {
+        "follower_steps": 148,
+        "speedgain_wish": 11,
+        "speedgain_rate": 0.0743,
+        "any_lc_wish_rate": 0.1689,
+        "blocked_rate": 0.0338
+      },
+      "0-1": {
+        "follower_steps": 3780,
+        "speedgain_wish": 237,
+        "speedgain_rate": 0.0627,
+        "any_lc_wish_rate": 0.219,
+        "blocked_rate": 0.0685
+      },
+      "1-2": {
+        "follower_steps": 1296,
+        "speedgain_wish": 140,
+        "speedgain_rate": 0.108,
+        "any_lc_wish_rate": 0.2739,
+        "blocked_rate": 0.1057
+      },
+      "2-4": {
+        "follower_steps": 10025,
+        "speedgain_wish": 1879,
+        "speedgain_rate": 0.1874,
+        "any_lc_wish_rate": 0.405,
+        "blocked_rate": 0.2406
+      },
+      "4-6": {
+        "follower_steps": 5046,
+        "speedgain_wish": 1280,
+        "speedgain_rate": 0.2537,
+        "any_lc_wish_rate": 0.5131,
+        "blocked_rate": 0.3078
+      },
+      ">6": {
+        "follower_steps": 8462,
+        "speedgain_wish": 2544,
+        "speedgain_rate": 0.3006,
+        "any_lc_wish_rate": 0.4333,
+        "blocked_rate": 0.1649
+      }
+    }
+  },
+  "item2_outcome_passes_by_delta": {
+    "<=0": {
+      "passes_bucketed_at_OPEN": 167,
+      "passes_bucketed_AT_PASS": 0,
+      "moving_follower_steps": 8475,
+      "passes_per_1k_moving_steps": 19.71,
+      "passes_per_1k_moving_steps_AT_PASS": 0.0,
+      "median_duration_s": 17.0
+    },
+    "0-1": {
+      "passes_bucketed_at_OPEN": 191,
+      "passes_bucketed_AT_PASS": 52,
+      "moving_follower_steps": 12419,
+      "passes_per_1k_moving_steps": 15.38,
+      "passes_per_1k_moving_steps_AT_PASS": 4.19,
+      "median_duration_s": 16.0
+    },
+    "1-2": {
+      "passes_bucketed_at_OPEN": 132,
+      "passes_bucketed_AT_PASS": 43,
+      "moving_follower_steps": 4754,
+      "passes_per_1k_moving_steps": 27.77,
+      "passes_per_1k_moving_steps_AT_PASS": 9.05,
+      "median_duration_s": 15.0
+    },
+    "2-4": {
+      "passes_bucketed_at_OPEN": 381,
+      "passes_bucketed_AT_PASS": 224,
+      "moving_follower_steps": 12794,
+      "passes_per_1k_moving_steps": 29.78,
+      "passes_per_1k_moving_steps_AT_PASS": 17.51,
+      "median_duration_s": 10.0
+    },
+    "4-6": {
+      "passes_bucketed_at_OPEN": 195,
+      "passes_bucketed_AT_PASS": 206,
+      "moving_follower_steps": 7382,
+      "passes_per_1k_moving_steps": 26.42,
+      "passes_per_1k_moving_steps_AT_PASS": 27.91,
+      "median_duration_s": 10.0
+    },
+    ">6": {
+      "passes_bucketed_at_OPEN": 461,
+      "passes_bucketed_AT_PASS": 1002,
+      "moving_follower_steps": 17220,
+      "passes_per_1k_moving_steps": 26.77,
+      "passes_per_1k_moving_steps_AT_PASS": 58.19,
+      "median_duration_s": 7.0
+    }
+  },
+  "item3_sharing_vs_change": {
+    "ALL": {
+      "n_passes": 1527,
+      "lane_sharing": 863,
+      "lane_change": 664,
+      "sharing_pct": 56.52,
+      "change_pct": 43.48,
+      "sharing_pct_strict": 44.27,
+      "median_duration_s": 12.0
+    },
+    "base:bike": {
+      "n_passes": 434,
+      "lane_sharing": 263,
+      "lane_change": 171,
+      "sharing_pct": 60.6,
+      "change_pct": 39.4,
+      "sharing_pct_strict": 51.38,
+      "median_duration_s": 12.0
+    },
+    "base:auto": {
+      "n_passes": 414,
+      "lane_sharing": 218,
+      "lane_change": 196,
+      "sharing_pct": 52.66,
+      "change_pct": 47.34,
+      "sharing_pct_strict": 38.65,
+      "median_duration_s": 14.0
+    },
+    "base:car": {
+      "n_passes": 679,
+      "lane_sharing": 382,
+      "lane_change": 297,
+      "sharing_pct": 56.26,
+      "change_pct": 43.74,
+      "sharing_pct_strict": 43.15,
+      "median_duration_s": 10.0
+    },
+    "tier:auto.aggressive": {
+      "n_passes": 138,
+      "lane_sharing": 61,
+      "lane_change": 77,
+      "sharing_pct": 44.2,
+      "change_pct": 55.8,
+      "sharing_pct_strict": 30.43,
+      "median_duration_s": 14.5
+    },
+    "tier:auto.cautious": {
+      "n_passes": 86,
+      "lane_sharing": 49,
+      "lane_change": 37,
+      "sharing_pct": 56.98,
+      "change_pct": 43.02,
+      "sharing_pct_strict": 43.02,
+      "median_duration_s": 13.5
+    },
+    "tier:auto.normal": {
+      "n_passes": 190,
+      "lane_sharing": 108,
+      "lane_change": 82,
+      "sharing_pct": 56.84,
+      "change_pct": 43.16,
+      "sharing_pct_strict": 42.63,
+      "median_duration_s": 14.5
+    },
+    "tier:bike.aggressive": {
+      "n_passes": 185,
+      "lane_sharing": 110,
+      "lane_change": 75,
+      "sharing_pct": 59.46,
+      "change_pct": 40.54,
+      "sharing_pct_strict": 54.59,
+      "median_duration_s": 12.0
+    },
+    "tier:bike.cautious": {
+      "n_passes": 59,
+      "lane_sharing": 38,
+      "lane_change": 21,
+      "sharing_pct": 64.41,
+      "change_pct": 35.59,
+      "sharing_pct_strict": 52.54,
+      "median_duration_s": 13.0
+    },
+    "tier:bike.normal": {
+      "n_passes": 190,
+      "lane_sharing": 115,
+      "lane_change": 75,
+      "sharing_pct": 60.53,
+      "change_pct": 39.47,
+      "sharing_pct_strict": 47.89,
+      "median_duration_s": 13.0
+    },
+    "tier:car.aggressive": {
+      "n_passes": 92,
+      "lane_sharing": 44,
+      "lane_change": 48,
+      "sharing_pct": 47.83,
+      "change_pct": 52.17,
+      "sharing_pct_strict": 35.87,
+      "median_duration_s": 10.5
+    },
+    "tier:car.normal": {
+      "n_passes": 587,
+      "lane_sharing": 338,
+      "lane_change": 249,
+      "sharing_pct": 57.58,
+      "change_pct": 42.42,
+      "sharing_pct_strict": 44.29,
+      "median_duration_s": 10.0
+    }
+  },
+  "passes_sample": [
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "bike.cautious",
+      "leader_base": "bike",
+      "delta0": 0.669,
+      "delta_bin": "0-1",
+      "delta_at_pass": 9.194,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 18.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": 3.13,
+      "delta_bin": "2-4",
+      "delta_at_pass": 12.965,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 9.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": 12.485,
+      "delta_bin": ">6",
+      "delta_at_pass": 11.49,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 10.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 1.491,
+      "delta_bin": "1-2",
+      "delta_at_pass": 10.489,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 15.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "car.aggressive",
+      "leader_base": "car",
+      "delta0": 10.499,
+      "delta_bin": ">6",
+      "delta_at_pass": 10.483,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 1.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 10.015,
+      "delta_bin": ">6",
+      "delta_at_pass": 9.016,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 1.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 0.431,
+      "delta_bin": "0-1",
+      "delta_at_pass": 12.266,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 17.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.cautious",
+      "follower_base": "auto",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": -2.73,
+      "delta_bin": "<=0",
+      "delta_at_pass": 8.8,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 17.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.aggressive",
+      "follower_base": "auto",
+      "leader_tier": "car.aggressive",
+      "leader_base": "car",
+      "delta0": -2.727,
+      "delta_bin": "<=0",
+      "delta_at_pass": 8.276,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 29.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.normal",
+      "follower_base": "auto",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": -2.184,
+      "delta_bin": "<=0",
+      "delta_at_pass": 9.2,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 16.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 1.289,
+      "delta_bin": "1-2",
+      "delta_at_pass": 12.995,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 12.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 13.0,
+      "delta_bin": ">6",
+      "delta_at_pass": 13.0,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 12.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": -1.483,
+      "delta_bin": "<=0",
+      "delta_at_pass": 10.5,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 15.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.aggressive",
+      "follower_base": "bike",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 2.433,
+      "delta_bin": "2-4",
+      "delta_at_pass": 11.0,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 16.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "bike.aggressive",
+      "follower_base": "bike",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 1.629,
+      "delta_bin": "1-2",
+      "delta_at_pass": 10.999,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 15.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.aggressive",
+      "follower_base": "bike",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 11.0,
+      "delta_bin": ">6",
+      "delta_at_pass": 11.0,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 9.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "auto.cautious",
+      "follower_base": "auto",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 7.894,
+      "delta_bin": ">6",
+      "delta_at_pass": 8.8,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 16.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 3.118,
+      "delta_bin": "2-4",
+      "delta_at_pass": 3.412,
+      "delta_bin_at_pass": "2-4",
+      "duration_s": 9.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": 3.856,
+      "delta_bin": "2-4",
+      "delta_at_pass": 2.756,
+      "delta_bin_at_pass": "2-4",
+      "duration_s": 14.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.cautious",
+      "leader_base": "auto",
+      "delta0": 3.931,
+      "delta_bin": "2-4",
+      "delta_at_pass": 4.116,
+      "delta_bin_at_pass": "4-6",
+      "duration_s": 13.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "bike.cautious",
+      "leader_base": "bike",
+      "delta0": 1.049,
+      "delta_bin": "1-2",
+      "delta_at_pass": 7.027,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 32.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 1.793,
+      "delta_bin": "1-2",
+      "delta_at_pass": 1.886,
+      "delta_bin_at_pass": "1-2",
+      "duration_s": 15.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 4.635,
+      "delta_bin": "4-6",
+      "delta_at_pass": 12.38,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 26.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 4.045,
+      "delta_bin": "4-6",
+      "delta_at_pass": 3.532,
+      "delta_bin_at_pass": "2-4",
+      "duration_s": 10.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.cautious",
+      "leader_base": "auto",
+      "delta0": 12.274,
+      "delta_bin": ">6",
+      "delta_at_pass": 11.233,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 20.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 0.23,
+      "delta_bin": "0-1",
+      "delta_at_pass": 11.011,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 21.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.normal",
+      "follower_base": "auto",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 0.292,
+      "delta_bin": "0-1",
+      "delta_at_pass": 7.134,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 16.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": 3.138,
+      "delta_bin": "2-4",
+      "delta_at_pass": 13.0,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 16.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car.aggressive",
+      "follower_base": "car",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": 12.999,
+      "delta_bin": ">6",
+      "delta_at_pass": 13.0,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 10.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 3.089,
+      "delta_bin": "2-4",
+      "delta_at_pass": 9.705,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 21.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.cautious",
+      "follower_base": "auto",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": -2.924,
+      "delta_bin": "<=0",
+      "delta_at_pass": 8.724,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 13.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.aggressive",
+      "follower_base": "bike",
+      "leader_tier": "car.normal",
+      "leader_base": "car",
+      "delta0": -1.385,
+      "delta_bin": "<=0",
+      "delta_at_pass": 10.141,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 17.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.aggressive",
+      "follower_base": "bike",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 10.141,
+      "delta_bin": ">6",
+      "delta_at_pass": 10.141,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 3.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "auto.aggressive",
+      "follower_base": "auto",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": -0.496,
+      "delta_bin": "<=0",
+      "delta_at_pass": 9.449,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 26.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike.normal",
+      "follower_base": "bike",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 10.497,
+      "delta_bin": ">6",
+      "delta_at_pass": 10.5,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 2.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "auto.normal",
+      "follower_base": "auto",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": -0.44,
+      "delta_bin": "<=0",
+      "delta_at_pass": 9.099,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 32.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.normal",
+      "follower_base": "auto",
+      "leader_tier": "auto.aggressive",
+      "leader_base": "auto",
+      "delta0": 0.809,
+      "delta_bin": "0-1",
+      "delta_at_pass": 8.094,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 28.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto.aggressive",
+      "follower_base": "auto",
+      "leader_tier": "bike.normal",
+      "leader_base": "bike",
+      "delta0": 9.201,
+      "delta_bin": ">6",
+      "delta_at_pass": 9.45,
+      "delta_bin_at_pass": ">6",
+      "duration_s": 2.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 3.333,
+      "delta_bin": "2-4",
+      "delta_at_pass": 3.577,
+      "delta_bin_at_pass": "2-4",
+      "duration_s": 4.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    },
+    {
+      "follower_tier": "car.normal",
+      "follower_base": "car",
+      "leader_tier": "auto.normal",
+      "leader_base": "auto",
+      "delta0": 3.858,
+      "delta_bin": "2-4",
+      "delta_at_pass": 4.271,
+      "delta_bin_at_pass": "4-6",
+      "duration_s": 3.0,
+      "lane_changed": false,
+      "leader_changed_lane": false,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_sharing"
+    }
+  ]
+}

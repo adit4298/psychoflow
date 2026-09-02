@@ -1,0 +1,1020 @@
+{
+  "label": "baseline",
+  "vtypes": "sim/networks/vehicle_types.add.xml",
+  "routes": "C:/Users/aditp/AppData/Local/Temp/claude/C--Users-aditp-OneDrive-Documents-GitHub-Test/9585f3f5-abfb-4ddf-a20a-bcd43708b378/scratchpad/measure.rou.xml",
+  "lateral_resolution": null,
+  "seconds": 1200,
+  "total_vehicles_seen": 1868,
+  "collisions_distinct_vehicles": 0,
+  "collision_rate_pct": 0.0,
+  "tiers_observed": [
+    "auto",
+    "bike",
+    "car"
+  ],
+  "n_passes": 818,
+  "n_aborted_relationships": 4967,
+  "item2_mechanism_speedgain_by_delta": {
+    "MOVING_ALL": {
+      "<=0": {
+        "follower_steps": 10242,
+        "speedgain_wish": 107,
+        "speedgain_rate": 0.0104,
+        "any_lc_wish_rate": 0.0528,
+        "blocked_rate": 0.6337
+      },
+      "0-1": {
+        "follower_steps": 8484,
+        "speedgain_wish": 159,
+        "speedgain_rate": 0.0187,
+        "any_lc_wish_rate": 0.0402,
+        "blocked_rate": 0.6473
+      },
+      "1-2": {
+        "follower_steps": 3722,
+        "speedgain_wish": 156,
+        "speedgain_rate": 0.0419,
+        "any_lc_wish_rate": 0.0621,
+        "blocked_rate": 0.6795
+      },
+      "2-4": {
+        "follower_steps": 7116,
+        "speedgain_wish": 291,
+        "speedgain_rate": 0.0409,
+        "any_lc_wish_rate": 0.0659,
+        "blocked_rate": 0.7128
+      },
+      "4-6": {
+        "follower_steps": 9280,
+        "speedgain_wish": 860,
+        "speedgain_rate": 0.0927,
+        "any_lc_wish_rate": 0.1144,
+        "blocked_rate": 0.7048
+      },
+      ">6": {
+        "follower_steps": 21948,
+        "speedgain_wish": 1489,
+        "speedgain_rate": 0.0678,
+        "any_lc_wish_rate": 0.0834,
+        "blocked_rate": 0.6525
+      }
+    },
+    "STOPPED_ALL": {
+      "1-2": {
+        "follower_steps": 1,
+        "speedgain_wish": 1,
+        "speedgain_rate": 1.0,
+        "any_lc_wish_rate": 1.0,
+        "blocked_rate": 0.0
+      },
+      "2-4": {
+        "follower_steps": 7,
+        "speedgain_wish": 2,
+        "speedgain_rate": 0.2857,
+        "any_lc_wish_rate": 0.2857,
+        "blocked_rate": 0.5714
+      },
+      "4-6": {
+        "follower_steps": 642,
+        "speedgain_wish": 6,
+        "speedgain_rate": 0.0093,
+        "any_lc_wish_rate": 0.0156,
+        "blocked_rate": 0.9891
+      },
+      ">6": {
+        "follower_steps": 34733,
+        "speedgain_wish": 2265,
+        "speedgain_rate": 0.0652,
+        "any_lc_wish_rate": 0.0759,
+        "blocked_rate": 0.976
+      }
+    },
+    "POOLED_ALL": {
+      "<=0": {
+        "follower_steps": 10242,
+        "speedgain_wish": 107,
+        "speedgain_rate": 0.0104,
+        "any_lc_wish_rate": 0.0528,
+        "blocked_rate": 0.6337
+      },
+      "0-1": {
+        "follower_steps": 8484,
+        "speedgain_wish": 159,
+        "speedgain_rate": 0.0187,
+        "any_lc_wish_rate": 0.0402,
+        "blocked_rate": 0.6473
+      },
+      "1-2": {
+        "follower_steps": 3723,
+        "speedgain_wish": 157,
+        "speedgain_rate": 0.0422,
+        "any_lc_wish_rate": 0.0623,
+        "blocked_rate": 0.6793
+      },
+      "2-4": {
+        "follower_steps": 7123,
+        "speedgain_wish": 293,
+        "speedgain_rate": 0.0411,
+        "any_lc_wish_rate": 0.0661,
+        "blocked_rate": 0.7126
+      },
+      "4-6": {
+        "follower_steps": 9922,
+        "speedgain_wish": 866,
+        "speedgain_rate": 0.0873,
+        "any_lc_wish_rate": 0.108,
+        "blocked_rate": 0.7232
+      },
+      ">6": {
+        "follower_steps": 56681,
+        "speedgain_wish": 3754,
+        "speedgain_rate": 0.0662,
+        "any_lc_wish_rate": 0.0788,
+        "blocked_rate": 0.8508
+      }
+    },
+    "MOVING_base:bike": {
+      "<=0": {
+        "follower_steps": 5098,
+        "speedgain_wish": 19,
+        "speedgain_rate": 0.0037,
+        "any_lc_wish_rate": 0.0439,
+        "blocked_rate": 0.6399
+      },
+      "0-1": {
+        "follower_steps": 2922,
+        "speedgain_wish": 65,
+        "speedgain_rate": 0.0222,
+        "any_lc_wish_rate": 0.0346,
+        "blocked_rate": 0.59
+      },
+      "1-2": {
+        "follower_steps": 690,
+        "speedgain_wish": 67,
+        "speedgain_rate": 0.0971,
+        "any_lc_wish_rate": 0.1116,
+        "blocked_rate": 0.6928
+      },
+      "2-4": {
+        "follower_steps": 573,
+        "speedgain_wish": 5,
+        "speedgain_rate": 0.0087,
+        "any_lc_wish_rate": 0.0349,
+        "blocked_rate": 0.6928
+      },
+      "4-6": {
+        "follower_steps": 848,
+        "speedgain_wish": 7,
+        "speedgain_rate": 0.0083,
+        "any_lc_wish_rate": 0.0318,
+        "blocked_rate": 0.579
+      },
+      ">6": {
+        "follower_steps": 2468,
+        "speedgain_wish": 55,
+        "speedgain_rate": 0.0223,
+        "any_lc_wish_rate": 0.0571,
+        "blocked_rate": 0.5255
+      }
+    },
+    "MOVING_base:auto": {
+      "<=0": {
+        "follower_steps": 3400,
+        "speedgain_wish": 42,
+        "speedgain_rate": 0.0124,
+        "any_lc_wish_rate": 0.0579,
+        "blocked_rate": 0.6421
+      },
+      "0-1": {
+        "follower_steps": 4012,
+        "speedgain_wish": 46,
+        "speedgain_rate": 0.0115,
+        "any_lc_wish_rate": 0.0396,
+        "blocked_rate": 0.674
+      },
+      "1-2": {
+        "follower_steps": 868,
+        "speedgain_wish": 20,
+        "speedgain_rate": 0.023,
+        "any_lc_wish_rate": 0.0472,
+        "blocked_rate": 0.6371
+      },
+      "2-4": {
+        "follower_steps": 942,
+        "speedgain_wish": 16,
+        "speedgain_rate": 0.017,
+        "any_lc_wish_rate": 0.0584,
+        "blocked_rate": 0.7113
+      },
+      "4-6": {
+        "follower_steps": 3913,
+        "speedgain_wish": 561,
+        "speedgain_rate": 0.1434,
+        "any_lc_wish_rate": 0.1651,
+        "blocked_rate": 0.7312
+      },
+      ">6": {
+        "follower_steps": 5189,
+        "speedgain_wish": 176,
+        "speedgain_rate": 0.0339,
+        "any_lc_wish_rate": 0.048,
+        "blocked_rate": 0.5677
+      }
+    },
+    "MOVING_base:car": {
+      "<=0": {
+        "follower_steps": 1744,
+        "speedgain_wish": 46,
+        "speedgain_rate": 0.0264,
+        "any_lc_wish_rate": 0.0688,
+        "blocked_rate": 0.5992
+      },
+      "0-1": {
+        "follower_steps": 1550,
+        "speedgain_wish": 48,
+        "speedgain_rate": 0.031,
+        "any_lc_wish_rate": 0.0523,
+        "blocked_rate": 0.6865
+      },
+      "1-2": {
+        "follower_steps": 2164,
+        "speedgain_wish": 69,
+        "speedgain_rate": 0.0319,
+        "any_lc_wish_rate": 0.0522,
+        "blocked_rate": 0.6922
+      },
+      "2-4": {
+        "follower_steps": 5601,
+        "speedgain_wish": 270,
+        "speedgain_rate": 0.0482,
+        "any_lc_wish_rate": 0.0703,
+        "blocked_rate": 0.7151
+      },
+      "4-6": {
+        "follower_steps": 4519,
+        "speedgain_wish": 292,
+        "speedgain_rate": 0.0646,
+        "any_lc_wish_rate": 0.0861,
+        "blocked_rate": 0.7057
+      },
+      ">6": {
+        "follower_steps": 14291,
+        "speedgain_wish": 1258,
+        "speedgain_rate": 0.088,
+        "any_lc_wish_rate": 0.1008,
+        "blocked_rate": 0.7053
+      }
+    },
+    "MOVING_tier:auto": {
+      "<=0": {
+        "follower_steps": 3400,
+        "speedgain_wish": 42,
+        "speedgain_rate": 0.0124,
+        "any_lc_wish_rate": 0.0579,
+        "blocked_rate": 0.6421
+      },
+      "0-1": {
+        "follower_steps": 4012,
+        "speedgain_wish": 46,
+        "speedgain_rate": 0.0115,
+        "any_lc_wish_rate": 0.0396,
+        "blocked_rate": 0.674
+      },
+      "1-2": {
+        "follower_steps": 868,
+        "speedgain_wish": 20,
+        "speedgain_rate": 0.023,
+        "any_lc_wish_rate": 0.0472,
+        "blocked_rate": 0.6371
+      },
+      "2-4": {
+        "follower_steps": 942,
+        "speedgain_wish": 16,
+        "speedgain_rate": 0.017,
+        "any_lc_wish_rate": 0.0584,
+        "blocked_rate": 0.7113
+      },
+      "4-6": {
+        "follower_steps": 3913,
+        "speedgain_wish": 561,
+        "speedgain_rate": 0.1434,
+        "any_lc_wish_rate": 0.1651,
+        "blocked_rate": 0.7312
+      },
+      ">6": {
+        "follower_steps": 5189,
+        "speedgain_wish": 176,
+        "speedgain_rate": 0.0339,
+        "any_lc_wish_rate": 0.048,
+        "blocked_rate": 0.5677
+      }
+    },
+    "MOVING_tier:bike": {
+      "<=0": {
+        "follower_steps": 5098,
+        "speedgain_wish": 19,
+        "speedgain_rate": 0.0037,
+        "any_lc_wish_rate": 0.0439,
+        "blocked_rate": 0.6399
+      },
+      "0-1": {
+        "follower_steps": 2922,
+        "speedgain_wish": 65,
+        "speedgain_rate": 0.0222,
+        "any_lc_wish_rate": 0.0346,
+        "blocked_rate": 0.59
+      },
+      "1-2": {
+        "follower_steps": 690,
+        "speedgain_wish": 67,
+        "speedgain_rate": 0.0971,
+        "any_lc_wish_rate": 0.1116,
+        "blocked_rate": 0.6928
+      },
+      "2-4": {
+        "follower_steps": 573,
+        "speedgain_wish": 5,
+        "speedgain_rate": 0.0087,
+        "any_lc_wish_rate": 0.0349,
+        "blocked_rate": 0.6928
+      },
+      "4-6": {
+        "follower_steps": 848,
+        "speedgain_wish": 7,
+        "speedgain_rate": 0.0083,
+        "any_lc_wish_rate": 0.0318,
+        "blocked_rate": 0.579
+      },
+      ">6": {
+        "follower_steps": 2468,
+        "speedgain_wish": 55,
+        "speedgain_rate": 0.0223,
+        "any_lc_wish_rate": 0.0571,
+        "blocked_rate": 0.5255
+      }
+    },
+    "MOVING_tier:car": {
+      "<=0": {
+        "follower_steps": 1744,
+        "speedgain_wish": 46,
+        "speedgain_rate": 0.0264,
+        "any_lc_wish_rate": 0.0688,
+        "blocked_rate": 0.5992
+      },
+      "0-1": {
+        "follower_steps": 1550,
+        "speedgain_wish": 48,
+        "speedgain_rate": 0.031,
+        "any_lc_wish_rate": 0.0523,
+        "blocked_rate": 0.6865
+      },
+      "1-2": {
+        "follower_steps": 2164,
+        "speedgain_wish": 69,
+        "speedgain_rate": 0.0319,
+        "any_lc_wish_rate": 0.0522,
+        "blocked_rate": 0.6922
+      },
+      "2-4": {
+        "follower_steps": 5601,
+        "speedgain_wish": 270,
+        "speedgain_rate": 0.0482,
+        "any_lc_wish_rate": 0.0703,
+        "blocked_rate": 0.7151
+      },
+      "4-6": {
+        "follower_steps": 4519,
+        "speedgain_wish": 292,
+        "speedgain_rate": 0.0646,
+        "any_lc_wish_rate": 0.0861,
+        "blocked_rate": 0.7057
+      },
+      ">6": {
+        "follower_steps": 14291,
+        "speedgain_wish": 1258,
+        "speedgain_rate": 0.088,
+        "any_lc_wish_rate": 0.1008,
+        "blocked_rate": 0.7053
+      }
+    }
+  },
+  "item2_outcome_passes_by_delta": {
+    "<=0": {
+      "passes": 79,
+      "moving_follower_steps": 10242,
+      "passes_per_1k_moving_steps": 7.71
+    },
+    "0-1": {
+      "passes": 71,
+      "moving_follower_steps": 8484,
+      "passes_per_1k_moving_steps": 8.37
+    },
+    "1-2": {
+      "passes": 49,
+      "moving_follower_steps": 3722,
+      "passes_per_1k_moving_steps": 13.16
+    },
+    "2-4": {
+      "passes": 106,
+      "moving_follower_steps": 7116,
+      "passes_per_1k_moving_steps": 14.9
+    },
+    "4-6": {
+      "passes": 222,
+      "moving_follower_steps": 9280,
+      "passes_per_1k_moving_steps": 23.92
+    },
+    ">6": {
+      "passes": 291,
+      "moving_follower_steps": 21948,
+      "passes_per_1k_moving_steps": 13.26
+    }
+  },
+  "item3_sharing_vs_change": {
+    "ALL": {
+      "n_passes": 818,
+      "lane_sharing": 159,
+      "lane_change": 659,
+      "sharing_pct": 19.44,
+      "change_pct": 80.56,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 14.0
+    },
+    "base:bike": {
+      "n_passes": 50,
+      "lane_sharing": 4,
+      "lane_change": 46,
+      "sharing_pct": 8.0,
+      "change_pct": 92.0,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 22.0
+    },
+    "base:auto": {
+      "n_passes": 252,
+      "lane_sharing": 63,
+      "lane_change": 189,
+      "sharing_pct": 25.0,
+      "change_pct": 75.0,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 15.0
+    },
+    "base:car": {
+      "n_passes": 516,
+      "lane_sharing": 92,
+      "lane_change": 424,
+      "sharing_pct": 17.83,
+      "change_pct": 82.17,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 13.0
+    },
+    "tier:auto": {
+      "n_passes": 252,
+      "lane_sharing": 63,
+      "lane_change": 189,
+      "sharing_pct": 25.0,
+      "change_pct": 75.0,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 15.0
+    },
+    "tier:bike": {
+      "n_passes": 50,
+      "lane_sharing": 4,
+      "lane_change": 46,
+      "sharing_pct": 8.0,
+      "change_pct": 92.0,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 22.0
+    },
+    "tier:car": {
+      "n_passes": 516,
+      "lane_sharing": 92,
+      "lane_change": 424,
+      "sharing_pct": 17.83,
+      "change_pct": 82.17,
+      "sharing_pct_strict": 0.0,
+      "median_duration_s": 13.0
+    }
+  },
+  "passes_sample": [
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 7.946,
+      "delta_bin": ">6",
+      "duration_s": 5.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": 2.302,
+      "delta_bin": "2-4",
+      "duration_s": 11.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 7.793,
+      "delta_bin": ">6",
+      "duration_s": 6.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 12.384,
+      "delta_bin": ">6",
+      "duration_s": 21.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 5.188,
+      "delta_bin": "4-6",
+      "duration_s": 9.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 7.328,
+      "delta_bin": ">6",
+      "duration_s": 6.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 9.941,
+      "delta_bin": ">6",
+      "duration_s": 11.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 0.869,
+      "delta_bin": "0-1",
+      "duration_s": 14.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 1.297,
+      "delta_bin": "1-2",
+      "duration_s": 17.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike",
+      "follower_base": "bike",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": -7.127,
+      "delta_bin": "<=0",
+      "duration_s": 16.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 10.991,
+      "delta_bin": ">6",
+      "duration_s": 12.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 4.812,
+      "delta_bin": "4-6",
+      "duration_s": 7.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 5.577,
+      "delta_bin": "4-6",
+      "duration_s": 6.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 2.405,
+      "delta_bin": "2-4",
+      "duration_s": 12.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike",
+      "follower_base": "bike",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": -3.0,
+      "delta_bin": "<=0",
+      "duration_s": 20.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 1.386,
+      "delta_bin": "1-2",
+      "duration_s": 15.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": -1.357,
+      "delta_bin": "<=0",
+      "duration_s": 23.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 2.773,
+      "delta_bin": "2-4",
+      "duration_s": 22.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 5.593,
+      "delta_bin": "4-6",
+      "duration_s": 7.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 6.535,
+      "delta_bin": ">6",
+      "duration_s": 11.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 5.31,
+      "delta_bin": "4-6",
+      "duration_s": 16.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 5.312,
+      "delta_bin": "4-6",
+      "duration_s": 14.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 6.188,
+      "delta_bin": ">6",
+      "duration_s": 8.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 3.468,
+      "delta_bin": "2-4",
+      "duration_s": 23.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "bike",
+      "follower_base": "bike",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 1.083,
+      "delta_bin": "1-2",
+      "duration_s": 14.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 5.568,
+      "delta_bin": "4-6",
+      "duration_s": 27.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 2.45,
+      "delta_bin": "2-4",
+      "duration_s": 26.0,
+      "lane_changed": true,
+      "leader_changed_lane": true,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "car",
+      "leader_base": "car",
+      "delta0": 1.932,
+      "delta_bin": "1-2",
+      "duration_s": 12.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 0.174,
+      "delta_bin": "0-1",
+      "duration_s": 45.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 3.441,
+      "delta_bin": "2-4",
+      "duration_s": 14.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 0.588,
+      "delta_bin": "0-1",
+      "duration_s": 29.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 0.447,
+      "delta_bin": "0-1",
+      "duration_s": 27.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 5.117,
+      "delta_bin": "4-6",
+      "duration_s": 7.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "truck",
+      "leader_base": "truck",
+      "delta0": -1.272,
+      "delta_bin": "<=0",
+      "duration_s": 24.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 6.437,
+      "delta_bin": ">6",
+      "duration_s": 7.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 4.875,
+      "delta_bin": "4-6",
+      "duration_s": 11.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 2.75,
+      "delta_bin": "2-4",
+      "duration_s": 11.0,
+      "lane_changed": false,
+      "leader_changed_lane": true,
+      "mode": "lane_sharing",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "auto",
+      "follower_base": "auto",
+      "leader_tier": "auto",
+      "leader_base": "auto",
+      "delta0": 4.558,
+      "delta_bin": "4-6",
+      "duration_s": 11.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 6.189,
+      "delta_bin": ">6",
+      "duration_s": 9.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    },
+    {
+      "follower_tier": "car",
+      "follower_base": "car",
+      "leader_tier": "bike",
+      "leader_base": "bike",
+      "delta0": 8.26,
+      "delta_bin": ">6",
+      "duration_s": 5.0,
+      "lane_changed": true,
+      "leader_changed_lane": false,
+      "mode": "lane_change",
+      "mode_strict": "lane_change"
+    }
+  ]
+}

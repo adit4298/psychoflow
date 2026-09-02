@@ -187,6 +187,13 @@ DEFAULT_SHADOW_CHECKPOINT = (
 # nothing here selects an extractor. The deployed path is unaffected either way.
 SHADOW_COORDINATION_MODE = "graph_attention"
 
+# STEP 1 demo-only mixed-traffic driving model. Reached ONLY when a SimRunner is
+# constructed with demo_driving=True (backend/main.py's --demo-driving, default
+# OFF). Never used by training or evaluation — training/train.py asserts against
+# both of these before model.learn().
+DEMO_VTYPE_FILE = REPO_ROOT / "sim" / "networks" / "vehicle_types_demo.add.xml"
+DEMO_LATERAL_RESOLUTION = 0.4
+
 _JUNCTION_ORDER = {jid: i for i, jid in enumerate(CORRIDOR_JUNCTIONS)}
 
 # How often the sim thread refreshes the Tier 1 SUMO beacon. Well under
@@ -268,7 +275,16 @@ class SimRunner:
         fast: bool = False,
         seed: int = 7,
         frame_sink: Callable[[dict], None] | None = None,
+        demo_driving: bool = False,
     ):
+        # STEP 1, demo-only. False => SUMO's default lane-disciplined LC2013
+        # model and the default vTypes, i.e. exactly the configuration every
+        # recorded number was measured under. True => the mixed-traffic sublane
+        # model (sim/networks/vehicle_types_demo.add.xml + --lateral-resolution).
+        # Default OFF on purpose: it changes vehicle dynamics, so the smoke and
+        # shadow-advisor harnesses stay valid unchanged, and no measured figure
+        # silently starts describing a different world.
+        self.demo_driving = bool(demo_driving)
         self.state = state
         self.checkpoint = Path(checkpoint) if checkpoint else None
         self.shadow_checkpoint = (
@@ -421,6 +437,10 @@ class SimRunner:
             ),
             spillover_predictor=SpilloverPredictor(),
             seed=self._seed,
+            **(
+                {"vtype_file": DEMO_VTYPE_FILE, "lateral_resolution": DEMO_LATERAL_RESOLUTION}
+                if self.demo_driving else {}
+            ),
         )
         self._obs, _info = self._env.reset()
         self._served = self._env.phase_served_lanes()

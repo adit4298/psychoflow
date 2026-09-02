@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<additional>
+    <vTypeDistribution id="bike">
+        <vType id="bike.cautious"   probability="0.20" vClass="bicycle" length="1.8" width="0.65" maxSpeed="11.0" tau="1.2"/>
+        <vType id="bike.normal"     probability="0.45" vClass="bicycle" length="1.8" width="0.65" maxSpeed="11.0" tau="1.0"/>
+        <vType id="bike.aggressive" probability="0.35" vClass="bicycle" length="1.8" width="0.65" maxSpeed="11.0" tau="0.9"/>
+    </vTypeDistribution>
+    <vType id="auto"  vClass="passenger" length="3.2" width="1.4" maxSpeed="9.5"/>
+    <vType id="car"   vClass="passenger" length="4.5" width="1.8" maxSpeed="12.5"/>
+    <vType id="truck" vClass="truck"     length="7.5" width="2.4" maxSpeed="10.0"/>
+    <vType id="ambulance" vClass="emergency" length="5.5" width="2.0" maxSpeed="15.0"/>
+</additional>

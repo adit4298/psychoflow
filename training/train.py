@@ -40,7 +40,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv
 
 from agents.config import COORDINATION_MODE, VALID_MODES, get_feature_extractor
-from env.psychoflow_env import PsychoFlowEnv, ScenarioConfig
+from env.psychoflow_env import ADD_FILE, PsychoFlowEnv, ScenarioConfig
 from prediction.spillover import SpilloverPredictor
 from sim.sumo_activity import beat as _sumo_beat, clear as _sumo_clear
 from training.curriculum import STAGES
@@ -139,6 +139,25 @@ def build_env(stage: int, seed: int, monitor_path: Path) -> DummyVecEnv:
         "Phase 6 prerequisite (CLAUDE.md §3): spillover_predictor must be "
         "non-None before model.learn(). PsychoFlowEnv only warns; training "
         "must hard-fail."
+    )
+
+    # STEP 1 prerequisite: training must NEVER run under the demo-only mixed-
+    # traffic driving model (sim/networks/vehicle_types_demo.add.xml + SUMO's
+    # sublane model). Every recorded number in this project — §16's baselines,
+    # the 4a bake-off grid, Stage 4's deployed figures — was measured under the
+    # default vTypes on LC2013, and the demo model changes vehicle dynamics, so
+    # a checkpoint trained or evaluated under it is not comparable to any of
+    # them. Same regression-guard role as the predictor assert above: as
+    # constructed here neither kwarg is passed, so this cannot trip today.
+    assert raw_env.vtype_file == ADD_FILE, (
+        f"Training must use the default vTypes ({ADD_FILE.name}), got "
+        f"{raw_env.vtype_file}. The demo driving model is demo-only — see "
+        f"sim/networks/vehicle_types_demo.add.xml's header and CLAUDE.md §8."
+    )
+    assert raw_env.lateral_resolution is None, (
+        "Training must run with lateral_resolution=None (SUMO's default "
+        f"lane-disciplined LC2013 model), got {raw_env.lateral_resolution}. "
+        "The sublane model is demo-only."
     )
 
     monitor_path.parent.mkdir(parents=True, exist_ok=True)

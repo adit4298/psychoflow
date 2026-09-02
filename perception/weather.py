@@ -38,6 +38,36 @@ class WeatherModel:
         self._changed_at_sim_time = 0.0
         self._baselines: dict[str, dict[str, float]] = {}
 
+    def _resolve_members(self) -> list[str]:
+        """Every CONCRETE vType id §7.4 must actually write to.
+
+        Why this is not just `self.vehicle_types`: the demo-only driving model
+        (sim/networks/vehicle_types_demo.add.xml) declares `bike`/`auto`/`car`
+        as <vTypeDistribution>s of aggressiveness tiers. `traci.vehicletype`
+        ACCEPTS a distribution id without raising — and then resolves it to ONE
+        RANDOMLY SAMPLED MEMBER.
+
+        Measured on SUMO 1.27.1, not inferred: a read of getTau("bike")
+        returned bike.aggressive's value while the very next setTau("bike",…)
+        landed on bike.normal, leaving 2 of 3 tiers on clear-weather dynamics.
+        So §7.4's "behaviour genuinely shifts, not just a label" would have
+        become roughly one-third true, silently, and non-reproducibly — nothing
+        raises, and the twin still reports "heavy_rain".
+
+        Resolution rule: if any "<base>.<tier>" ids exist, those ARE the type
+        and the bare distribution id is dropped (writing to it is the broken
+        path). Otherwise the bare id is used unchanged.
+
+        INERT on the default file, which declares no dotted ids: every base
+        resolves to exactly [base], i.e. today's behaviour byte-for-byte.
+        """
+        known = set(traci.vehicletype.getIDList())
+        members: list[str] = []
+        for base in self.vehicle_types:
+            tiers = sorted(t for t in known if t.startswith(f"{base}."))
+            members.extend(tiers if tiers else [base])
+        return members
+
     def attach(self) -> None:
         """Snapshot baseline vType params. Call once, after traci.start()."""
         self._baselines = {
@@ -46,7 +76,7 @@ class WeatherModel:
                 "max_speed": traci.vehicletype.getMaxSpeed(vtype),
                 "sigma": traci.vehicletype.getImperfection(vtype),
             }
-            for vtype in self.vehicle_types
+            for vtype in self._resolve_members()
         }
 
     def set_state(self, state: str, sim_time: float) -> None:
@@ -74,14 +104,22 @@ class WeatherModel:
 
     def current_vtype_params(self) -> dict[str, dict[str, float]]:
         """Live vType values read back from SUMO — evidence that set_state()
-        actually landed, rather than only updating this object's label."""
+        actually landed, rather than only updating this object's label.
+
+        Reads the SAME concrete ids attach() snapshotted, not the bare base
+        names: under the demo model a bare name is a distribution id that
+        resolves to a random member, so reading through it would let this
+        "evidence" report a tier the write never touched. Falls back to the
+        base names before attach(), where there is nothing to prove yet.
+        """
+        vtypes = list(self._baselines) or list(self.vehicle_types)
         return {
             vtype: {
                 "tau": round(traci.vehicletype.getTau(vtype), 3),
                 "max_speed": round(traci.vehicletype.getMaxSpeed(vtype), 3),
                 "sigma": round(traci.vehicletype.getImperfection(vtype), 3),
             }
-            for vtype in self.vehicle_types
+            for vtype in vtypes
         }
 
     def reset(self, sim_time: float = 0.0) -> None:

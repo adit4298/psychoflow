@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DEMO-ONLY vehicle types (STEP 1 + STEP 1 REFINEMENT, mixed-traffic realism).
+
+  ============================================================================
+  THIS FILE IS NEVER USED BY TRAINING OR EVALUATION. IT IS DEMO SCAFFOLDING.
+  ============================================================================
+  `sim/networks/vehicle_types.add.xml` remains the ONE file every training run,
+  every evaluation sweep and the 4a bake-off load, and it is unchanged. Every
+  recorded number in this project (the §16 baselines, the 4a bake-off grid,
+  Tier 0's 41.0s worst wait, Stage 4's 0.00 starvation events on (4,3,2)) was
+  measured against THAT file, on SUMO's default lane-disciplined LC2013 model.
+
+  Vehicle dynamics here are different, so throughput, waits and starvation are
+  different too. NEVER re-measure a checkpoint against this file and compare
+  the result to a recorded number - they describe different worlds.
+  `training/train.py` asserts the default file before `model.learn()`, so a
+  training run cannot pick this up even by accident.
+
+  Evidence base, tier rationale and the sourced-vs-reasoned split:
+  docs/MIXED_TRAFFIC_RESEARCH.md. Read it before retuning anything here.
+
+  ===========================================================================
+  WHAT THIS MODELS, HONESTLY (§17 boundary language)
+  ===========================================================================
+  This approximates authentic mixed-traffic behaviour using SUMO's sublane
+  model (SL2015), which is the best lever SUMO has. It is NOT true lane-free
+  driving: the road is still a set of lanes with centre-lines and lane-to-lane
+  connections. What SL2015 adds is a continuous LATERAL position, so vehicles
+  can sit off-centre, straddle a lane boundary, and pass one another inside a
+  single lane. Requires the lateral-resolution option on the command line.
+
+  ===========================================================================
+  DRIVER HETEROGENEITY (REFINEMENT) - three tiers per everyday type
+  ===========================================================================
+  `bike`, `auto` and `car` are <vTypeDistribution>s, not single vTypes, so not
+  every bike behaves like every other bike. Splitting a class into weighted
+  aggressiveness sub-types is standard SUMO practice (research §1.6).
+
+  VERIFIED on SUMO 1.27.1 that the route file's own
+  `<vTypeDistribution id="mixed" vTypes="bike auto car truck">` resolves
+  correctly when its members are themselves distributions, so
+  `sim/scenario_generator.py` needs NO change and the training route writer is
+  untouched.
+
+  THE SPLITS ARE A REASONED DEFAULT, NOT A SOURCED PROPORTION (research §2.1):
+
+      bike   20% cautious / 45% normal / 35% aggressive
+      auto   25% cautious / 50% normal / 25% aggressive
+      car             (none) / 90% normal / 10% aggressive
+      truck / ambulance   single type, unchanged
+
+  The AGGRESSIVE tier is STEP 1's own measured, signed-off table, kept as a
+  CEILING - the refinement only adds calmer traffic below it, so it cannot
+  make the most aggressive behaviour worse than what was already verified.
+  Two deliberate exceptions, both recorded:
+    * bike tau 0.9 -> 1.0 (see the tau block below)
+    * lcTimeToImpatience 5.0 -> 20.0 on bike, 8.0 -> 20.0 on auto (see the
+      overtaking block below)
+
+  ===========================================================================
+  THE OVERTAKING FIX - why lcSpeedGain was NOT the lever
+  ===========================================================================
+  Measured (research §3.1): STEP 1's lane-change WISH was already correctly
+  gated by speed differential - the LCA_SPEEDGAIN rate ran 0.0126 -> 0.2973
+  across the delta range, a 23.6x span, near zero where there was no speed to
+  gain. `lcSpeedGain` was doing its job.
+
+  What was NOT gated was EXECUTION. Completed passes sat flat at 17-31 per
+  1000 moving follower-steps across every delta bucket, with the "leader is
+  already at or above my desired speed" bucket as high as the "leader is 4-6
+  m/s slower" one. The cause is visible in the blocked rate: 0.007-0.19 in the
+  demo against 0.63-0.71 in the baseline. Essentially every wish the model
+  formed, however worthless, was executed.
+
+  So the levers here are the ones that decide whether a wish BECOMES a
+  manoeuvre - lcAssertive (gap acceptance), lcPushy (lateral encroachment),
+  lcSublane (reluctance to reposition) - and above all the impatience pair.
+  lcImpatience dynamically AMPLIFIES lcAssertive and lcPushy, and
+  lcTimeToImpatience=5.0 drove the model to maximum impatience after five
+  seconds, erasing the speed-gain threshold it had just computed correctly.
+  Raised to 20.0 so a real delay is required before the threshold erodes.
+
+  Cautious tiers sit at or near SUMO stock, so a low-value wish is refused
+  outright rather than forced through. That is what restores the delta
+  response at the OUTCOME level, not just at the wish level.
+
+  ===========================================================================
+  tau MUST be >= STEP_LENGTH_S (1.0) - a NUMERICAL bound, not a style choice
+  ===========================================================================
+  Krauss's safe-velocity cannot guarantee a collision-free follow below the
+  simulation step size. STEP 1 measured 272 of 1870 vehicles (14.55%) in a
+  collision at bike tau=0.5 / auto tau=0.6, against 0.00% after raising them.
+
+  STEP 1 nonetheless shipped bike tau=0.9, below the bound its own rule
+  states, and SUMO warned about it on every load. The refinement raises the
+  aggressive bike tier to 1.0, closing that violation. NO TIER MAY GO BELOW
+  1.0 for a behavioural reason - research §1.4 says two-wheelers accept the
+  smallest gaps, and this bound is where that expression stops. Realism loses
+  to numerical validity here. If you ever lower tau again, RE-MEASURE
+  collisions; do not assume.
+
+  ===========================================================================
+  RED-LIGHT BEHAVIOUR (jm*) IS GATED TO THE AGGRESSIVE TIER ONLY
+  ===========================================================================
+  Research §1.5: a crash-causation study attributed 72.5% of contributing
+  factors to over-speeding against 0.7% for red-light jumping. That is a
+  crash-factor breakdown, NOT a jump-rate, and is used only directionally:
+  signal violation is an occasional behaviour of a minority, not universal.
+
+  Every cautious and normal tier therefore sets jmDriveAfterRedTime="-1"
+  (never enters on red) and jmIgnoreFoeProb="0.0". Only the aggressive tiers
+  carry a permissive jm* group, and car's aggressive minority gets a much
+  smaller allowance than bike's or auto's. Truck and ambulance never run a
+  red at all.
+
+  Resulting red-eligible population, against the route file's own mix
+  (bike .15 / auto .25 / car .50 / truck .10):
+
+      bike   0.15 x 0.35 = 5.25%
+      auto   0.25 x 0.25 = 6.25%
+      car    0.50 x 0.10 = 5.00%
+      truck  0.10 x 0.00 = 0.00%
+      ..............................
+      total              = 16.50%   of everyday vehicles
+
+  and ELIGIBLE is not the same as OFFENDING: jmDriveAfterRedTime is the
+  window after the light turns red in which the vehicle will still enter, and
+  jmIgnoreFoeProb is a per-encounter probability, so actual red entries are a
+  fraction of that 16.50%.
+
+  ===========================================================================
+  lcMaxSpeedLatStanding IS LOAD-BEARING - do not drop it
+  ===========================================================================
+  It defaults to 0 for every vClass except bicycle/pedestrian, meaning a
+  STOPPED vehicle cannot move sideways at all. Without it set explicitly,
+  queue-front filtering is impossible for `auto` no matter what minGapLat and
+  lcPushy say, because the filtering happens while the queue is stationary.
+  Scaled by tier: a cautious driver still filters, just far less.
+
+  ===========================================================================
+  TWO SILENT BREAKAGES THE TIERING CREATES - both fixed in perception/
+  ===========================================================================
+  Recorded here because the fixes live in another module and would otherwise
+  look unmotivated:
+
+  1. traci.vehicle.getTypeID() returns the CONCRETE SUB-TYPE ("bike.normal"),
+     not "bike". perception/lane_sensor.py matched that against VEHICLE_TYPES
+     and would have counted every tiered vehicle as UNKNOWN, zeroing
+     type_composition -> §9.2 observation features LF_TYPE_START+0..4.
+     Fixed by resolving the base name before the match.
+
+  2. traci.vehicletype.getTau("bike") / setTau("bike", ...) do NOT raise on a
+     distribution id - they resolve to ONE RANDOMLY SAMPLED member. Measured:
+     a read returned bike.aggressive's value while the following write landed
+     on bike.normal, leaving 2 of 3 tiers on clear-weather dynamics.
+     perception/weather.py drove §7.4 entirely through those calls, so weather
+     would have become ~1/3 true, silently and non-reproducibly. Fixed by
+     resolving each base type to its concrete members.
+
+  Both fixes are inert on the default file, which has no dotted ids.
+
+  ===========================================================================
+  maxSpeed: recalibrated for a busy urban arterial, NOT a highway
+  ===========================================================================
+  Measured on the default file, 1200s, corridor 4/3/2: car reached 16.70 m/s
+  (60.1 km/h) - its own maxSpeed, above the road's 50 km/h limit, because
+  SUMO's default speedFactor spread allows ~1.2x. That is a highway desired
+  speed on a 300m-spaced signalised arterial. Values below are desired
+  free-flow speeds between junctions, which vehicles rarely reach.
+
+  The ROAD limit (DEFAULT_SPEED_MPS = 13.89 m/s in generate_corridor.py) is
+  NOT touched - changing it would require regenerating all 27 networks,
+  including the ones every checkpoint trained on.
+
+  `bike` is modelled behaviourally as a two-wheeler (speed, width, gap
+  acceptance). vClass stays "bicycle" deliberately: changing it could change
+  lane permissions and diverge this network's connectivity from the trained
+  one, for zero behavioural gain. guiShape is untouched - sumo-gui's own
+  rendering is explicitly out of scope.
+-->
+<additional>
+
+    <!-- ==================================================================
+         BIKE - 20 / 45 / 35. The most permissive class at every tier, but
+         a cautious bike is a genuinely different road user from an
+         aggressive one: it queues rather than filters, holds a real
+         following gap, and never enters on red.
+         ================================================================== -->
+    <vTypeDistribution id="bike">
+
+        <vType id="bike.cautious" probability="0.20"
+               vClass="bicycle" guiShape="bicycle"
+               length="1.8" width="0.65" minGap="1.2"
+               maxSpeed="10.0" accel="1.8" decel="3.5"
+               speedFactor="normc(0.92,0.08,0.80,1.05)"
+               sigma="0.45" tau="1.3" startupDelay="0.5"
+               laneChangeModel="SL2015"
+               minGapLat="0.45" lcPushy="0.15" lcAssertive="1.1"
+               lcSpeedGain="1.3" lcImpatience="0.0"
+               lcKeepRight="0.0" lcSublane="1.0"
+               maxSpeedLat="0.8" lcAccelLat="1.0"
+               lcMaxSpeedLatStanding="0.25" lcMaxDistLatStanding="1.0"
+               latAlignment="center"
+               impatience="0.2"
+               jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="0.6" />
+
+        <vType id="bike.normal" probability="0.45"
+               vClass="bicycle" guiShape="bicycle"
+               length="1.8" width="0.65" minGap="1.0"
+               maxSpeed="10.5" accel="2.1" decel="3.5"
+               speedFactor="normc(0.97,0.09,0.82,1.12)"
+               sigma="0.55" tau="1.1" startupDelay="0.2"
+               laneChangeModel="SL2015"
+               minGapLat="0.28" lcPushy="0.50" lcAssertive="1.8"
+               lcSpeedGain="2.3" lcImpatience="0.35" lcTimeToImpatience="30.0"
+               lcKeepRight="0.0" lcSublane="0.6"
+               maxSpeedLat="1.2" lcAccelLat="1.5"
+               lcMaxSpeedLatStanding="0.5" lcMaxDistLatStanding="1.6"
+               latAlignment="arbitrary"
+               impatience="0.6"
+               jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.0" jmStoplineGap="0.4" />
+
+        <!-- STEP 1's signed-off bike table, kept as the ceiling. Two changes:
+             tau 0.9 -> 1.0 (the STEP_LENGTH_S bound) and lcTimeToImpatience
+             5.0 -> 20.0 (the execution-gating fix). -->
+        <vType id="bike.aggressive" probability="0.35"
+               vClass="bicycle" guiShape="bicycle"
+               length="1.8" width="0.65" minGap="0.8"
+               maxSpeed="11.0" accel="2.4" decel="3.5"
+               speedFactor="normc(1.00,0.10,0.85,1.20)"
+               sigma="0.65" tau="1.0" startupDelay="0.0"
+               laneChangeModel="SL2015"
+               minGapLat="0.15" lcPushy="0.90" lcAssertive="2.8"
+               lcSpeedGain="4.0" lcImpatience="1.0" lcTimeToImpatience="20.0"
+               lcKeepRight="0.0" lcSublane="0.2"
+               maxSpeedLat="1.6" lcAccelLat="2.0"
+               lcMaxSpeedLatStanding="0.8" lcMaxDistLatStanding="2.2"
+               latAlignment="arbitrary"
+               impatience="1.0"
+               jmDriveAfterRedTime="1.0" jmDriveAfterYellowTime="4.0"
+               jmDriveRedSpeed="7.0" jmIgnoreFoeProb="0.10" jmIgnoreFoeSpeed="3.0"
+               jmTimegapMinor="0.8" jmStoplineGap="0.2" />
+
+    </vTypeDistribution>
+
+    <!-- ==================================================================
+         AUTO - 25 / 50 / 25. Close behind the bike at matching tiers,
+         demanding slightly more room throughout.
+         ================================================================== -->
+    <vTypeDistribution id="auto">
+
+        <vType id="auto.cautious" probability="0.25"
+               vClass="passenger" guiShape="passenger"
+               length="3.2" width="1.4" minGap="1.8"
+               maxSpeed="8.8" accel="1.6" decel="4.0"
+               speedFactor="normc(0.92,0.07,0.80,1.05)"
+               sigma="0.40" tau="1.4" startupDelay="0.6"
+               laneChangeModel="SL2015"
+               minGapLat="0.55" lcPushy="0.10" lcAssertive="1.0"
+               lcSpeedGain="1.2" lcImpatience="0.0"
+               lcKeepRight="0.0" lcSublane="1.0"
+               maxSpeedLat="0.7" lcAccelLat="0.9"
+               lcMaxSpeedLatStanding="0.2" lcMaxDistLatStanding="0.8"
+               latAlignment="center"
+               impatience="0.15"
+               jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.8" jmStoplineGap="0.8" />
+
+        <vType id="auto.normal" probability="0.50"
+               vClass="passenger" guiShape="passenger"
+               length="3.2" width="1.4" minGap="1.5"
+               maxSpeed="9.2" accel="1.8" decel="4.0"
+               speedFactor="normc(0.97,0.08,0.82,1.12)"
+               sigma="0.50" tau="1.2" startupDelay="0.3"
+               laneChangeModel="SL2015"
+               minGapLat="0.38" lcPushy="0.40" lcAssertive="1.5"
+               lcSpeedGain="2.0" lcImpatience="0.30" lcTimeToImpatience="30.0"
+               lcKeepRight="0.0" lcSublane="0.65"
+               maxSpeedLat="1.0" lcAccelLat="1.2"
+               lcMaxSpeedLatStanding="0.4" lcMaxDistLatStanding="1.3"
+               latAlignment="arbitrary"
+               impatience="0.5"
+               jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.2" jmStoplineGap="0.6" />
+
+        <!-- STEP 1's signed-off auto table, kept as the ceiling. One change:
+             lcTimeToImpatience 8.0 -> 20.0. -->
+        <vType id="auto.aggressive" probability="0.25"
+               vClass="passenger" guiShape="passenger"
+               length="3.2" width="1.4" minGap="1.2"
+               maxSpeed="9.5" accel="2.0" decel="4.0"
+               speedFactor="normc(1.00,0.09,0.85,1.18)"
+               sigma="0.60" tau="1.0" startupDelay="0.1"
+               laneChangeModel="SL2015"
+               minGapLat="0.25" lcPushy="0.72" lcAssertive="2.2"
+               lcSpeedGain="3.0" lcImpatience="0.8" lcTimeToImpatience="20.0"
+               lcKeepRight="0.0" lcSublane="0.3"
+               maxSpeedLat="1.4" lcAccelLat="1.6"
+               lcMaxSpeedLatStanding="0.6" lcMaxDistLatStanding="1.8"
+               latAlignment="arbitrary"
+               impatience="0.8"
+               jmDriveAfterRedTime="0.8" jmDriveAfterYellowTime="3.0"
+               jmDriveRedSpeed="7.0" jmIgnoreFoeProb="0.06" jmIgnoreFoeSpeed="3.0"
+               jmTimegapMinor="1.0" jmStoplineGap="0.5" />
+
+    </vTypeDistribution>
+
+    <!-- ==================================================================
+         CAR - 90 / 10, no cautious tier. "Cars do it too, just less
+         often" (research §1.1/§1.5): the aggressive minority is real but
+         small, and its jm* allowance is much smaller than bike's or
+         auto's aggressive tier.
+
+         car.normal is DELIBERATELY CALMER than STEP 1's single car type.
+         Measured (research §3.2): car completed 674 passes against bike's
+         487 - cars out-overtaking two-wheelers, which inverts the ordering
+         the literature implies. lcSpeedGain 1.5 -> 1.1, lcAssertive
+         1.2 -> 1.0, lcPushy 0.25 -> 0.15 is the correction.
+
+         Two cars (1.8 + 1.8) cannot share a 3.2m lane, so a car can
+         reposition and overtake a two-wheeler but cannot filter two-abreast
+         past another car. That geometric limit is doing real work here.
+         ================================================================== -->
+    <vTypeDistribution id="car">
+
+        <vType id="car.normal" probability="0.90"
+               vClass="passenger" guiShape="passenger"
+               length="4.5" width="1.8" minGap="2.0"
+               maxSpeed="12.5" accel="2.6" decel="4.5"
+               speedFactor="normc(1.00,0.08,0.85,1.15)"
+               sigma="0.45" tau="1.2" startupDelay="0.4"
+               laneChangeModel="SL2015"
+               minGapLat="0.55" lcPushy="0.15" lcAssertive="1.0"
+               lcSpeedGain="1.1" lcImpatience="0.10" lcTimeToImpatience="60.0"
+               lcKeepRight="0.5" lcSublane="1.0"
+               maxSpeedLat="0.9" lcAccelLat="1.0"
+               lcMaxSpeedLatStanding="0.1" lcMaxDistLatStanding="0.8"
+               latAlignment="center"
+               impatience="0.3"
+               jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+               jmIgnoreFoeProb="0.0" jmTimegapMinor="1.5" jmStoplineGap="1.0" />
+
+        <vType id="car.aggressive" probability="0.10"
+               vClass="passenger" guiShape="passenger"
+               length="4.5" width="1.8" minGap="1.7"
+               maxSpeed="13.0" accel="2.8" decel="4.5"
+               speedFactor="normc(1.04,0.08,0.88,1.18)"
+               sigma="0.55" tau="1.05" startupDelay="0.2"
+               laneChangeModel="SL2015"
+               minGapLat="0.45" lcPushy="0.35" lcAssertive="1.5"
+               lcSpeedGain="2.0" lcImpatience="0.45" lcTimeToImpatience="25.0"
+               lcKeepRight="0.2" lcSublane="0.7"
+               maxSpeedLat="1.1" lcAccelLat="1.2"
+               lcMaxSpeedLatStanding="0.2" lcMaxDistLatStanding="1.0"
+               latAlignment="arbitrary"
+               impatience="0.6"
+               jmDriveAfterRedTime="0.3" jmDriveAfterYellowTime="1.5"
+               jmDriveRedSpeed="4.0" jmIgnoreFoeProb="0.02" jmIgnoreFoeSpeed="2.0"
+               jmTimegapMinor="1.3" jmStoplineGap="0.8" />
+
+    </vTypeDistribution>
+
+    <!-- ==================================================================
+         TRUCK - single type. Conservative; minGapLat ABOVE SUMO's own 0.6
+         default, i.e. genuinely cautious rather than merely un-aggressive.
+         Never runs a red.
+
+         COLLISION-REGRESSION FIX (2026-09-01): maxSpeedLat 0.5->0.9,
+         lcAccelLat 0.6->1.2. Every other param is UNCHANGED from STEP 1.
+         Root-caused, not guessed (see docs/MIXED_TRAFFIC_RESEARCH.md's
+         collision-follow-up section for the full trace): a truck's ordinary
+         STRATEGIC lane change (SUMO's router pre-positioning it for a later
+         turn, nothing to do with heterogeneity or any neighbor) takes ~24s
+         at the old maxSpeedLat/lcAccelLat, too slow to finish recentring
+         before the truck reaches the J2 queue, so it can arrive still
+         ~1.2m off its lane center (roughly a third of its own 2.4m width
+         sitting in the neighbor lane). With the collision.mingap-factor
+         set to 0 there is zero lateral buffer to absorb that, so a second
+         truck already in the target lane at the same longitudinal spot
+         gets sideswiped. This is a PRE-EXISTING, general vulnerability in
+         STEP 1's own truck params, unrelated to tiering, that this
+         session's route/seed happened to trigger and STEP 1's did not.
+         Doubling the lateral recentring rate lets the maneuver finish with
+         road to spare; lcMaxSpeedLatStanding stays 0.0, so trucks still
+         cannot creep sideways while queued and queue-front filtering by
+         bikes/autos is untouched. Verified: 0 collision events over 1200s
+         on this session's route/seed (was 14 warn-events / one ~19s-long
+         sustained sideswipe), arrived count unchanged (1737), no new
+         collisions introduced elsewhere.
+         ================================================================== -->
+    <vType id="truck" vClass="truck" guiShape="truck"
+           length="7.5" width="2.4" minGap="2.5"
+           maxSpeed="10.0" accel="1.3" decel="3.5"
+           speedFactor="normc(0.95,0.06,0.85,1.05)"
+           sigma="0.30" tau="1.6" startupDelay="0.9" actionStepLength="1.5"
+           laneChangeModel="SL2015"
+           minGapLat="0.80" lcPushy="0.05" lcAssertive="0.8"
+           lcSpeedGain="0.5" lcImpatience="0.0"
+           lcKeepRight="1.0" lcSublane="1.0"
+           maxSpeedLat="0.9" lcAccelLat="1.2"
+           lcMaxSpeedLatStanding="0.0" lcMaxDistLatStanding="0.5"
+           latAlignment="center"
+           impatience="0.0"
+           jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+           jmIgnoreFoeProb="0.0" jmTimegapMinor="2.0" jmStoplineGap="1.0" />
+
+    <!-- ==================================================================
+         AMBULANCE - single type, UNCHANGED from STEP 1. The deliberate
+         contrast: the most PREDICTABLE vehicle on the corridor. Lowest
+         sigma, zero pushiness, never runs a red, never ignores a foe. It
+         does not need to: §10 opens the road ahead of it. maxSpeed sits
+         above the 50 km/h road limit on purpose - an emergency vehicle
+         exceeding the posted limit on a CLEARED corridor is correct, and
+         it is a visible beat.
+
+         Deliberately NOT tiered: §10's emergency detection and §9.4's
+         emergency term both key on type_composition["ambulance"], and a
+         single type keeps that path identical to the default file.
+         ================================================================== -->
+    <vType id="ambulance" vClass="emergency" guiShape="emergency"
+           length="5.5" width="2.0" minGap="2.0"
+           maxSpeed="15.0" accel="3.0" decel="5.0"
+           speedFactor="normc(1.05,0.05,0.95,1.20)"
+           sigma="0.15" tau="1.0" startupDelay="0.0"
+           laneChangeModel="SL2015"
+           minGapLat="0.60" lcPushy="0.0" lcAssertive="1.0"
+           lcSpeedGain="1.0" lcImpatience="0.0"
+           lcKeepRight="0.0" lcSublane="1.0"
+           maxSpeedLat="1.0" lcAccelLat="1.0"
+           lcMaxSpeedLatStanding="0.5" lcMaxDistLatStanding="1.0"
+           latAlignment="center"
+           impatience="0.0"
+           jmDriveAfterRedTime="-1" jmDriveAfterYellowTime="0.0"
+           jmIgnoreFoeProb="0.0" jmTimegapMinor="1.0" jmStoplineGap="1.0"
+           color="1,0,0" />
+
+</additional>

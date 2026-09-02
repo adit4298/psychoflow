@@ -193,6 +193,8 @@ class PsychoFlowEnv(gym.Env):
         label: str | None = None,
         strict_action_masking: bool = True,
         enable_safety_validator: bool = True,
+        vtype_file: str | Path = ADD_FILE,
+        lateral_resolution: float | None = None,
     ):
         super().__init__()
         self.scenario = scenario_config or ScenarioConfig()
@@ -212,6 +214,22 @@ class PsychoFlowEnv(gym.Env):
             )
         self.use_gui = use_gui
         self.strict_action_masking = strict_action_masking
+
+        # DEMO-ONLY DRIVING MODEL (STEP 1) — both default to today's exact
+        # behaviour, so an omitted kwarg produces a BYTE-IDENTICAL traci.start()
+        # command line to the one every recorded number was measured under.
+        # `vtype_file` swaps in sim/networks/vehicle_types_demo.add.xml (SUMO
+        # sublane driving); `lateral_resolution` adds --lateral-resolution,
+        # which is what actually enables SL2015. Neither is reachable without
+        # passing it explicitly, and training/train.py asserts both are at
+        # their defaults before model.learn(). Same additive-param pattern as
+        # Tier0Controller.act(lane_weights=None).
+        #
+        # NEVER measure a checkpoint under these and compare the result to a
+        # recorded number — the dynamics differ, so they describe different
+        # worlds (see the demo file's own header).
+        self.vtype_file = Path(vtype_file)
+        self.lateral_resolution = lateral_resolution
 
         # TEST-HARNESS ONLY — see CLAUDE.md §8's standing rule.
         # False disables §10 entirely: no starvation ceiling, no emergency
@@ -439,7 +457,7 @@ class PsychoFlowEnv(gym.Env):
         cmd = [
             binary,
             "-n", str(net_path),
-            "-a", str(ADD_FILE),
+            "-a", str(self.vtype_file),
             "-r", str(route_path),
             # Standing rule (CLAUDE.md §8): the 100s default saturates
             # against the 90s starvation threshold and destroys the
@@ -453,6 +471,18 @@ class PsychoFlowEnv(gym.Env):
         ]
         if self._seed is not None:
             cmd += ["--seed", str(self._seed)]
+        if self.lateral_resolution is not None:
+            # Demo-only. Appended LAST and only when explicitly requested, so
+            # the default command line is byte-identical to the pre-STEP-1 one.
+            cmd += ["--lateral-resolution", str(self.lateral_resolution)]
+            # Aggressive gap acceptance makes contact possible. SUMO's DEFAULT
+            # collision.action is `teleport`, which silently REMOVES a vehicle
+            # and would corrupt arrived/throughput without raising — the same
+            # trap --time-to-teleport 600 exists for. Keep the vehicle instead.
+            cmd += ["--collision.action", "warn",
+                    # minGap is a PREFERENCE in mixed traffic, not a safety
+                    # envelope; 0 counts only real physical overlap.
+                    "--collision.mingap-factor", "0"]
 
         traci.start(cmd, label=self._label)
         traci.switch(self._label)

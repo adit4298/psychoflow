@@ -438,6 +438,65 @@ Both extractors must be built and tested for basic functionality before large-sc
 
 **Decision rule for when to flip the flag:** set an internal training checkpoint (see §16). If graph-attention hasn't shown a clean upward reward trend by that checkpoint, flip to `shared_policy` and continue — this is treated as expected/normal, not a failure requiring root-cause debugging under time pressure.
 
+### 9.6 `PsychoFlowEnv` configuration seams — including the DEMO-ONLY driving model
+
+`env/psychoflow_env.py`'s constructor carries four kwargs that change how the
+environment is built rather than what it computes. All four default to the
+behaviour every recorded number in this project was measured under, so an
+omitted kwarg is always the safe, canonical path. They are listed here — in the
+spec of record, not only in `CLAUDE.md` — because each one is a real widening of
+a core module's interface, and two of them are off-switches for guarantees this
+document makes elsewhere.
+
+| kwarg | default | what a non-default value does |
+|---|---|---|
+| `enable_safety_validator` | `True` | `False` disables §10 **entirely** — no starvation ceiling, no emergency override. **TEST-HARNESS ONLY.** It exists for `sim/run_tier0_episode.py`'s same-seed A/B (which is what *proves* the ceiling bounds the wait) and for reproducing Phase 3's pre-validator numbers. **It must never be reachable from any backend or control-API path** — §10's "nothing reaches the road without passing through here" is only true while the off-switch is unreachable from anything driving a real sim. |
+| `strict_action_masking` | `True` | relaxes rejection of masked-out actions. Test scaffolding. |
+| `vtype_file` | `ADD_FILE` (`sim/networks/vehicle_types.add.xml`) | swaps in a different SUMO additional-file of vehicle types. The one real alternative is `sim/networks/vehicle_types_demo.add.xml` — see below. |
+| `lateral_resolution` | `None` | passing a float appends `--lateral-resolution` to the `traci.start()` command line, which is what actually enables SUMO's **SL2015 sublane model**. It also appends `--collision.action warn` and `--collision.mingap-factor 0`; neither appears on the default path. |
+
+**The demo-only mixed-traffic driving model (added 2026-08-31).**
+`vtype_file` and `lateral_resolution` together select a driving model that
+approximates heterogeneous, weak-lane-discipline traffic: five vehicle classes
+with per-class gap acceptance and desired speeds, driver heterogeneity as nested
+`<vTypeDistribution>` aggressiveness tiers, and a `jm*` junction-model group
+gated to the aggressive tiers only. The evidence base, the sourced-vs-reasoned
+split, and every measurement are in **`docs/MIXED_TRAFFIC_RESEARCH.md`**.
+
+**It is never used on the training or evaluation path, and that is enforced in
+three independent places, not merely intended:**
+
+1. **Both kwargs default to today's behaviour.** With both omitted the
+   `traci.start()` argv is **byte-identical** to the pre-change one (verified as
+   18 tokens against `git show HEAD:env/psychoflow_env.py`, not inspected by
+   eye). Nothing can pick the demo model up by accident; it has to be passed.
+2. **`training/train.py` asserts both are at their defaults before
+   `model.learn()`** — `raw_env.vtype_file == ADD_FILE` and
+   `raw_env.lateral_resolution is None` — beside the existing spillover-predictor
+   assert. Verified non-vacuously: passes on the default, raises on each demo
+   kwarg individually.
+3. **The backend's switch is off by default.** `backend/main.py --demo-driving`
+   (default OFF) is the only route into it from a running system.
+
+**Why the isolation matters, stated once:** the demo model changes vehicle
+dynamics, so throughput, waits and starvation all differ under it. Every figure
+in this document — §16's measured baselines, §10.1's ceiling overshoot range,
+the 4a bake-off grid, Tier 0's 41.0s worst wait — was measured on the default
+vTypes under SUMO's lane-disciplined LC2013 model. **Never re-measure a
+checkpoint under the demo model and compare the result to a recorded number;
+they describe different worlds.**
+
+**Honest boundary (§17):** this approximates mixed traffic *using SUMO's sublane
+model*, which is the best lever SUMO offers. It is **not** lane-free driving —
+the road is still lanes with centre-lines and lane-to-lane connections; what
+SL2015 adds is a continuous *lateral* position within them.
+
+⏸ **STATUS: BUILT AND MEASURED, NOT SIGNED OFF.** The done-bar for this work is
+a human watching `sumo-gui` and confirming the behaviour looks right; it has not
+happened yet, and the work is uncommitted until it does. See `CLAUDE.md` §10-§11.
+
+---
+
 ---
 
 ## 10. Safety & Policy Validator
@@ -747,6 +806,10 @@ So: still don't pre-emptively cap. But if Checkpoint 1 *does* come back flat, th
 - **There is no round-robin / fixed-timer controller in the build — it is the §19 hook illustration only.** §19's opening beat ("fixed-timer signals, empty-lane problem") and the §13.1 `set_mode` row's "or fixed timer" phrasing predate the settled controller set. The only controllers that actually run are Tier 0 (fairness-first, §9.1), the trained PPO policy (auto mode), and — landing in Phase 12 — Greedy (§15.1, currently stubbed). `set_mode("manual")` hands over to Tier 0, never to a cyclic timer. A fixed-timer baseline could be shown as a static "before" picture in the hook, but it is not a `set_baseline_mode` option and nothing swaps to it live.
 - **The voice layer (§14) is "no paid inference", not "fully local".** The hard constraint is *no Claude API call and no paid model call anywhere in the runtime path* (§0, §2). Intent parsing (local Gemma via Ollama) genuinely is local. **Browser STT via the Web Speech API is not** — in Chrome it streams audio to Google's speech service (free, no key, but off-device). Describe it as "free, local-model intent parsing with browser speech-to-text", and if a judge asks specifically, say the STT step can call a cloud service unless the optional local-Whisper fallback (§14) is used. Do not call the whole feature "local-only".
 
+- **The mixed-traffic driving model approximates weak lane discipline with SUMO's sublane model — it is not lane-free driving, and it is DEMO-ONLY (added 2026-08-31).** The road is still a set of lanes with centre-lines and lane-to-lane connections; SL2015 adds a continuous *lateral* position within them, which is what lets a two-wheeler filter past a car inside one lane. Say "approximates mixed traffic using SUMO's sublane model", never "lane-free". Two further honesty points travel with it: (1) it is **not on the training or evaluation path** (§9.6) — the deployed policy was trained under SUMO's default lane-disciplined model, so **no performance number in this document was measured under the mixed-traffic model**, and none should ever be re-measured under it for comparison; (2) the parameter values are **reasoned engineering defaults calibrated against this corridor, not transcribed from any study** — `docs/MIXED_TRAFFIC_RESEARCH.md` separates, by section, what is sourced (relayed second-hand, directional only), what is a reasoned default (the tier split ratios and every parameter value — no sourced proportion anywhere), and what this repo actually measured. **Only that last category may be quoted as something PsychoFlow measured.** In particular, do not describe the model as "calibrated per Mathew & Radhakrishnan" — that paper's parameter table was never retrieved.
+
+- **The mixed-traffic model's own done-bar is a human GUI watch, and it has not happened yet (as of 2026-09-02).** Recorded here rather than only in `CLAUDE.md` because it is a scope-honesty fact, not just a task: the work is built, measured and unsigned-off, and until the watch passes it is also uncommitted. Anything that presents it as finished is overstating what is built — exactly what this section exists to prevent.
+
 State these explicitly to judges and keep them in code comments — this is what keeps the team from accidentally overstating what's built vs. modeled.
 
 ---
@@ -774,7 +837,8 @@ Each phase below is a self-contained Claude Code session. Don't start phase N+1 
 ## 19. Demo Script
 
 1. **Hook (30s):** fixed-timer signals, empty-lane problem.
-2. **Live intersection (30s):** realistic vehicle mix, animated movement.
+2. **Live intersection (30s):** realistic vehicle mix, animated movement — the heterogeneous mixed-traffic driving model (§9.6, evidence base in `docs/MIXED_TRAFFIC_RESEARCH.md`): five vehicle classes with driver aggressiveness tiers, two-wheelers filtering to the queue front, vehicles sharing a lane laterally rather than holding strict lane discipline.
+   ⏸ **PENDING HUMAN SIGN-OFF — this beat is NOT ready.** Same honest-status convention as §16's FAILED Stage 4 checkpoint bar. The model is built and measured (queue-front filtering inverts the bike/car ordering to 2.94x; 0.00% collisions; lane-sharing 51.38% against a ~62% target), but its done-bar is a **human watching `sumo-gui` and confirming it looks right**, and that has not happened. Until it does the work is also **uncommitted**. Do not rehearse this beat as finished, and do not describe it to a judge as "lane-free driving" — say "approximates mixed traffic using SUMO's sublane model" (§17). Launch the watch with `python sim/run_demo_gui.py`; see `CLAUDE.md` §11.1.
 3. **Side-by-side (60-90s), strongest beat:** Greedy vs. PsychoFlow on identical live traffic — fairness/starvation diverge in real time (§15.1, §15.2).
 4. **Emergency override (20s):** spawn ambulance, instant corridor clearance (§11.1).
 5. **Voice control (30-40s), differentiator:** speak a live command, dashboard reacts (§14).
@@ -793,6 +857,11 @@ Each phase below is a self-contained Claude Code session. Don't start phase N+1 
 - [ ] All §16 checkpoints passed and recorded — **except Stage 4's emergency-priority bar, which is on record as FAILED (diagnosed 2026-08-29). Everyone can state the §17 emergency-handling wording out loud: "~¾ served proactively, better than chance; can't anticipate because sensing is approach-lane-only; the validator is the hard guarantee, ~8/10 episodes." Nobody says "0% proactive" or "15/15".**
 - [ ] Voice layer tested with real background noise; fallback message confirmed to trigger
 - [ ] Greedy-vs-PsychoFlow toggle and emergency override rehearsed live, multiple times
+- [ ] **Mixed-traffic driving model signed off by a human watching `sumo-gui`** (`python sim/run_demo_gui.py` — full corridor, all three junctions, both corridor directions and all six cross movements, coloured by type, `--end` + `--quit-on-end false`). No test suite substitutes for this; it is the model's actual done-bar (§9.6, `CLAUDE.md` §10). **Two decisions ride on the same watch:** whether the `bike_over_car` 36.29% → 31.73% drop is accepted, and whether bike lane-sharing at 51.38% against a ~62% target is close enough.
+- [ ] **The mixed-traffic work COMMITTED once that sign-off passes** — it is currently 8 modified + 2 untracked files in the working tree only, and a fresh clone or a `git checkout .` destroys it, `docs/MIXED_TRAFFIC_RESEARCH.md` included.
+- [ ] `enable_safety_validator` grepped and every hit confirmed to be test scaffolding or a standing-rule comment (§9.6, `CLAUDE.md` §8) — nothing under `backend/` may reach it.
+- [ ] **Event rules actually read** — specifically whether Phase 10-12 code must be written live during the event (timestamp-checked or similar) or whether that is the team's own self-imposed discipline. **This was assumed, never confirmed**, and the whole "reserve Phase 10/11/12 for the event" plan rests on it (`CLAUDE.md` §10).
+- [ ] **Demo machine confirmed and load-tested as one system** — the local Gemma model (§14) running *simultaneously* with SUMO, the backend and the frontend, on the actual laptop being used on the day, not benchmarked one process at a time (`CLAUDE.md` §10).
 - [ ] Backup demo video recorded
 - [ ] Everyone on the team can state, out loud, what's rule-based vs. RL-learned vs. simulated-mock
 

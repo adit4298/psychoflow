@@ -2915,7 +2915,7 @@ docs.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
 
-## 2026-08-31 — Follow-ups on the backend-security-hardening branch (NOT merged)
+## 2026-08-31 — Follow-ups on the backend-security-hardening branch (SINCE MERGED)
 
 Two items raised against the previous entry on this branch.
 
@@ -2958,6 +2958,555 @@ reasonable call for a change this size, but there is no project rule
 requiring it; a fast-forward merge to `main` restores the linear history the
 repo has always had. Recorded here so the citation is not left ambiguous.
 
-**Still NOT merged to `main` — awaiting the go-ahead.**
+> **CORRECTED 2026-09-02 (closure-pass audit). This line said "Still NOT merged
+> to `main` — awaiting the go-ahead" and is FALSE.** The branch WAS merged the
+> same day, 14 minutes after this entry was written, and the entry was never
+> updated. Verified from the reflog, not inferred:
+> `803afbc HEAD@{2026-08-31 12:03:24 +0530}: merge backend-security-hardening: Fast-forward`.
+> `main`, `origin/main` and `backend-security-hardening` all point at `803afbc`;
+> `git log --merges main` is empty and the history is 67 linear commits, i.e.
+> the fast-forward preserved the trunk-based shape §2 of this entry argued for.
+> **The `backend-security-hardening` ref still exists and is now redundant** —
+> it is a stale pointer at `main`'s tip, not unmerged work. Deleting it is safe;
+> it is left in place only because nothing depends on either choice.
+>
+> The original line follows, struck:
+>
+> ~~Still NOT merged to `main` — awaiting the go-ahead.~~
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-08-31 — STEP 1: demo-only mixed-traffic driving model (`vehicle_types_demo.add.xml`), + items 1-5 measured
+
+Design plan was stated and signed off before code (CLAUDE.md §4 — this touches
+`env/psychoflow_env.py`). The `jm*` junction-model group was explicitly approved
+to fold in. **Nothing in `env/reward.py`, `safety/validator.py`, `agents/`,
+`prediction/`, `perception/`, `twin/`, `coordinator/` or `explainability/` was
+touched. Stage 4's decision timing and the RL policy were not modified. No
+locked decision (CLAUDE.md §2) reopened. No training run.** STEP 2 (violation
+detector) and STEP 3 (synthetic plates) were NOT built — still awaiting sign-off.
+
+**Files:** `sim/networks/vehicle_types_demo.add.xml` (new);
+`env/psychoflow_env.py` (+2 kwargs, both defaulting to current behaviour);
+`training/train.py` (+2 asserts); `backend/sim_runner.py` (+2 constants, +1
+kwarg); `backend/main.py` (`--demo-driving`). Scratchpad harnesses:
+`measure_driving.py`, `measure_phases.py`, `verify_argv.py`,
+`preview_ambulance.py`.
+
+**Decision:** the demo driving model lives in a SEPARATE add-file reached only
+through two explicit `PsychoFlowEnv` kwargs, never by default.
+**Why:** `ADD_FILE` was a module constant baked into `reset()`'s `traci.start()`
+command, and all ~30 `PsychoFlowEnv(...)` sites funnel through that one call —
+there was no seam at all. Same additive-parameter pattern as
+`Tier0Controller.act(lane_weights=None)`.
+**Deviates from plan?** No. Additive; the default path is unchanged.
+**Verified — the proof obligation, asserted not inspected:** `verify_argv.py`
+monkeypatches `traci.start`, loads the pre-change module via
+`git show HEAD:env/psychoflow_env.py` (written into `env/` so its `REPO_ROOT`
+resolves correctly — loading it from a temp dir produced a false difference on
+the first attempt), and compares argv. **Default argv is BYTE-IDENTICAL to HEAD,
+18 tokens.** Demo argv = default with `-a` swapped plus
+`--lateral-resolution 0.4 --collision.action warn --collision.mingap-factor 0`.
+No demo-only flag appears on the default path. The training guard was tested
+non-vacuously: passes on default, raises on each demo kwarg separately.
+
+**Decision — `tau` MUST be >= `STEP_LENGTH_S` (1.0). This is the entry worth
+reading if anything here is ever retuned.**
+**Why:** the first parameter set used bike `tau=0.5` / auto `tau=0.6` for
+realistic tailgating and produced **272 of 1870 vehicles (14.55%) involved in a
+collision**, against 0.00% baseline. Krauss's safe-velocity cannot guarantee a
+collision-free follow below the simulation step size.
+**How it was found — by measurement, after two wrong guesses, which is the point.**
+Guess 1 (`lcMaxSpeedLatStanding`/`lcMaxDistLatStanding` too permissive): tuned
+down, collisions went 14.55% -> 15.19%, i.e. slightly WORSE. Guess 2 (soften the
+lateral params generally): also no improvement. Only then was the collision
+stream actually inspected: **3557 of 3565 events were `on-lane`, just 8 were
+`junction`**, and the collider column was dominated by `auto`/`bike` — which
+ruled the `jm*` group out and pointed at car-following, not lateral. Raising tau
+to 0.9/1.0/1.2/1.6/1.0 gave **0.00% collisions** while preserving the per-type
+ordering, and the lateral aggression softened during guess 1 was then RESTORED
+(it was never the cause) — after which the filtering result got *stronger*.
+**Deviates from plan?** The approved table had bike `tau=0.5`, auto `0.6`. Both
+raised, for the numerical reason above; the relative ordering the design called
+for is intact.
+
+**Decision:** `lcMaxSpeedLatStanding` is set explicitly on every type.
+**Why:** it defaults to 0 for every vClass except bicycle/pedestrian, so a
+STOPPED `auto` cannot move sideways at all — queue-front filtering would have
+been impossible for it regardless of `minGapLat`/`lcPushy`. Verified against the
+installed SUMO 1.27.1 schema (`data/xsd/types/route.xsd`) before use, along with
+every other `jm*`/`lc*` attribute name used.
+
+### Item 1 — queue-front filtering: CONFIRMED, ordering INVERTED
+
+Harness is deliberately standalone (raw SUMO, netconvert's static TLS, **1s
+resolution**, no `PsychoFlowEnv`, no checkpoint): it measures the driving model,
+so it cannot perturb Stage 4, and the static program cycles on its own giving
+151-152 red->green queue samples in 1200s. 1s is required — at 5s a 13.9 m/s
+vehicle covers 69m, longer than the junction, and the crossing aliases away.
+
+Metric: at each green onset, rank halted queued vehicles by arrival time and by
+distance to the stop line; advancement = arrival_rank - stopline_rank.
+
+| | baseline | demo |
+|---|---|---|
+| bike mean advancement | **-1.578** | **+1.949** |
+| `bike_over_car` | 4.17% | **37.13%** |
+| `bike_over_truck` | 10.81% | **41.18%** |
+| `car_over_bike` | 25.00% | 11.58% |
+| `truck_over_bike` | 17.50% | 8.82% |
+| collisions | 0.00% | **0.00%** |
+
+Baseline: a car overtakes a bike **6x** more often than the reverse. Demo: a
+bike overtakes a car **3.2x** more often than the reverse. `auto` is mid-pack by
+design (gains on car/truck, loses to bike), so its mean advancement is slightly
+negative — expected.
+
+**Measurement caveat, stated rather than smoothed:** three views were computed.
+`filtering_halted` (above) ranks by first-seen-on-approach and restricts to
+vehicles actually stopped — this is the reported one. A `filtering_queuejoin`
+view ranking by halt time was also computed and is **NOT quoted**, because halt
+order and stop-line position are correlated by construction (a queue grows
+backwards), so it cannot cleanly separate filtering from geometry.
+
+### Item 2 — urban speed calibration
+
+Baseline car reached **16.70 m/s = 60.1 km/h** — its own `maxSpeed`, above the
+road's 50 km/h limit, because SUMO's default `speedFactor` spread allows ~1.2x.
+That is a highway desired speed on a 300m-spaced signalised arterial. Demo,
+observed mean_moving / p85 / max in **km/h**: bike 30.9/37.0/39.6, auto
+27.8/33.0/34.2, car 33.1/43.1/45.0, truck 28.0/35.4/36.0, ambulance
+38.9/48.6/53.2. `bike` was RAISED (7.0 -> 11.0 m/s): 25 km/h is a pedal-bicycle
+speed and was itself the main reason bikes could not reach the queue front.
+**`DEFAULT_SPEED_MPS` (13.89) in `generate_corridor.py` is NOT touched** —
+changing it would require regenerating all 27 networks.
+
+### Item 3 — "the signals switch too fast", disentangled (measurement only)
+
+**(a) `--delay` is cosmetic**, a `sumo-gui` wall-clock sleep; it does not enter
+the simulation. The headless runs have no delay concept and reproduce Stage 4's
+recorded row bit-for-bit. At `--delay 120` a 15s green is 1.8 wall-seconds; at
+300 it is 4.5 — which explains most of the impression.
+**(b) Vehicle speed does not meaningfully change actual durations.** Same
+checkpoint/corridor/seed, baseline vs demo driving: median slot-interval **15.0s
+in both**, mean 19.88 -> 20.58, p75 25.0 both, **arrived 4668 in both**.
+**(c) The real number**, Stage 4 @153,600 on (4,3,2) seed 7, **465 phase changes
+over 3145s**: min 15.0 / p25 15.0 / **median 15.0** / p75 25.0 / p90 25.0 / max
+50.0 / **mean 19.88s**. Per junction 20.03 / 19.69 / 19.94. The interval is
+measured green-slot-to-green-slot so it **includes the ~3s yellow** — effective
+green ~12s and ~22s, a bimodal 15/25 pattern, ~40s cycle. `DECISION_INTERVAL_S`
+=5.0 and `MIN_GREEN_S`=10.0 shape it. **So "fast" is mostly playback, but ~12s
+effective green is genuinely short for an urban arterial — both are true.**
+
+### Item 4 — ambulance preview
+
+`preview_ambulance.py` (now `sim/mixed_traffic/`) writes its OWN route file with ambulances at
+35/150/300s and launches sumo-gui. `sim/routes/`, `scenario_generator.py`'s
+defaults and the real (300, 2400)s `spawn_emergencies` window are untouched.
+
+### Item 5 — spawn variety: TOO PATTERNED (reported, not fixed)
+
+`write_route_file` uses `<flow vehsPerHour=...>`, which SUMO inserts **equally
+spaced**. Measured: every cross route has inter-departure gap **exactly 6.000s,
+stdev 0.0000, ONE distinct value**; corridor routes alternate 3.0/4.0s
+(3600/1000 = 3.6s rounded to the 1s step). Within-episode variety today is only
+`departLane="random"` plus the vType draw. Fix would be `probability=` instead
+of `vehsPerHour=`, and/or randomised `departPos`. **Deliberately NOT changed** —
+it alters the scenario draw every recorded number depends on. Cross-run
+reproducibility is unaffected and is a feature, per the brief.
+
+### Verified — full regression, project venv (`sys.prefix` ends `...\GitHub\Test\venv`)
+
+- 9 module self-tests PASS: `env.reward`, `safety.validator`,
+  `explainability.{decision_log,narrator,query_interface}`,
+  `coordinator.{emergency_clearance,responder_messaging}`,
+  `prediction.{spillover,incident_impact}`
+- `sim/run_backend_security_check.py` -> **62 passed, 0 failed**
+- `sim/run_backend_smoke.py` -> **50 passed, 0 failed**
+- `sim/run_shadow_advisor_check.py` -> **35 passed, 0 failed**
+- `sim/run_env_smoke.py` -> all Phase 3 checks pass
+- `sim/run_explainability_episode.py` -> all checks pass
+- `sim/run_tier0_episode.py --b1` -> **627 steps / 3145s / 4668 arrived / 41.0s
+  worst / 0 starved / 0 overrides** — reproduces the recorded B1 baseline exactly
+- `measure_phases.py` (default arm) reproduces Stage 4's recorded (4,3,2) seed-7
+  row **bit-for-bit**: `mean_reward=1.3691` vs the logged `1.369126205607078`,
+  627 steps, 4668 arrived — establishing harness trust before any claim was drawn
+  from it, per this file's standing discipline
+- `python -m backend.main --help` lists `--demo-driving`
+
+**Still open / not done:** the mandatory human GUI watch (sumo-gui relaunched
+with the demo config, `--delay 300 --quit-on-end false`, held open — STEP 1 is
+NOT declared done until a human confirms the filtering is visible, not merely
+present in the data). STEP 2 and STEP 3 remain unbuilt pending sign-off.
+
+**Next per §18 is still Phase 10 — Frontend.** A Phase 10 BEHAVIOR SPEC was
+recorded in CLAUDE.md §8 so it is not re-derived during the event.
+
+## 2026-08-31 — STEP 1 REFINEMENT: aggressiveness tiers, two perception fixes, and a WITHDRAWN diagnosis
+
+Approved with four conditions attached; all four are addressed below. **Nothing
+in `env/reward.py`, `safety/validator.py`, `agents/`, `prediction/`, `twin/`,
+`coordinator/`, `explainability/`, `backend/` or `training/` was touched. Stage
+4's decision timing and the RL policy were not modified. No locked decision
+(CLAUDE.md §2) reopened. No training run. No Phase 10/11/12 work.** Not
+committed — awaiting sign-off.
+
+**Files:** `sim/networks/vehicle_types_demo.add.xml` (rewritten as tiers),
+`perception/lane_sensor.py` (+`base_vtype()`), `perception/weather.py`
+(+`_resolve_members()`), `docs/MIXED_TRAFFIC_RESEARCH.md` (extended),
+`CLAUDE.md` §8. Scratchpad harnesses: `measure_overtake.py`,
+`verify_perception_fixes.py`, `probe_dist.py`, `probe_weather_propagation.py`,
+`probe_collisions.py`, plus STEP 1's `measure_driving.py` (patched, see below).
+
+**Decision:** `bike`/`auto`/`car` become nested `<vTypeDistribution>`s of
+cautious/normal/aggressive tiers; truck and ambulance stay single vTypes.
+**Why:** research §1.6; the aggressive tier is STEP 1's own signed-off table
+kept as a CEILING, so the refinement can only add calmer traffic below it.
+**Deviates from plan?** No — approved as proposed.
+**Verified:** SUMO 1.27.1 resolves the route file's own
+`<vTypeDistribution id="mixed" vTypes="bike auto car truck">` when its members
+are themselves distributions, so **`sim/scenario_generator.py` needed NO change**
+and the training route writer is untouched. Observed within-type splits land on
+target (car exactly 0.100/0.900 at n=897).
+
+### CONDITION 1 — the getTypeID() audit found a SECOND affected site
+
+**Decision:** two perception fixes, not one.
+**Why:** the repo-wide grep the condition required confirmed
+`perception/lane_sensor.py:84` is the only `getTypeID()` call site — **but
+`perception/weather.py` is affected the same way through a different API.** It
+drove §7.4 entirely through `traci.vehicletype.getTau("bike")` / `setTau`,
+addressing vTypes BY ID. Measured: those calls do **not** raise on a
+distribution id, they resolve to **one randomly sampled member** — a read
+returned `bike.aggressive`'s value while the very next write landed on
+`bike.normal`, reaching **1 of 3 tiers**. §7.4 would have become ~1/3 true,
+silently and non-reproducibly, with the twin still reporting `heavy_rain`.
+**Deviates from plan?** The weather fix is beyond what was approved; it is
+reported here rather than assumed. It is the condition's own stated purpose
+("shared module risk means there may be others affected the same way").
+**Verified — raw BEFORE/AFTER, live tiered scenario, shipped code path:**
+
+| type | BEFORE (old rule) | AFTER (shipped) |
+|---|---|---|
+| bike | **0** | 12 |
+| auto | **0** | 40 |
+| car | **0** | 73 |
+| truck | 8 | 8 |
+| TOTAL | 8 | 133 |
+
+BEFORE lost 125 of 133 vehicles to `unknown_types`
+(`car.normal` 69, `auto.normal` 23, `auto.cautious` 10, …); AFTER
+`unknown_types` is empty. **Inertness control on the DEFAULT file: BEFORE and
+AFTER identical on every row** (18/37/64/13/0, total 132 both) — measured, not
+argued. Weather: tiered run resolves to all 10 concrete ids and reaches all 10;
+default run resolves to the 5 bare ids, unchanged.
+
+### CONDITION 2 — bike tau 0.9 -> 1.0, and a collision regression
+
+**Decision:** every tier now sets `tau >= STEP_LENGTH_S` (1.0), closing the rule
+violation STEP 1 shipped. **Verified, isolated on ONE route file:** the tau
+change alone costs `bike_over_car` 36.29% -> 35.67% (−0.62 pts) while
+*improving* the bike/car ratio 2.13x -> **5.37x**, and holds collisions at 0.00%.
+
+**HARNESS-TRUST CAVEAT, stated rather than buried:** STEP 1's recorded baseline
+did **not** reproduce bit-for-bit — 1868 vehicles against its recorded 1870,
+`bike_over_car` 5.61% against 4.17%. The route file differs somehow (tested and
+ruled out: `flows_end_s`). **STEP 1's recorded 37.13% is therefore NOT a valid
+comparator**, so STEP 1's own table was reconstructed and re-run on this
+session's route file instead.
+
+**Same-route-file result: `bike_over_car` 36.29% (STEP 1) -> 31.73% (tiered).**
+A 4.56-point drop, of which 0.62 is tau and 3.94 is tiering. **Reported for a
+decision, per the condition, not silently kept.** The reading that argues it is
+working as designed: only 35% of bikes are aggressive now, `car_over_bike` fell
+17.05% -> 10.81%, the ratio rose 2.13x -> 2.94x, and per tier
+**bike.aggressive scores 2.500 mean advancement, ABOVE STEP 1's uniform 1.569**
+(normal 1.462, cautious 0.889).
+
+**COLLISION REGRESSION, real and reported: 0.00% -> 0.107%** (2 vehicles of
+1868, ONE incident, on-lane `J2_J1_0`, t=252-265, **truck-on-truck**). Truck's
+parameters are byte-identical to STEP 1's. Two hypotheses TESTED, not asserted,
+per STEP 1's precedent that guessing here wastes passes: **truck
+`actionStepLength=1.5` — REFUTED** (removing it leaves 0.107% unchanged); **the
+bike tau change — REFUTED** (STEP 1's table with tau 1.0 gives 0.00%). It is
+attributable to the changed traffic MIX around unchanged trucks.
+
+### CONDITION 3 — the hypothesis is NOT confirmed, and a prior diagnosis is WITHDRAWN
+
+**Decision:** the previous session's conclusion — *"the wish is speed-gated but
+the EXECUTION is not"* — is **WITHDRAWN**, and with it the claim that
+`lcTimeToImpatience` 5 -> 20 fixes anything.
+**Why:** that conclusion came from bucketing each completed pass by the speed
+delta at relationship OPEN. Median relationship duration is **16-17 s** in the
+`<=0` bucket against **6-7 s** at `>6`, so a low-delta relationship persists
+while the leader slows and the eventual pass was attributed to a state that no
+longer held. Re-bucketed **at the pass instant**:
+
+| delta m/s | STEP 1 /1k | tiered /1k |
+|---|---|---|
+| <=0 | **0.00** | **0.00** |
+| 1-2 | 14.49 | 9.05 |
+| 4-6 | 26.80 | 27.91 |
+| >6 | **64.04** | **58.19** |
+
+**Exactly ZERO passes occur where the leader is already at or above the
+follower's desired speed — in BOTH arms.** The model never had the defect. The
+mechanism view stays clean and its span widened 23.6x -> **27.4x**.
+`lcTimeToImpatience` 5 -> 20 is retained as harmless, **not as a validated fix**.
+
+**This is the fifth instance of this repo's named failure mode**, and the first
+authored inside this refinement: after `j1=3`, `0.885 vs 0.778`, D1 "collapse"
+and the 15/15 emergency matrix — *a measurement that could not have detected the
+alternative, read as though it had.* Here the uncovered region was "the same
+pass, measured at a different instant." **Standing consequence: bucket an
+outcome at the instant it occurs, never at the instant the situation opened.**
+
+**What survives of the GUI observation:** the demo completes ~**2x** the
+baseline's passes (1527 vs 818 in 1200 s). Constant overtaking is REAL as a
+VOLUME claim; it was never a speed-gating claim.
+
+**Condition 3b — lane sharing, strict same-lane classifier:** bike
+**48.46% -> 51.38%** against research §1.3's ~62% target, so **+2.92 points
+closer and still ~10.6 short**. Per tier: aggressive 54.59%, cautious 52.54%,
+normal 47.89%. The strict classifier's validity rests on its baseline control
+reading **0.00%** under LC2013, which has no sublane.
+
+**Harness defect found and fixed mid-pass:** STEP 1's `measure_driving.py`
+carried the *identical* bug this session fixed in `lane_sensor.py` — it matched
+`getTypeID()` raw, so the first tiered run reported `n/a` for every pair metric
+and only `truck` in speeds. Patched to resolve base types via the new
+`base_vtype()`, plus per-tier reporting.
+
+### CONDITION 4 — red-running population, computed
+
+Aggressive-tier share x the route file's own `MIX_PROBABILITIES`. Only
+aggressive tiers set `jmDriveAfterRedTime >= 0`; every other tier is `-1`.
+
+| type | mix p | aggressive share | expected | observed (n=1868) |
+|---|---|---|---|---|
+| bike | 0.15 | 0.35 | 5.25% | 5.57% |
+| auto | 0.25 | 0.25 | 6.25% | 6.80% |
+| car | 0.50 | 0.10 | 5.00% | 4.82% |
+| truck | 0.10 | 0.00 | 0.00% | 0.00% |
+| **total** | | | **16.50%** | **17.18%** |
+
+The previous report's "35% of 15% bikes…" phrasing meant this but did not parse;
+this is the computation. **ELIGIBLE is not OFFENDING** — `jmDriveAfterRedTime` is
+a window and `jmIgnoreFoeProb` a per-encounter probability, so actual red
+entries are a fraction of 16.50%.
+
+### Verified — full regression, project venv (`sys.prefix` ends `...\GitHub\Test\venv`)
+
+- 9 module self-tests PASS: `env.reward`, `safety.validator` (11/11 §10
+  scenarios), `explainability.{decision_log,narrator,query_interface}`,
+  `coordinator.{emergency_clearance,responder_messaging}`,
+  `prediction.{spillover,incident_impact}`
+- `sim/run_backend_security_check.py` -> **62 passed, 0 failed**
+- `sim/run_backend_smoke.py` -> **50 passed, 0 failed**
+- `sim/run_shadow_advisor_check.py` -> **35 passed, 0 failed**
+- `sim/run_env_smoke.py` -> all Phase 3 done-bar checks pass
+- `sim/run_explainability_episode.py` -> all checks pass
+- `sim/run_tier0_episode.py --b1` -> **627 steps / 3145s / 4668 arrived / 41.0s
+  worst / 0 starved / 0 overrides / +1.2 mean reward** — reproduces the recorded
+  B1 baseline exactly, with the two perception modules changed
+- **byte-identical default-path argv proof: PASS** (18 tokens, identical to
+  `git show HEAD:env/psychoflow_env.py`); demo argv = default with `-a` swapped
+  plus the three lateral/collision flags; no demo-only flag on the default path
+- **train.py guard test, non-vacuous:** passes on default, raises on the demo
+  vtype file, raises on `lateral_resolution=0.4`
+
+**Still open / NOT done:** the mandatory human GUI watch. STEP 1 and this
+refinement now share one combined done-bar — neither is closed until a human has
+watched `sumo-gui` (`--end`, `--quit-on-end false`, coloured by type) and
+confirmed both tiered heterogeneity and overtake-only-when-actually-slower are
+visible. Two decisions are also outstanding: the `bike_over_car` 36.29% -> 31.73%
+drop, and the 0.00% -> 0.107% truck-truck collision.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-09-01 — COLLISION FOLLOW-UP: the 0.00% -> 0.107% regression is ROOT-CAUSED and FIXED (truck lateral recentring)
+
+**This entry was missing.** The work was done on 2026-09-01 and written up in
+`docs/MIXED_TRAFFIC_RESEARCH.md` §6.6, but no BUILD_LOG entry was ever
+appended, so the log's most recent word on the collision was the previous
+entry's *"attributable to the changed traffic MIX around unchanged trucks"* —
+which that entry itself flagged as a plausible story, not a confirmed
+mechanism. Recorded here so the decision log and the research file agree.
+
+**Decision:** raise `truck`'s `maxSpeedLat` 0.5 -> **0.9** and `lcAccelLat`
+0.6 -> **1.2** in `sim/networks/vehicle_types_demo.add.xml`. Every other truck
+parameter is unchanged from STEP 1. `lcMaxSpeedLatStanding` stays **0.0**, so
+a truck still cannot creep sideways while queued and queue-front filtering by
+bikes/autos — the mechanism the whole demo model exists for — is untouched.
+
+**Why — the traced causal chain, not a hypothesis.** `--collision.action warn`
+re-logs an overlapping pair on *every step the overlap persists*, so the
+"one incident" framing in the previous entry was itself wrong: the two trucks
+(`f_r_ew.36`, `f_r_ew.28`) generated **14 warning events across t=246-265s —
+~19 seconds of continuous physical contact**, not an instantaneous graze.
+Vehicle count (2) and location (`J2_J1_0`) were right; duration was never
+measured. Per-step state traces of both vehicles from insertion to contact
+(`diagnose_collision{,2,3}.py`) show: `f_r_ew.28` performs an ordinary SUMO
+**strategic** lane change from t~155s — the router pre-positioning it for a
+later turn, with `sameLaneNear` empty (no vehicle within 15m) for the entire
+manoeuvre, so nothing to do with tiering, heterogeneity, or any neighbour
+interaction. At the old lateral capability that change takes **~24s**; when
+SUMO reassigns the vehicle to the new lane at t~179s its lateral offset is
+still **~1.2m off that lane's centre** — about a third of the truck's own 2.4m
+width sitting in the neighbour lane — and it does **not** meaningfully continue
+correcting, still ~1.2m off-centre some 65s later at the J2 queue. J2_J1's
+lanes are 3.2m wide with centres 3.2m apart, i.e. zero nominal gap, so a truck
+more than 0.4m off-centre already intrudes. With `--collision.mingap-factor 0`
+(this project's standing convention) there is no buffer to absorb it. SUMO's
+own report confirms the geometry: `gap=-0.07`, `latGap=-0.00` — a rear-quarter
+sideswipe. **The vulnerability is a pre-existing property of STEP 1's own truck
+parameters.** Tiering consumes extra RNG draws (one per bike/auto/car for tier
+selection), shifting insertion timing and therefore which trucks end up
+adjacent and when — a timing coincidence exposing an existing hazard, not a
+behavioural change in trucks.
+
+**Deviates from plan?** No. Demo-only file; nothing on the training or
+evaluation path can observe it.
+
+**Verified — re-run 2026-09-02 during the closure pass, independently of the
+session that made the fix**, same route file / seed 7 / 1200s / raw SUMO
+(`probe_collisions.py`, project venv, beacon confirmed free):
+
+```
+collision EVENTS: 0
+collider type counts: {}
+on-lane: 0   junction/internal: 0
+Warning: Vehicle 'f_r_we.91' performs emergency braking on lane 'J2_J3_0' ... time=450.00.
+```
+
+**0 collision events (was 14 warn-events / one ~19s sustained sideswipe),
+arrived unchanged at 1737, and exactly 1 emergency-braking warning** — matching
+the fixing session's recorded figures exactly. The one braking warning is
+background `sigma`-driven noise, not a new problem: STEP 1's own
+uniform-aggressive arm produces **2** such warnings on this same route/seed
+with 0 collisions.
+
+### Side finding the re-run surfaced: `truck actionStepLength="1.5"` IS INERT
+
+SUMO prints, on every load of the demo file:
+
+```
+Warning: The parameter action-step-length must be a non-negative multiple of
+the simulation step-length. Parsing given value (1.50 s.) to the adjusted
+value 1.00 s.
+```
+
+So truck's `actionStepLength="1.5"` is **silently clamped to 1.0** — the
+project's `STEP_LENGTH_S` — and has never had any effect. This closes the loop
+on the previous entry's first refuted hypothesis: removing `actionStepLength`
+entirely left the collision result unchanged **because removing it changes
+nothing**, not because it was innocent-but-active. The test was right and the
+conclusion was right; the reason was not known. **Left in the file
+deliberately** rather than deleted: it is harmless, and stripping it now would
+make the shipped file diverge from the parameter table every §6 measurement
+was taken against for zero behavioural gain. If the step length is ever
+lowered below 1.0s, this line stops being inert — re-measure then.
+
+**Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
+
+## 2026-09-02 — CLOSURE PASS: repo-vs-docs reconciliation, and the handoff snapshot
+
+A self-audit pass, not a build pass. **No existing source file was modified**
+— `git diff HEAD --stat` on the eight pre-existing modified files is byte-for-byte
+what it was before this pass. **Three files were ADDED**, all demo scaffolding for
+the sign-off watch and none of it on any measured path: `sim/run_demo_gui.py`,
+`sim/networks/demo_gui_settings.xml`, and the generated
+`sim/routes/demo_gui_432_seed7.rou.xml`. Goal: a
+brand-new session given only `CLAUDE.md`, this file, the master plan and
+`docs/MIXED_TRAFFIC_RESEARCH.md` can pick up correctly with no chat history.
+Scope was git history from 2026-08-28 onward only; nothing older was re-read or
+re-summarised.
+
+### Discrepancies found between what the docs claimed and what the repo shows
+
+**1. "Still NOT merged to `main`" was FALSE — corrected in place.**
+The 2026-08-31 follow-ups entry ended with that line. Reflog:
+`803afbc HEAD@{2026-08-31 12:03:24 +0530}: merge backend-security-hardening: Fast-forward`
+— the merge happened **14 minutes after that entry was written** and the entry
+was never updated. `main`, `origin/main` and `backend-security-hardening` all
+sit at `803afbc`; `git log --merges main` is empty; history is 67 linear
+commits. The branch ref survives as a redundant pointer at `main`'s tip.
+
+**2. The collision follow-up was DONE but had NO BUILD_LOG entry** — written up
+only in `docs/MIXED_TRAFFIC_RESEARCH.md` §6.6. Added above as the 2026-09-01
+entry, and its result independently re-verified (0 collision events) rather
+than transcribed. The re-run also found `truck actionStepLength="1.5"` is
+silently clamped to 1.0 by SUMO and has always been inert.
+
+**3. `CLAUDE.md`'s CURRENT STATUS bullet was three days stale** (dated
+2026-08-28, listing only Phases 1-9 + D1). It predated the backend security
+hardening, `force_phase`/`clear_override`, the shadow advisor, and the entire
+mixed-traffic work. Rewritten as a standalone snapshot (below).
+
+**4. Master plan gaps.** `shadow_advisor` **was** correctly documented in §13.2
+(checked against the file, not assumed — the intention had been carried out).
+Three real gaps found and filled: `PsychoFlowEnv`'s `vtype_file` /
+`lateral_resolution` kwargs were in `CLAUDE.md` and this log but nowhere in the
+spec of record; §19's beat 2 still implied the vehicle-mix work was ready; §17
+had no honest-boundary bullet for the sublane model and §20 no GUI sign-off
+item.
+
+### The one thing a fresh session MUST NOT misread
+
+**The entire mixed-traffic driving-realism body of work is UNCOMMITTED** —
+**9 modified + 38 untracked = 47 files**, counted at the end of this pass with
+`git diff HEAD --name-only` and `git ls-files --others --exclude-standard`, not
+estimated. (It was 8 + 2 when this entry was first drafted, and 9 + 5 mid-pass;
+the jump to 47 is the 34 relocated harness files below plus this pass's own doc
+and GUI-watch additions. `CLAUDE.md`'s CURRENT STATUS carries the itemised
+list.) This is **deliberate**, not an
+oversight: STEP 1 and its refinement share one combined done-bar that is not
+closed until a human has watched `sumo-gui` and signed it off (see the new
+"WHAT A FRESH SESSION CANNOT VERIFY" section in `CLAUDE.md`). It is recorded
+here because the consequence is sharp: a fresh clone, or any `git checkout .`
+/ `git stash` on this working tree, **destroys all of it, including the three
+verification harnesses' evidence base.** The docs describe work that exists
+only in the working directory.
+
+**Related and equally fragile:** the harnesses that produced every §3/§6 number
+in `docs/MIXED_TRAFFIC_RESEARCH.md` live in a session-scoped OS temp directory,
+not in the repo —
+`%LOCALAPPDATA%\Temp\claude\C--Users-aditp-OneDrive-Documents-GitHub-Test\9585f3f5-abfb-4ddf-a20a-bcd43708b378\scratchpad\`
+(`measure_overtake.py`, `measure_driving.py`, `measure_phases.py`,
+`probe_collisions.py`, `probe_dist.py`, `probe_weather_propagation.py`,
+`verify_perception_fixes.py`, `diagnose_collision{,2,3}.py`, plus the pinned
+`measure.rou.xml` every arm shares). Confirmed present and working on
+2026-09-02 — `probe_collisions.py` ran from there. They are **temp files**: if
+that directory is cleared, the mixed-traffic numbers become unreproducible
+without rebuilding the harnesses from scratch. **RESOLVED the same day, in the follow-up pass:** they now live at
+**`sim/mixed_traffic/`** — 15 scripts, the pinned `measure.rou.xml`, the four
+comparison-arm vType tables, the two probe fixtures and 9 raw JSONs under
+`data/`, with a `README.md` mapping each script to the research section that
+cites it. Each script's hardcoded absolute repo path became
+`Path(__file__).resolve().parents[2]`; `check_fix.py` gained the `require_free()`
+beacon guard it lacked (it launches SUMO and had no `__main__` guard at all);
+`verify_argv.py` and `inspect_geometry.py` deliberately keep NO guard and gained
+the NOTE block explaining why, matching `stage4_contamination.py`'s precedent.
+**Re-verified from the new location, not assumed:** `py_compile` on all 15, plus
+`verify_argv.py` ALL CHECKS PASS, `probe_dist.py` (bike share 0.140 vs 0.15),
+`probe_weather_propagation.py` (1/3 tiers reached), `verify_perception_fixes.py`
+(default-file inertness control identical on every row, 18/37/64/13/0),
+`probe_collisions.py` (0 events) and `check_fix.py`
+(`arrived=1737 collision_events=0` — §6.6's recorded post-fix figures exactly).
+
+### Verified during this pass
+
+- SUMO beacon free before and after (`python -m sim.sumo_activity`).
+- Project venv confirmed (`sys.prefix` ends `...\GitHub\Test\venv`) before the
+  one run that was executed.
+- `probe_collisions.py` on the shipped tiered file: **0 collision events**.
+- `sim/run_backend_security_check.py` -> **62 passed, 0 failed** (offline, no
+  SUMO). This also corrected `CLAUDE.md`, which still quoted **58/58** — stale
+  since the same-day `803afbc` made `inject_incident`'s lane cap dynamic (+4
+  checks). `run_backend_smoke.py`'s count was likewise corrected 45 -> 50 from
+  the record but **not re-run**, because it launches SUMO and the sign-off GUI
+  window was open; that is stated in the line rather than glossed.
+- `sim/run_demo_gui.py --print-only` (command construction) and a live launch:
+  sumo-gui loaded `corridor_432` and sat **paused**, as intended.
 
 **Next per §18 is still Phase 10 — Frontend.** Phases 1-9 remain complete.
