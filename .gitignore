@@ -48,3 +48,17 @@ training/checkpoints/_sweeps/*
 # on every launch, from sim/networks/demo_gui_settings.xml (which IS tracked).
 # Derived per-invocation artifacts; the base settings file is the source.
 sim/routes/_demo_view_*.xml
+
+# Third-party toolkit clone (github.com/affaan-m/ECC) — its own git repo, ~108MB.
+# Ignored so a `git add -A` during the hackathon parallel build cannot swallow it
+# as an embedded gitlink. Not part of PsychoFlow.
+ECC/
+
+# YOLO weights — auto-downloaded by ultralytics on first use, regenerable.
+models/*.pt
+*.pt
+
+# Real camera footage for the vision detector — large binaries, fetched by hand.
+# sim/media/README.md IS tracked and says what belongs there.
+sim/media/*
+!sim/media/README.md
