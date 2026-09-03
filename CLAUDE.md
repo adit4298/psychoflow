@@ -989,43 +989,6 @@ Pause and ask the user rather than proceeding when:
 &#x20; `main`'s tip — deleting it is safe. \*\*BUILD_LOG claimed "NOT merged" for
 &#x20; three days; corrected 2026-09-02.\*\*
 
-&#x20; \*\*MIXED-TRAFFIC DRIVING REALISM — BUILT and MEASURED, but NOT SIGNED OFF
-&#x20; and NOT COMMITTED.\*\* Demo-only; never reachable from training or
-&#x20; evaluation.
-&#x20; \*\*BUILT:\*\* SUMO's SL2015 sublane model behind two default-off
-&#x20; `PsychoFlowEnv` kwargs (`vtype_file`, `lateral_resolution`) — with both
-&#x20; omitted the `traci.start()` argv is byte-identical to pre-STEP-1 HEAD;
-&#x20; `sim/networks/vehicle_types_demo.add.xml` carrying per-type gap and `tau`
-&#x20; tuning, a `jm*` junction-model group gated to the AGGRESSIVE TIER ONLY, and
-&#x20; driver heterogeneity as nested `<vTypeDistribution>` tiers (bike 20/45/35,
-&#x20; auto 25/50/25, car 0/90/10 cautious/normal/aggressive; truck and ambulance
-&#x20; deliberately untiered); two consequent perception fixes
-&#x20; (`lane_sensor.base_vtype()`, `weather.WeatherModel._resolve_members()`),
-&#x20; both provably inert on the default file; a `training/train.py` assert that
-&#x20; refuses both kwargs before `model.learn()`; and `backend/main.py
-&#x20; --demo-driving` (default OFF).
-&#x20; \*\*MEASURED\*\* — all raw SUMO, one pinned route file, corridor 4/3/2, seed 7,
-&#x20; 1200s, 1868 vehicles; full tables in `docs/MIXED_TRAFFIC_RESEARCH.md` §6:
-&#x20; queue-front filtering `bike_over_car` \*\*5.61% baseline -> 31.73% tiered\*\*
-&#x20; while `car_over_bike` falls 26.47% -> 10.81%, so the bike/car ratio goes
-&#x20; 0.21x -> \*\*2.94x\*\* and the ordering INVERTS; bike mean queue advancement
-&#x20; −1.699 -> \*\*+1.717\*\* places, per tier aggressive \*\*2.500\*\* / normal 1.462
-&#x20; / cautious 0.889, so the tiers are genuinely distinguishable on screen;
-&#x20; strict same-lane sharing bike \*\*51.38%\*\* against research §1.3's ~62%
-&#x20; target (\*\*~10.6 points short — flagged, not fixed\*\*), with the LC2013
-&#x20; baseline control correctly reading \*\*0.00%\*\* as it must by construction;
-&#x20; red-eligible population \*\*17.18% observed vs 16.50% computed\*\*;
-&#x20; collisions \*\*0.00%\*\* after the truck lateral-recentring fix
-&#x20; (root-caused 2026-09-01, independently re-verified 2026-09-02).
-&#x20; \*\*NOT DONE — THE BLOCKING ITEM: THE HUMAN GUI WATCH.\*\* STEP 1 and its
-&#x20; refinement share ONE combined done-bar, and neither is closed until a human
-&#x20; has watched `sumo-gui` coloured by type and confirmed the behaviour
-&#x20; actually looks right. Two decisions ride on that same watch: whether the
-&#x20; `bike_over_car` 36.29% -> 31.73% drop (tiering working as designed, but a
-&#x20; drop) is accepted, and whether bike lane-sharing at 51.38% against a ~62%
-&#x20; target is close enough.
-&#x20; \*\*UNCOMMITTED, deliberately — 9 MODIFIED + 38 UNTRACKED = \*\*47 FILES\*\*
-
 &#x20; (counted 2026-09-02, not estimated; reproduce with `git diff HEAD
 
 &#x20; --name-only` and `git ls-files --others --exclude-standard`).\*\*
@@ -1222,41 +1185,6 @@ Pause and ask the user rather than proceeding when:
 &#x20; open with their status unchanged; do not read Stage 5's results as
 &#x20; bearing on either.
 
-\- \*\*STANDING RULE — EVERY BURST RESTARTS THE SCENARIO SEQUENCE. A resumed run
-&#x20; adds PASSES, not DATA. Distinct scenarios ≈ the LONGEST single burst, never
-&#x20; the sum of bursts.\*\* Each burst constructs a fresh env with `seed=7`, so the
-&#x20; `reset(seed=...)` sequence restarts at episode 1 and re-draws the identical
-&#x20; scenarios in the identical order. \*\*Verified across every stage that logs
-&#x20; enough to test it\*\* (2026-08-18): stage3 Burst A vs B \*\*16/16 identical\*\* on
-&#x20; `(lane_counts, density_mult_corridor, density_mult_cross)`; stage4 Burst A vs
-&#x20; B \*\*16/16\*\* on `(lane_counts, density, emergency_route, emergency_depart_s)`;
-&#x20; Stage 5 Burst C vs D \*\*81/81\*\*, Burst B vs C \*\*46/46\*\*. It also holds ACROSS
-&#x20; STAGES sharing a config: Stage 4 Burst B vs Stage 5 Burst C \*\*64/64
-&#x20; identical\*\* — Stage 4 and Stage 5 trained on the SAME scenario sequence,
-&#x20; because both use `STAGES[4]` and `seed=7`. There is no stage-specific
-&#x20; seed-handling path.
-&#x20; \*\*Measured distinct-scenario counts:\*\* stage1/2/3 ≈ 65 each, stage4 ≈ 64,
-&#x20; Stage 5 `graph_attention` \*\*81 distinct from 248 logged episodes — each seen
-&#x20; ~3.1x\*\*. Stage 5's Burst D (51,200 steps) introduced \*\*ZERO\*\* new scenarios.
-&#x20; \*\*Consequences, all load-bearing:\*\*
-&#x20; (1) \*\*Never explain a result by "more budget" or "more data" without checking
-&#x20; whether the extra steps were new scenarios or repeats.\*\* Within-stage Burst
-&#x20; A→B reward gains conflate additional training with repeated exposure.
-&#x20; (2) \*\*Within-burst analysis is UNAFFECTED\*\* — episodes inside one burst are
-&#x20; all distinct (81/81 for Stage 5 Burst C), so Stage 2's bucket analysis and
-&#x20; Stage 3's early/late splits compare genuinely different scenarios.
-&#x20; (3) \*\*The §9.5 graph_attention-vs-shared_policy A/B is UNAFFECTED and in fact
-&#x20; DEPENDS on this\*\* — identical sequences are what make it paired. BUILD_LOG
-&#x20; documents the property deliberately as a feature for that comparison; the
-&#x20; side effect on RESUMED TRAINING is what went unnoticed until 2026-08-18.
-&#x20; (4) Stage 1/2 could not be tested (their Burst A predates `lane_counts`
-&#x20; logging). \*\*Episode LENGTH is not a valid proxy\*\* for scenario identity —
-&#x20; it varies with the policy, and differs across bursts in stage3/4 where the
-&#x20; scenarios are provably identical.
-&#x20; \*\*Do NOT "fix" this globally without thought\*\* — pinning is required for the
-&#x20; paired mode comparison and for every reproducible eval. The fix belongs in
-&#x20; the TRAINING draw only (D1: a seed counter that persists across resumes),
-&#x20; with eval/demo left pinned.
 
 \- \*\*Eval configs are STRUCTURALLY DISJOINT from training — but only by
 &#x20; accident, so do not rely on it.\*\* `evaluate_stage.py --j1-recheck` runs
@@ -1377,41 +1305,6 @@ Pause and ask the user rather than proceeding when:
 &#x20; `scenario_generator`/`v2x`/`vision_mock` all use instance-local
 &#x20; `random.Random(seed)`, and S3/S6 measure that rather than assuming it.
 
-\- \*\*Pre-event completions of Phase 8/9 modules (2026-08-30) — five separable
-&#x20; commits, NOT Phase 10/11/12 work.\*\*
-&#x20; (1) \*\*§17\*\*: lane closures are OUT OF SCOPE as a system output — interventions
-&#x20; are signal-phase control (§9) + emergency corridors (§10/§11). New §17 bullet;
-&#x20; §17 notes in `backend/control_api.py` and `coordinator/responder_messaging.py`.
-&#x20; (2) \*\*`explainability/narrator.narrate(entry, *, register=...)`\*\* — `register`
-&#x20; is keyword-only, `"operator"` (default, §12.2 wording FROZEN — downstream
-&#x20; tests pin fragments) or `"public"` (plain-language, no phase/slot/ceiling/
-&#x20; threshold jargon, no raw lane id). `REGISTERS`, `REGISTER_OPERATOR`,
-&#x20; `REGISTER_PUBLIC` exported. Unknown register -> `ValueError`. `sim_runner`
-&#x20; and `query_interface` still call it positionally = operator.
-&#x20; (3) \*\*§13.2 frame gained an ADDITIVE `predictions` key\*\* (omitted unless
-&#x20; material, same contract as `responder_messages`): `predictions.spillover`
-&#x20; (§8.1 shape, only pairs with `abs(predicted_queue_delta) >=
-&#x20; _SPILLOVER_MIN_DELTA = 1.0` in `backend/sim_runner.py`) and
-&#x20; `predictions.incident_impact` (§8.2 shape, one per active §7.3 incident).
-&#x20; Spillover is computed by a SECOND, read-side `SpilloverPredictor`
-&#x20; (`SimRunner._spillover_view`, reset in `_reset_counters()`) — do NOT call the
-&#x20; env's stateful one from the frame path, it would double-advance its rate
-&#x20; calc. `SimRunner._predictions(snap)` is the reference. Master plan §13.2
-&#x20; updated same commit.
-&#x20; (4) \*\*§13.1 `inject_incident(junction_id, affected_lanes, incident_type=
-&#x20; "lane_blocked", severity="high", lane_id=None, estimated_duration_s=600)`\*\*
-&#x20; in `backend/control_api.py` — the live trigger for "detects incidents".
-&#x20; Queues a `Command` the sim thread applies via `env.twin.incidents.report()`
-&#x20; between steps (registry write, NOT TraCI). `POST /control/inject_incident`.
-&#x20; From the next step it rides `digital_twin.active_incidents`,
-&#x20; `predictions.incident_impact` and §8.1's confidence penalty. Master plan
-&#x20; §13.1 table row added. There is deliberately NO `close_lane` (§17).
-&#x20; (5) \*\*§15.2 `emergency_clearance_time_s` is DEFINED as
-&#x20; `EmergencyClearanceEvent.clearance_time_s`\*\* (`coordinator/emergency_clearance.py`)
-&#x20; — was "BLOCKED". Per-junction detection->green, 0.0 floor + `served_on_arrival`.
-&#x20; NOT the Stage 4 harness (still broken, still never reuse). §11.2's PHASE 8
-&#x20; BLOCKER got a RESOLVED pointer at its head. Cross-scenario aggregation is
-&#x20; Phase 12. Definition-level only — no eval harness built.
 
 \- \*\*BACKEND SECURITY HARDENING (2026-08-31) — `backend/` only, no Phase 10.
 &#x20; The §13 control API is UNAUTHENTICATED and stays a LOCAL DEMO SURFACE.\*\*
@@ -1559,14 +1452,6 @@ Pause and ask the user rather than proceeding when:
 &#x20; Use `starvation_events_count`, `wait_time_variance_across_lanes` and
 &#x20; `starved_pct`; master plan §15.2 now defines all three, and
 &#x20; `training/scripts/checkpoint_bakeoff.py` is the reference implementation.
-
-\- \*\*4a bake-off command\*\*: `python -m training.scripts.checkpoint_bakeoff`
-&#x20; (48 episodes, ~27 min; `--timing` runs one timed episode). Re-run it when a
-&#x20; new candidate checkpoint appears — it is the deployment decision procedure,
-&#x20; not a one-off. It reproduces the recorded Tier 0 B1 baseline exactly
-&#x20; (627 steps / 4668 arrived / 41.0s / 0 starved / 1.1947) and ga_51624's
-&#x20; recorded (4,3,2) seed 7 row exactly (1.2859 / 121.0s / 1.09%), which is how
-&#x20; it is known to be measuring the same thing the existing record does.
 
 \- \*\*TWO DATA-LOCATION FACTS that cost time in the 2026-08-29 emergency
 &#x20; diagnosis — record them so the next session doesn't re-derive them.\*\*
@@ -2111,90 +1996,6 @@ they are unverified.
 &#x20; \*\*GUI watch is precisely the check that cannot be gamed that way\*\*, which is
 
 &#x20; why it is the done-bar rather than a table. The launch command is in §11.
-
-
-
-\- \*\*Kannada voice recognition — cannot be tested headlessly, at all.\*\* It needs
-
-&#x20; three things no session has: a \*\*live browser\*\* (the Web Speech API exists
-
-&#x20; only in a real browser context — there is no CLI or Python entry point to
-
-&#x20; it), a \*\*real microphone\*\* capturing real audio, and a \*\*human Kannada
-
-&#x20; speaker\*\* to judge whether the transcription is actually right. A session
-
-&#x20; can build the pipeline and can verify that a given TEXT string parses to the
-
-&#x20; correct intent; it \*\*cannot\*\* verify that spoken Kannada becomes that text.
-
-&#x20; Note also §2's standing correction: browser STT is \*\*not local\*\* — in Chrome
-
-&#x20; it streams audio to Google's speech service — so Kannada support is a
-
-&#x20; property of \*that service\*, not of anything in this repo, and cannot be
-
-&#x20; fixed here if it turns out to be poor. Test it early with the actual mic in
-
-&#x20; an actually-noisy room (§20 already requires this for the four English
-
-&#x20; commands); if Kannada recognition is unreliable, the fallback options are
-
-&#x20; the optional local-Whisper path (§14) or demoing in English — both are
-
-&#x20; \*\*human decisions\*\*, not something to be silently chosen in code.
-
-
-
-\- \*\*Whether the hackathon's rules actually require Phase 10-12 code to be
-
-&#x20; written live during the 48-hour event.\*\* The entire "reserve Phase 10/11/12
-
-&#x20; for the event" plan rests on this, and \*\*it was never confirmed against the
-
-&#x20; real event rules — it was assumed.\*\* Nobody has checked whether the
-
-&#x20; organisers timestamp-check commits, require a fresh repo, allow
-
-&#x20; pre-existing work with disclosure, or say nothing at all. These lead to
-
-&#x20; materially different strategies: if pre-built work is allowed, building
-
-&#x20; Phase 10 now is strictly better than building it under time pressure; if
-
-&#x20; commits are timestamp-checked, the current discipline is correct and
-
-&#x20; necessary. \*\*Read the actual rules before the event and record the answer
-
-&#x20; here.\*\* Until then this is a self-imposed discipline that may be costing
-
-&#x20; real preparation time for no required reason.
-
-
-
-\- \*\*The demo laptop's actual hardware — RAM and VRAM — under the real
-
-&#x20; simultaneous load.\*\* Phase 11 runs a local Gemma model via Ollama at the
-
-&#x20; same time as SUMO, the FastAPI backend and a React frontend, all on one
-
-&#x20; machine, live in front of judges. This was \*\*measured once, on one
-
-&#x20; machine\*\*, and it has never been confirmed that machine \*\*is the actual demo
-
-&#x20; machine\*\*. Two separate things to check, both human: (1) which physical
-
-&#x20; laptop is being used on the day, and (2) the four processes running
-
-&#x20; together on it — not benchmarked one at a time, which is the measurement
-
-&#x20; that would pass while proving nothing. If the demo machine differs from the
-
-&#x20; one measured, the numbers do not transfer. Note also that this repo's
-
-&#x20; recorded training numbers are CPU-bound SUMO figures and say nothing about
-
-&#x20; the voice model's memory footprint.
 
 
 
