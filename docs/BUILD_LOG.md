@@ -4024,3 +4024,181 @@ Footage itself is gitignored.
 - Stage 4 checkpoint loads, `num_timesteps = 153600`
 - `yolov8n.pt` loads, 80 classes enumerated
 - `gemma3:4b` answers all four §14 commands correctly, timings above
+
+## 2026-09-03 — HACKATHON `vision-iot`: MQTT ingestion, a real YOLOv8n detector, and incident classification
+
+Branch `hackathon/vision-iot`. Three additive deliverables, TDD throughout (tests
+written and run RED before each implementation). **No file under `env/`, `agents/`,
+`safety/`, `prediction/`, `coordinator/`, `explainability/`, `twin/` or `backend/`
+was touched, and `perception/vision_mock.py` is byte-for-byte unchanged.** Changes
+needing files outside this branch's ownership are written up in a new
+`NOTES-FOR-INTEGRATION.md` at repo root rather than made.
+
+### Decision: tests live in `tests/`, and the module `__main__` calls into them
+
+**Deviates from plan?** Mildly. The repo convention is a per-module `_selftest()`
+(`safety/validator.py`, `prediction/spillover.py`, `explainability/decision_log.py`).
+The task asked for separate test files. Both were satisfied without duplicating the
+assertions: the suites live in `tests/test_*.py` and each module's `__main__` block
+imports and runs its suite, so `python -m perception.incident_detector` and
+`python -m tests.test_incident_detector` execute **the same** assertions and cannot
+drift. pytest is still not installed and was not added — plain asserts, a `main()`
+returning a pass/fail count, same as every other harness here.
+
+### 1. `iot/` — local MQTT ingestion (amqtt broker + paho clients)
+
+`topics.py` (four documented topics, built and parsed), `schema.py` (four payload
+dataclasses + a hardened `decode()`), `broker.py`, `publisher.py` (typed publisher
++ `SimulatedSensorPublisher`), `subscriber.py`.
+
+**Three amqtt/paho facts, all learned by measurement, all now in docstrings —
+each cost a debugging cycle and would cost another at the event:**
+
+1. **`amqtt.broker.Broker` must be CONSTRUCTED inside a running event loop.** Its
+   `__init__` calls `asyncio.get_running_loop()`. Building it on the main thread
+   and handing it to a loop raises `RuntimeError: no running event loop`.
+2. **`plugins={}` does not mean "defaults" — it means "no auth plugin", and the
+   broker then refuses every client with `Not authorized`.** amqtt 0.12 loads
+   `AnonymousAuthPlugin` from `default_broker_plugins()`; an empty dict *replaces*
+   that default. The failure is a clean CONNACK rejection with no broker-side
+   error, so it reads as a client bug. `_BROKER_PLUGINS` names the plugin.
+3. **paho's `connect()` returns before CONNACK.** Publishing straight after
+   `connect()` + `loop_start()` raises `The client is not currently connected`.
+   `IoTPublisher.connect()` blocks on an Event set by `on_connect`.
+
+amqtt is asyncio and paho is threaded, so they never share a loop: the broker owns
+a private loop on its own thread, paho clients run their own network threads.
+
+**Security posture — matched to `backend/main.py`'s deliberately.** Loopback bind
+by default, refusing non-loopback without an explicit `allow_lan=True`; the guard
+is an **allowlist**, so `0.0.0.0`, `0`, `0x0`, `[::]`, `::`, `127.1`,
+`2130706433` and `0177.0.0.1` all fail closed (probed, not assumed). Every
+inbound byte is validated: 64KiB cap before parsing, non-UTF-8 / non-JSON /
+non-object rejected separately, **unknown fields are an error rather than
+ignored**, enums checked against §7.1/§7.3/§7.4, and a body naming a different
+junction or lane than its own topic is refused as forged. Topic levels are
+charset-allowlisted before interpolation so a `junction_id` of `#` or `J1/+`
+cannot widen a subscription. **It is still anonymous-auth, no-TLS, and a LOCAL
+DEMO SURFACE in exactly §13's sense — say so out loud (§17).**
+
+**A gap the passing suite did not catch, found by adversarial probing afterwards.**
+`MAX_PAYLOAD_BYTES` bounds *bytes*, not *values*, and JSON has no numeric limits.
+Measured: a **691-byte** message — comfortably under the cap — carrying
+`vehicle_count: 10**400` and `wait_time_current: 1e300` validated cleanly, and
+`1e300` casts to **`inf`** in the float32 §9.2's observation vector holds. A
+payload that passes every check and then silently corrupts the fairness signal is
+worse than one rejected loudly. Fixed with per-field ceilings
+(`MAX_VEHICLE_COUNT` 10,000 / `MAX_WAIT_TIME_S` 86,400 / `MAX_SIM_TIME_S` 1e9 /
+`MAX_INCIDENT_DURATION_S` 86,400) and pinned by check C3b, which asserts the
+offending bodies are *under* the size cap so the point of the test cannot be lost.
+
+### 2. `perception/vision_detector.py` + `vision_source.py` — real YOLOv8n on CPU
+
+`get_vision_source(mode)`, `mode in {"mock","detector"}`, **default `"mock"`**. An
+unknown mode raises rather than falling back — silently running the mock when
+someone asked for the detector would put simulated numbers on a screen labelled
+"camera". Importing the factory does not import ultralytics/torch.
+
+Detector output carries **every** `vision_mock.observe()` key (asserted against the
+real `LaneReading` dataclass, so it cannot drift), plus per-approach count, coarse
+density, queue estimate and `emergency_vehicle_flag`.
+
+**Three honesty rules, each an assertion, because each is a place a wrong number
+would look right:**
+- **`auto` and `ambulance` are structurally undetectable.** COCO gives
+  `person/bicycle/car/motorcycle/bus/truck`. Unmapped labels map to `None` and are
+  dropped; both types report present-and-zero and are listed in
+  `undetectable_types`. Never folded into `car`.
+- **`emergency_vehicle_flag` is EXPERIMENTAL and never touches a count.** It is
+  behavioural (a vehicle sustaining several times its neighbours' median speed in
+  congested traffic), not a classification, and is forbidden from incrementing
+  `type_composition["ambulance"]`.
+- **A camera cannot measure accumulated waiting time.** The three §7.1 wait fields
+  are present as declared-unknown zeros with **`wait_times_measured: False`**
+  beside them.
+
+The approach-vs-lane problem is resolved by declaring it, not papering over it:
+native output is keyed by **approach**, and `observe(reading)` returns that
+aggregate under the caller's `lane_id` with **`lane_fanout: True`** set. The split
+is declared, never observed. See `NOTES-FOR-INTEGRATION.md` §1.
+
+**The done-bar caught this repo's named failure mode, on itself.** The first
+`make_sample_video()` drew rectangles. `python -m perception.vision_detector` ran
+**100 clean frames and reported zero vehicles in every one** — assignment and
+aggregation were never once exercised. A run that passes while proving nothing.
+Fixed by compositing a real photographed bus shipped inside the `ultralytics`
+wheel (no download, no committed binary), **cropped to its own measured bounding
+box** `(23, 231, 805, 757)` — scaling the whole 810x1080 portrait to a 120px
+sprite leaves the bus ~60px and yolov8n finds nothing, while the crop is detected
+at 0.81-0.92 at every size tried. Check **G2** now asserts the counts come out
+non-zero, so "100 frames without crashing" can no longer be satisfied vacuously.
+
+`VisionDetector(lazy=True)` builds without opening the source or loading the
+model — eager construction with `source=0` would switch on the operator's webcam,
+which a factory-dispatch test has no business doing.
+
+### 3. `perception/incident_detector.py` — pure classification + two distance helpers
+
+No simulator, no camera, **no clock**: `detected_at` is caller-supplied sim time
+(asserted). `sumolib` is imported *inside* `load_junction_coord` /
+`load_stop_line_coord` only, so the module imports with no `SUMO_HOME`.
+
+Those two readers exist because of the standing rule against hardcoding junction
+coordinates. Check B1 asserts J2 reads **(450.0, 150.0)** and explicitly **not**
+the authored (300, 0) — the netconvert `[150, 150]` shift, pinned as a test rather
+than a comment. B2 asserts the stop line comes from the lane shape's last point,
+which sits ~13.6m short of the junction centre.
+
+The negatives carry the classifiers, and each has its own check:
+`breakdown` needs the lane to be **otherwise flowing** (at a red light every
+vehicle is stationary and nothing is broken); `accident` needs **both** a spatial
+cluster and a speed collapse (either alone is two parked cars, or an ordinary
+queue); `major_congestion` needs **no single stationary origin** (a queue growing
+behind a broken-down vehicle is a breakdown, and calling it congestion dispatches
+the wrong crew). Precedence accident > breakdown > major_congestion.
+
+**`distance_m` is `None` with confidence `0.0` when no geometry was supplied — it
+is NOT `0.0` metres.** A responder-facing zero that actually means "unknown" is
+the same defect as §11.2's `served_on_arrival` reporting a lane as already clear.
+Every estimate carries the `method` that produced it (`stop_line` >
+`junction_centre` > `pixel_calibration`) and a confidence reflecting it.
+
+`to_intake_kwargs()` bridges to §7.3, asserted end-to-end against the real
+`IncidentIntake.report()`. The mapping is declared because the schemas do not
+line up: §7.3's enum has no `breakdown`/`major_congestion` (both fold onto
+`lane_blocked`), and `distance_m`/`distance_confidence`/`lane_index` have **no
+home in `Incident` and are dropped**. See `NOTES-FOR-INTEGRATION.md` §2.
+
+### Verified — project venv, `sys.prefix` ends `...\GitHub\Test\venv`
+
+- `python -m sim.sumo_activity` -> **free** before and after; **nothing here
+  launches SUMO**, so no harness needed a `require_free()` guard.
+- `python -m tests.test_iot` -> **25/25** (also via `python -m iot.broker --selftest`)
+- `python -m tests.test_vision_detector` -> **26/26** (also via `--selftest`)
+- `python -m perception.incident_detector` -> **34/34**
+- Done-bar 1, three real OS processes: `python -m iot.broker --port 18902` bound,
+  `iot.publisher` connected and published **18 messages across 4 topic kinds**,
+  `iot.subscriber` **received 18, dropped 0**.
+- Done-bar 2: `python -m perception.vision_detector sim/media/_synthetic_selftest.mp4
+  --frames 100` -> **100 frames, non-zero per-approach counts**, no error.
+- Host-guard bypass probe: 14 host spellings, only `127.0.0.1` / `::1` /
+  `localhost` allowed.
+- Adversarial decode probe: 11 hostile bodies, all rejected after the ceiling fix.
+
+### Known gaps — not claimed as closed
+
+- **No real camera footage exists.** `VisionConfig.default()`'s ROI polygons are
+  **placeholders**, marked `is_placeholder=True` in the data and warned about on
+  the CLI. They were never measured against a real camera.
+- **The done-bar clip is synthetic** — one photo on a flat background, not a
+  substitute for the fixed-camera footage `sim/media/README.md` asks for.
+- **Incident thresholds are reasoned defaults, not measured** (§2 sense of
+  `MIXED_TRAFFIC_RESEARCH.md`). `ACCIDENT_CLUSTER_RADIUS_PX` is in **pixels** and
+  so is frame-scale dependent; it needs retuning against real footage.
+- **`perception/vision_detector.py` is 968 lines**, over the 800-line soft ceiling
+  (577 executable + 199 docstring + 62 comment + 130 blank). The config layer
+  would lift cleanly into `perception/vision_config.py`, but that file is outside
+  this branch's stated ownership so it was **not** created. Recorded as a
+  deliberate exception with the split written out in `NOTES-FOR-INTEGRATION.md` §6.
+- **Dependencies are pinned nowhere** — no `requirements.txt` or `pyproject.toml`
+  exists at repo root, so a fresh clone cannot reproduce this branch.
