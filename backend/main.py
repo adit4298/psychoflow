@@ -167,6 +167,7 @@ def create_app(
     fast: bool = False,
     seed: int = 7,
     demo_driving: bool = False,
+    enable_orchestrator: bool = True,
 ) -> FastAPI:
     state = ControlState()
     hub = Hub()
@@ -182,6 +183,7 @@ def create_app(
         seed=seed,
         frame_sink=hub.publish_from_thread,
         demo_driving=demo_driving,
+        enable_orchestrator=enable_orchestrator,
     )
 
     @asynccontextmanager
@@ -316,6 +318,14 @@ def _main() -> None:
              "(sim/networks/vehicle_types_demo.add.xml + SUMO sublane). "
              "Changes vehicle dynamics, so figures produced under it are NOT "
              "comparable to any recorded evaluation number. Default off.")
+    # ORCHESTRATOR (§13.2 `agent_activity`) — READ-ONLY six-agent blackboard.
+    # Default ON. The OFF switch exists so the paired-equality check in
+    # sim/run_orchestrator_check.py can run the same seed with and without it
+    # and prove the control path is byte-identical; without the flag that
+    # check is impossible. Mirrors --no-shadow exactly.
+    parser.add_argument("--no-orchestrator", action="store_true",
+                        help="Disable the orchestrator blackboard (no "
+                             "`agent_activity` key on the §13.2 stream).")
     parser.add_argument("--no-shadow", action="store_true",
                         help="Disable the shadow advisor (no "
                              "`shadow_advisor` key on the §13.2 stream).")
@@ -346,6 +356,7 @@ def _main() -> None:
         checkpoint=None if args.no_checkpoint else args.checkpoint,
         shadow_checkpoint=None if args.no_shadow else args.shadow_checkpoint,
         demo_driving=args.demo_driving,
+        enable_orchestrator=not args.no_orchestrator,
         lane_counts=lane_counts,
         realtime_factor=args.realtime_factor,
         fast=args.fast,

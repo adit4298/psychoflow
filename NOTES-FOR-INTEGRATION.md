@@ -239,9 +239,120 @@ importable** and skips silently when it is not.
 
 ---
 
-## 2. Orchestrator blackboard — `agent_activity` entry shape (Part 4b)
+## 2. Orchestrator blackboard — `agent_activity` entry shape (Part 4b, DELIVERED)
 
-*(appended when Part 4b lands)*
+Commands:
+
+```
+python -m orchestrator.selftest                      # W1-W9, NO SUMO  -> 34/34
+venv/Scripts/python.exe sim/run_orchestrator_check.py   # O1 offline + O2 paired (SUMO)
+```
+
+Six named agents, each a THIN wrapper over a module that already ran:
+
+| agent | wraps | kind it emits |
+|---|---|---|
+| `Detection` | `perception/lane_sensor.py` (§7.1) | `observation` |
+| `Vision` | `perception/vision_mock.py` (§7.2) | `observation` |
+| `Prediction` | `prediction/spillover.py` + `incident_impact.py` (§8.1/§8.2) | `forecast` |
+| `IncidentPriority` | `agents/incident_priority.py` | `arbitration` |
+| `Control` | `agents/rule_based.py` / the deployed PPO policy | `action` |
+| `Supervisor` | `safety/validator.py` (§10) | `veto` |
+
+### The `agent_activity` entry shape
+
+`agent_activity` is a **list of these, for THIS ROUND ONLY** (6-9 entries) —
+the frontend accumulates; the blackboard keeps the full episode. **ADDITIVE
+and omitted entirely** when the orchestrator is off or has latched off, so no
+consumer handles an empty list. Part 3's documented minimum
+`{agent, said, at}` is a **strict subset**, so a naive consumer works
+unchanged.
+
+```json
+{
+  "agent":  "Supervisor",
+  "role":   "reports the §10 overrides that ALREADY fired inside env.step() — a RECORD of a veto, not a veto power",
+  "wraps":  "safety/validator.py",
+  "kind":   "veto",
+  "said":   "§10 VETO at J2: emergency_override — E1_J2_0 waited 4.0s; phase 0 -> 1 (applied).",
+  "at":     1840.0,
+  "step":   368,
+  "detail": {"junction_id": "J2", "rule": "emergency_override", "lane_id": "E1_J2_0",
+             "wait_s": 4.0, "from_slot": 0, "to_slot": 1, "outcome": "applied"}
+}
+```
+
+* `ENTRY_KEYS` is pinned as a frozenset in `orchestrator/types.py` (the trick
+  `run_shadow_advisor_check.py` uses for `SHADOW_KEYS`), so a silent field
+  rename fails a check rather than a frontend.
+* `kind` ∈ `observation | forecast | arbitration | action | veto | idle`.
+  It is **load-bearing, not decoration** — it is what makes the veto
+  assertion machine-checkable. `idle` exists so **every agent emits at least
+  one line every round**, making "six live rows" a per-round invariant.
+* `said` is a **human-readable string on purpose.** The panel's job is "who
+  said what" for a human, and the renderer is where the honesty lives — a
+  `Supervisor` line reading "I vetoed" instead of "§10 vetoed" would be a lie
+  the frontend was writing. Same reasoning that puts §12.2 narration in
+  `explainability/narrator.py` rather than the dashboard.
+* **Bounded by construction**, because one producer consumes a
+  caller-supplied feed: `said` ≤ 240 chars, `detail` ≤ 8 keys of FLAT JSON
+  scalars only (no nested containers — that is what makes the size bound
+  provable), string values ≤ 120 chars, ≤ 4 entries per agent per round.
+  Whole round asserted under a 16 KB budget (W3); measured ~9 KB worst case
+  against a `digital_twin` field already in the tens of KB.
+* `at` is `info["sim_time"]` — the SAME stamp `DecisionLog.record_step` gets,
+  so a join between the blackboard and the §12.1 decision log is exact.
+
+### Guarantees
+
+* **The orchestrator cannot change the action, and that is a property of
+  STATEMENT ORDER.** Its single call site in `_run_iteration` sits after
+  `_pick_action()`, after `env.step()` (inside which §10 ran), after
+  `record_step()`, `_coord.observe()`, `_update_metrics()` and
+  `_assemble_frame()`. Measured: `sim/run_orchestrator_check.py --o2` runs
+  two SimRunners sequentially at the same seed, one off one on, and the
+  decision / executed-phase / throughput series are **identical on all 40
+  frames**, with `agent_activity` absent from 40/40 off-frames and present in
+  40/40 on-frames (the anti-vacuity half).
+* **The Supervisor's veto is a RECORD, not authority.** §10 runs inside
+  `env.step()`; the Supervisor reports `info["safety_overrides"]` verbatim.
+  Pinned by W4c, which feeds it an override naming a lane that exists nowhere
+  in the snapshot and asserts the lane id is still reported — something only
+  a reporter can do.
+* **Wrappers compute nothing.** The reviewable rule: a wrapper may filter,
+  count, max, sort and format over its context; it may not introduce a
+  threshold, weight, score or comparison against a constant. W7 enforces it
+  by AST-scanning `wrappers.py` for numeric literals outside `{0,1}` and for
+  imports of `apply`/`dispatch`/`validate`/`forecast`/`ControlState`.
+* **Failure isolation** (`_shadow_advice`'s precedent): one broken wrapper is
+  caught, logged once and LATCHED off — the other five keep reporting. An
+  exception escaping `observe()` disables the whole orchestrator and the key
+  stops being emitted. Nothing can take down the sim thread.
+* **ONE orchestrator per EPISODE**, replaced in `_reset_counters()` beside
+  `self._log`. The disabled set is carried FORWARD (a structurally broken
+  wrapper is still broken next episode).
+* **No SUMO / torch / numpy / random import** in the package (W7), which is
+  what lets the whole blackboard run against a synthetic §7.6 snapshot.
+
+### Honest boundaries
+
+* **`IncidentPriority` is ADVISORY here.** The wrapper calls `tick()` only —
+  never `apply()`, never `confirm()`. Dispatching would mutate
+  `sim_runner._forced` and change what §10 does, breaking the additive
+  guarantee. Consequence to accept: with nothing promoted to `STATUS_ACTIVE`,
+  the same proposal is **re-reported each step while the state holds**. That
+  repetition is truthful ("the arbitration still ranks this first");
+  suppressing it would be new logic in a wrapper. Every such entry carries
+  `detail.dispatched == False` and the word `ADVISORY` in `said`.
+* **`Vision` is a MOCK and its `role` says so on every entry** — §7.2 runs no
+  detection model. The panel must not launder that.
+* **`Prediction` reports the POST-step forecast** the backend already
+  computed — `_spillover_view.forecast()` is stateful and must be called
+  exactly once per step, so a wrapper recomputing it would corrupt the next
+  frame.
+* Flags: `--no-orchestrator` (`backend/main.py`), `enable_orchestrator=`
+  (`create_app` / `SimRunner`). Default ON. The OFF switch exists so O2 can
+  run both arms; without it that check is impossible.
 
 ## 3. §13.2 additive frame keys (Part 4c)
 

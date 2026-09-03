@@ -320,7 +320,12 @@ def main() -> None:
             # additive key. Its own S1-S6 checks live in
             # sim/run_shadow_advisor_check.py; here it only has to not
             # break the frozen five-key core contract.
-            additive = {"responder_messages", "predictions", "shadow_advisor"}
+            # `agent_activity` (Part 4b, §13.2) is the fourth additive key —
+            # the orchestrator's read-only six-agent blackboard round. Its
+            # own W1-W9 checks live in orchestrator/selftest.py; here it only
+            # has to not break the frozen five-key core contract.
+            additive = {"responder_messages", "predictions", "shadow_advisor",
+                        "agent_activity"}
             check("1  frame has the §13.2 five-key core (only additive keys "
                   "beyond it)",
                   core <= keys <= core | additive,
@@ -352,6 +357,26 @@ def main() -> None:
                   f"mean_wait_max={ms['mean_wait_max']} "
                   f"starv_ev={ms['starvation_events_total']} "
                   f"thru={ms['throughput_total']}")
+
+            # ---- 1h: live `agent_activity` (Part 4b, §13.2) -----------
+            # The orchestrator emits every round, so unlike `predictions`
+            # its presence IS asserted. Offline W1-W9 live in
+            # orchestrator/selftest.py; this is the live-wiring proof.
+            from orchestrator.types import AGENT_NAMES, ENTRY_KEYS
+            act = f.get("agent_activity")
+            check("1h agent_activity rides the frame, one round of the six "
+                  "named agents",
+                  isinstance(act, list) and act
+                  and {r["agent"] for r in act} == set(AGENT_NAMES),
+                  f"agents={sorted({r['agent'] for r in act}) if act else None}")
+            check("1h every entry has exactly the pinned ENTRY_KEYS and is "
+                  "stamped with this frame's sim_time",
+                  bool(act) and all(set(r) == ENTRY_KEYS for r in act)
+                  and all(r["at"] == f["sim_time"] for r in act),
+                  f"n={len(act) if act else 0}")
+            check("1h the Supervisor reports §10, and no other agent may veto",
+                  bool(act) and all(r["agent"] == "Supervisor"
+                                    for r in act if r["kind"] == "veto"))
 
             # ---- 1g: live `predictions` shape (§8.1 / §8.2) -----------
             # Scenario-dependent whether the spillover threshold is crossed

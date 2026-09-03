@@ -89,6 +89,8 @@ from explainability.decision_log import (
 )
 from explainability.narrator import narrate
 from explainability.query_interface import QueryInterface
+from orchestrator.bus import Orchestrator
+from orchestrator.types import AgentContext
 from perception.lane_sensor import DEFAULT_STARVATION_THRESHOLD_S
 from prediction.incident_impact import predict_incident_impact
 from prediction.spillover import SpilloverPredictor
@@ -276,6 +278,7 @@ class SimRunner:
         seed: int = 7,
         frame_sink: Callable[[dict], None] | None = None,
         demo_driving: bool = False,
+        enable_orchestrator: bool = True,
     ):
         # STEP 1, demo-only. False => SUMO's default lane-disciplined LC2013
         # model and the default vTypes, i.e. exactly the configuration every
@@ -353,6 +356,12 @@ class SimRunner:
         self._query: QueryInterface | None = None
         self._coord: EmergencyClearanceCoordinator | None = None
         self._last_voice = None  # reserved for Phase 11
+        # ORCHESTRATOR (§13.2 `agent_activity`) — READ-ONLY, six named views
+        # over modules that already ran. `_orch_enabled` is the PROCESS-wide
+        # latch (never touched by _reset_counters), exactly as
+        # `_shadow_enabled` is; `_orch` is per-EPISODE and is replaced there.
+        self._orch: Orchestrator | None = None
+        self._orch_enabled = bool(enable_orchestrator)
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -483,6 +492,31 @@ class SimRunner:
             self._log, self._env.twin.topology
         )
         self._coord = EmergencyClearanceCoordinator(self._served)
+        # ONE ORCHESTRATOR PER EPISODE — same rule, same reason as self._log.
+        # Its Blackboard refuses a backwards `at`, and the
+        # IncidentPriorityAgent it wraps RAISES on a backwards sim_time
+        # (NOTES-FOR-INTEGRATION §1, caller contract 1). Carrying either
+        # across env.reset() would not merely error once: the orchestrator's
+        # per-wrapper latch would SWALLOW the exception and switch that agent
+        # off for the rest of the PROCESS, so the demo would silently lose an
+        # agent from episode 2 onward while every smoke test still passed.
+        # The DISABLED SET is carried forward on purpose — a structurally
+        # broken wrapper is still broken next episode, and re-arming it would
+        # print a traceback every decision step forever.
+        #
+        # getattr with defaults, deliberately: `sim/run_backend_smoke.py`'s
+        # check 1d constructs a bare SimRunner via `__new__` (bypassing
+        # __init__, so no thread starts) and calls this method directly with
+        # only the attributes it needs set. Reading these two through getattr
+        # keeps that documented harness pattern working — the orchestrator is
+        # simply absent there, which is correct for a no-env fixture.
+        _orch = getattr(self, "_orch", None)
+        self._orch = (
+            Orchestrator.for_episode(
+                disabled=_orch.disabled if _orch is not None else frozenset()
+            )
+            if getattr(self, "_orch_enabled", False) else None
+        )
 
     # ------------------------------------------------------------------
     # main loop
@@ -599,6 +633,21 @@ class SimRunner:
 
         self._update_metrics(info)
         frame = self._assemble_frame(info, entries, closed, shadow)
+
+        # ORCHESTRATOR (§13.2 `agent_activity`) — READ-ONLY, and placed HERE
+        # deliberately: EVERY line of the decision path is already behind it.
+        # _pick_action() ran; env.step() ran and §10's validator ran inside
+        # it; record_step() / _coord.observe() / _update_metrics() ran; the
+        # frame is built. Nothing downstream of this statement except
+        # frame_sink and publish_stats reads anything it produces. That makes
+        # "the orchestrator cannot change the action" a property of the
+        # STATEMENT ORDER rather than of a convention.
+        activity = self._agent_activity(
+            pre_snap, info, decisions, frame.get("predictions", {}), forced
+        )
+        if activity:
+            frame["agent_activity"] = activity
+
         if self._frame_sink is not None:
             self._frame_sink(frame)
         self.state.publish_stats(self._stats_payload(info))
@@ -856,6 +905,53 @@ class SimRunner:
     # ------------------------------------------------------------------
     # metrics
     # ------------------------------------------------------------------
+    def _agent_activity(self, pre_snap, info, decisions, predictions,
+                        forced) -> list[dict] | None:
+        """§13.2 `agent_activity` — six named views over modules that already ran.
+
+        OBSERVES AND RECORDS. It has no path to `env.step()`, no path to
+        `_pick_action()`, and the Supervisor's "veto" is a RECORD of a §10
+        override that fired before this method was even reached.
+
+        `pre_snap` is the PRE-step snapshot on purpose — the state the
+        decision was made from and the one §10 judged. Handing it the
+        post-step snapshot would fail SILENTLY (every field still populates,
+        describing the wrong instant), which is the trap this module's
+        two-snapshots docstring already warns about.
+
+        `forced` is the SAME frozenset handed to §10's validator and §11.1's
+        clearance coordinator — NOTES-FOR-INTEGRATION §1 contract 3 requires
+        one tracked set, not a second copy.
+
+        FAILURE ISOLATION, on `_shadow_advice`'s precedent: any exception
+        disables the orchestrator for the rest of the PROCESS, logged once,
+        and the caller then omits the frame key entirely. A broken panel
+        cannot touch the sim thread.
+        """
+        if not self._orch_enabled or self._orch is None:
+            return None
+        try:
+            ctx = AgentContext(
+                step=self._step_idx,
+                sim_time=info["sim_time"],
+                pre_snapshot=pre_snap,
+                info=info,
+                decisions=decisions,
+                predictions=predictions,
+                forced_emergency_lanes=forced,
+                mode=self._mode,
+            )
+            return [_jsonable(entry.to_dict())
+                    for entry in self._orch.observe(ctx)]
+        except Exception:
+            self._orch_enabled = False
+            self._orch = None
+            print("[sim] orchestrator DISABLED after an exception. The "
+                  "deployed policy, §10's validator, the sim loop and the "
+                  "§13.2 stream are unaffected; the `agent_activity` key "
+                  "stops being emitted:\n" + traceback.format_exc())
+            return None
+
     def _all_lanes(self, snap: dict):
         for jid in CORRIDOR_JUNCTIONS:
             for lane_id, reading in snap["junctions"][jid]["lanes"].items():
