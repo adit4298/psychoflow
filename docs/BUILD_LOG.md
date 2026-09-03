@@ -4024,3 +4024,187 @@ Footage itself is gitignored.
 - Stage 4 checkpoint loads, `num_timesteps = 153600`
 - `yolov8n.pt` loads, 80 classes enumerated
 - `gemma3:4b` answers all four §14 commands correctly, timings above
+
+## 2026-09-03 — HACKATHON TRACK 4 (agents-backend): incident-priority agent, orchestration blackboard, additive §13.2 frame keys
+
+Branch `hackathon/agents-backend`, three commits: `e6d032e` (4a), `de3ed41`
+(4b), `d93707a` (4c). **No existing decision path was modified.** Everything
+here observes, classifies or reports; §10's validator remains the sole gate to
+the road and the deployed Stage 4 policy is untouched.
+
+### Decision 1 — the incident-priority agent RETURNS directives; it never dispatches
+
+**Decision:** `agents/incident_priority.py` emits `Directive` objects naming
+functions on `control_api.CONTROL_FUNCTIONS`. Only a six-line `apply()` takes a
+`ControlState`, and it holds zero policy.
+**Why:** it makes "no new actuation path" STRUCTURAL rather than a convention —
+a module that returns a description is incapable of actuating, while one holding
+a `ControlState` is one line from being an actuator. Same reasoning CLAUDE.md
+applies to `enable_safety_validator`. It also matches `agents/rule_based.py` and
+`safety/validator.py`, which both return a proposal the caller applies, and
+keeps the module testable with no backend threading state.
+**Deviates from plan?** No — new work, and it respects §10's precedence.
+**Verified:** `python -m agents.incident_priority` (3 hand-scored scenarios) and
+`python -m tests.test_incident_priority` -> **26 passed, 0 failed**.
+
+### Decision 2 — an accident SUPPRESSES the blocked lane (floor 0.1, not 0)
+
+**Decision:** an `accident` event de-prioritises the blocked lane via
+`set_lane_bias` at `suppress_weight(severity)`, flooring at `BIAS_MIN_WEIGHT`
+(0.1) rather than zero. Boosting an ALTERNATE lane to route around it is
+deliberately NOT built.
+**Why:** §9.1 scores `0.6*halted_count + 0.4*wait_time_current`; a blocked lane
+accumulates BOTH terms while physically unable to discharge, so the Tier 0
+scorer over-serves it and burns green on a queue that cannot move. The 0.1 floor
+means the lane keeps minimum service and §10's starvation ceiling still protects
+it exactly as it protects any other lane. Alternate-lane boosting is a separate
+policy call and YAGNI for this build.
+**Deviates from plan?** No — the master plan does not specify incident response;
+the user approved both the direction and the floor.
+**Verified:** by the done-bar's structural invariants — every directive's weight
+lands inside `LANE_BIAS_WEIGHT_RANGE` by construction.
+
+### Decision 3 — every threshold is an existing repo constant, not a new number
+
+`FAIRNESS_WAIT_S=90` (= `DEFAULT_STARVATION_THRESHOLD_S`), `CEILING_WAIT_S=120`
+(= `STARVATION_CEILING_S`), spillover materiality `1.0`
+(= `sim_runner._SPILLOVER_MIN_DELTA`), confidence bar `0.5` strict-`>`
+(= `spillover.CONFIDENCE_COLD_START`), vision bar `0.85`
+(= `vision_mock.CONFIDENCE_RANGE[0]`). `CONGESTION_MIN_STARVED_LANES = 2` is
+structural, not tuned: §10's ceiling and §9.1's bonus each act on ONE lane, so
+two at once is by construction beyond what the fairness mechanism can fix —
+which is what makes congestion (throughput) and fairness (equity) genuinely
+disjoint rather than a soft/hard split of one signal.
+
+**STATED COUPLING, recorded in `NOTES-FOR-INTEGRATION.md`:** the `0.5` bar
+uniquely means "cold start" only while spillover's incident confidence penalty
+stays at or below 0.35 (today `0.85 - 0.20 = 0.65 > 0.5`). If that penalty
+grows, this silently starts rejecting incident-penalised forecasts.
+
+The fairness LOWER edge reads the published `starvation_flag` rather than
+comparing against a literal 90.0, so it structurally cannot drift from the
+sensor's own threshold. Four constants are duplicated as literals because their
+home modules pull in sumolib/traci; a drift guard compares them when SUMO is
+importable and skips silently otherwise.
+**Verified:** drift guard passes — `FAIRNESS_WAIT_S=90.0 CEILING_WAIT_S=120.0
+MIN_GREEN_S=10.0` all match their home modules.
+
+### Decision 4 — the orchestrator's additive guarantee is STATEMENT ORDER, and it was measured
+
+**Decision:** `orchestrator/` wraps six existing modules as named agents on a
+blackboard. Its single call site in `_run_iteration` sits AFTER `_pick_action()`,
+AFTER `env.step()` (inside which §10 ran), after `record_step()`,
+`_coord.observe()`, `_update_metrics()` and `_assemble_frame()`. Its only write
+is `frame["agent_activity"]`.
+**Why:** by the time any wrapper runs, the phase has already reached the road.
+That is a stronger argument than any empirical run — the empirical check exists
+only to catch an accidental GLOBAL side effect, which is not hypothetical (S3
+found `MaskablePPO.load()` reseeding the global RNGs for the shadow advisor).
+**Verified:** `sim/run_orchestrator_check.py --o2` — two SimRunners run
+SEQUENTIALLY (TraCI is process-global) at seed 7 on (4,3,2), one with
+`--no-orchestrator`, frames captured via `frame_sink` directly (Hub's queue is
+bounded and drops frames): **decision / executed-phase / throughput series
+IDENTICAL on all 40 frames**, `digital_twin.current_phase` identical, and the
+anti-vacuity half — `agent_activity` absent 40/40 off, present 40/40 on.
+**5 passed, 0 failed.**
+
+### Decision 5 — the Supervisor's veto is a RECORD, and the test cannot pass vacuously
+
+**Decision:** the Supervisor agent reports `info["safety_overrides"]` verbatim.
+It has no authority and cannot block anything.
+**Why:** §10 already ran inside `env.step()`. A panel implying the Supervisor
+decides would be a lie the frontend was rendering.
+**Verified:** W4 is deliberately three checks, against this repo's documented
+"passes while proving nothing" failure class — **W4a** zero overrides -> ZERO
+veto rows (kills "always emits a veto"); **W4b** two overrides -> exactly two,
+field-for-field, and present in the recorded trace; **W4c** an override naming a
+lane that exists NOWHERE in the snapshot is still reported verbatim, which only
+a reporter can do. `python -m orchestrator.selftest` -> **34 passed, 0 failed**,
+no SUMO.
+
+### Decision 6 — wrappers may not compute, enforced by an AST tripwire
+
+**Decision:** a wrapper may filter, count, max, sort and format; it may not
+introduce a threshold, weight, score or comparison against a constant.
+Practically: no numeric literal in `wrappers.py` outside `{0,1}`.
+**Why:** "thin wrapper" decays silently. The sharpest illustration is
+Prediction: `_spillover_view.forecast()` is STATEFUL and must be called exactly
+once per step, so a wrapper that recomputed the forecast rather than reporting
+it would corrupt the NEXT frame.
+**Verified:** W7 AST-scans the file. **It fired during this build** on a tuple
+index `row[2]`; fixed by introducing `types.LaneRow` rather than by loosening
+the check.
+
+### Decision 7 — IncidentPriority is ADVISORY inside the orchestrator
+
+**Decision:** the wrapper calls `tick()` only — never `apply()`, never
+`confirm()`.
+**Why:** dispatching would mutate `sim_runner._forced` and change what §10 does,
+breaking Decision 4's guarantee.
+**Consequence accepted:** with nothing promoted to `STATUS_ACTIVE`, the same
+proposal is re-reported each step while the state holds. That repetition is
+truthful ("the arbitration still ranks this first"); suppressing it would be new
+logic in a wrapper. Every such entry carries `dispatched: False` and the word
+ADVISORY.
+
+### Decision 8 — `--vision-source mock` performs NO SWAP AT ALL
+
+**Decision:** the default path executes no statement; only `detector` assigns
+`env.twin.vision`.
+**Why:** re-assigning even an identical `VisionMock` would reseed it and perturb
+every recorded number, so the guarantee has to be "no statement runs", not "an
+equivalent statement runs". The seam is an attribute assignment onto the
+already-constructed twin, so `twin/digital_twin.py` — not owned by this track —
+is NOT modified.
+**Verified:** smoke check 9 (the twin keeps the very same object), plus the
+200-frame worktree diff below.
+
+### Decision 9 — two things are deliberately NOT fabricated
+
+`incident_alerts.distance_m` / `distance_confidence` are **always null** from
+this producer: distance needs a fixed camera and a homography, the twin has
+neither, and its lane occupancy is TraCI ground truth rather than a ranged
+detection. `iot_sensors` is `{}` and the key is never emitted with no Track A
+source attached — reporting TraCI ground truth as
+`{"source":"mqtt","fresh_s":0.0}` would fabricate a sensor network. Both shapes
+are still unit-asserted (checks 8a/8c) so the frontend has a contract to build
+against.
+
+### Verified this session
+
+- `python -m agents.incident_priority` -> all 3 done-bar scenarios pass
+- `python -m tests.test_incident_priority` -> **26 passed, 0 failed**
+- `python -m orchestrator.selftest` -> **34 passed, 0 failed** (no SUMO)
+- `sim/run_orchestrator_check.py --o2` -> **5 passed, 0 failed**
+- `sim/run_backend_smoke.py` -> **62 passed, 0 failed**. All 50 pre-existing
+  checks verified intact BY LABEL against a baseline captured before any change,
+  not merely by count. Harness edits are additive: check 1's pinned additive-key
+  allowlist gains the three new keys (the frozen five-key core is untouched, and
+  that check correctly FAILED first — the guard working), plus 12 new checks
+  (1h, 8a/8b/8c, 9).
+- 200-frame A/B against a `git worktree` at `de3ed41`: five-key core and the
+  ENTIRE `digital_twin` (incl. the §7.2 vision block) **identical on all 200
+  frames**; keys added `['incident_alerts']`; keys removed none.
+- `frontend/fixtures/recorded_session.json` — 200 frames, parses, monotonic.
+
+### Two previously-open things this session settled
+
+1. **`sim/run_backend_smoke.py` had NOT been re-run since the torch
+   2.13 -> 2.14 and websockets 17.0.1 -> 15.0.1 moves** (BUILD_LOG 2026-09-03
+   §4 listed it as outstanding). The pre-change baseline run was **50/50** — the
+   backend is clean under a live sim on the upgraded stack.
+2. **`served_on_arrival` over-reporting is now visible in a committed
+   artifact.** The fixture's operator-triggered `responder_message` reads
+   `clearance_time_s = 0.0` / `improvement_pct = 100.0` for a lane §10 had to
+   clear inside the same decision step. Pre-existing, unrelated to this work,
+   and still the user's call per CLAUDE.md — but **a frontend must not build a
+   claim on that 100% figure.** The `detected` row (3.0s / 89.3%) is sound.
+
+### Track A is ASSUMED, not delivered
+
+Nothing from `hackathon/vision-iot` exists yet (verified by grep: no
+`perception/incident_detector.py`, no `perception/vision_source.py`, no IoT
+module content). Every assumed shape is recorded in `NOTES-FOR-INTEGRATION.md`
+§A1/§A2/§A3. The incident-priority agent takes a list of dicts and **never
+imports Track A**, so it cannot even fail to import; `vision_events=None`
+behaves exactly as if Track A does not exist.
