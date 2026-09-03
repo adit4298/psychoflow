@@ -123,6 +123,34 @@ def b3_detections_assign_to_the_containing_roi_only() -> None:
     assert unassigned == 1, unassigned
 
 
+def b3b_assign_preserves_whatever_tuple_shape_it_was_given() -> None:
+    """The detector passes `(label, box, track_id)` so a track's speed is
+    carried WITH its detection.
+
+    Found by probing, not by a failing test: the previous version rebuilt
+    the association afterwards by inverting `{track_id: foot_point}` and
+    looking each box up by its foot-point. Two boxes can share a foot-point
+    exactly - verified: `(100,40,200,140)` and `(100,60,200,140)` both give
+    `(150.0, 140.0)` - and the inverted dict keeps only one, silently
+    dropping the other track's speed and its contribution to the queue
+    estimate. Nothing raised; the count was just quietly wrong.
+    """
+    from perception.vision_detector import ApproachROI, assign_to_approaches, foot_point
+
+    assert foot_point((100.0, 40.0, 200.0, 140.0)) == foot_point((100.0, 60.0, 200.0, 140.0))
+
+    rois = [ApproachROI(approach="north", polygon=[(0, 0), (400, 0), (400, 400), (0, 400)])]
+    triples = [
+        ("car", (100.0, 40.0, 200.0, 140.0), 7),
+        ("car", (100.0, 60.0, 200.0, 140.0), 9),  # same foot point, different track
+    ]
+    by_approach, unassigned = assign_to_approaches(triples, rois)
+    assert unassigned == 0
+    assert [item[2] for item in by_approach["north"]] == [7, 9], (
+        "both track ids must survive - they collide on foot-point"
+    )
+
+
 def b4_an_unassigned_detection_is_dropped_not_misattributed() -> None:
     from perception.vision_detector import ApproachROI, assign_to_approaches
 
@@ -222,6 +250,32 @@ def d3_fields_the_camera_cannot_measure_are_explicitly_unknown() -> None:
     assert obs["wait_time_max_single_vehicle"] == 0.0
     assert obs["starvation_flag"] is False
     assert obs["wait_times_measured"] is False, "must declare the wait fields are not measured"
+
+
+def d3b_a_fallback_queue_estimate_declares_itself() -> None:
+    """Same class as D3, found by probing after the suite was green.
+
+    With no speed history - frame 1, before there is anything to
+    difference - `queue_estimate` falls back to the raw count, so
+    `halted_count == vehicle_count`: every vehicle reported as queued.
+    That is the right fallback (0 would claim "no queue", a stronger claim
+    than the truth), but it read identically to a measured all-stopped
+    lane. `queue_measured` is the flag that separates them, exactly as
+    `wait_times_measured` does for the wait fields.
+    """
+    from perception.vision_detector import ApproachAggregate
+
+    blind = ApproachAggregate.from_labels("north", ["car"] * 6).to_observation(
+        junction_id="J2", lane_id="N2_J2_0", confidence=0.9, detected_at=0.0)
+    assert blind["halted_count"] == blind["vehicle_count"] == 6
+    assert blind["queue_measured"] is False, "a fallback queue must not look measured"
+
+    seen = ApproachAggregate.from_labels(
+        "north", ["car"] * 3,
+        tracks=[{"speed_px_per_s": 0.0}, {"speed_px_per_s": 9.0}, {"speed_px_per_s": 9.0}],
+    ).to_observation(junction_id="J2", lane_id="N2_J2_0", confidence=0.9, detected_at=1.0)
+    assert seen["halted_count"] == 1 and seen["vehicle_count"] == 3
+    assert seen["queue_measured"] is True
 
 
 def d4_observation_is_json_serialisable_and_feeds_a_camera_payload() -> None:
@@ -332,12 +386,16 @@ def g1_detector_runs_real_frames_without_crashing() -> None:
     assignment, aggregation - on a generated clip, so the done-bar needs
     no downloaded footage. It asserts the PIPELINE runs, deliberately NOT
     that YOLO finds anything: synthetic rectangles are not vehicles."""
-    from perception.vision_detector import DEFAULT_WEIGHTS, VisionConfig, VisionDetector, make_sample_video
+    from perception.vision_detector import (
+        DEFAULT_WEIGHTS, VisionConfig, VisionDetector, density_for, make_sample_video)
 
     if not Path(DEFAULT_WEIGHTS).exists():
         raise AssertionError(f"weights missing at {DEFAULT_WEIGHTS} - see sim/media/README.md")
 
-    video = make_sample_video(frames=12, size=(640, 360))
+    # Its own path: the default one is the demo clip, and a test that
+    # shrinks it to 12 frames silently changes what the done-bar runs on.
+    video = make_sample_video(frames=12, size=(640, 360),
+                              path=REPO / "sim" / "media" / "_selftest_g1.mp4")
     cfg = VisionConfig.default(junction_id="J2", frame_size=(640, 360))
     det = VisionDetector(source=str(video), config=cfg)
     frames = list(det.run(max_frames=12))
@@ -346,9 +404,17 @@ def g1_detector_runs_real_frames_without_crashing() -> None:
     assert len(frames) == 12, f"expected 12 frames, got {len(frames)}"
     for frame in frames:
         assert set(frame.approaches) == {roi.approach for roi in cfg.rois}
-        for body in frame.approaches.values():
-            assert body["density"] in ("free", "moderate", "congested")
-            assert body["vehicle_count"] >= 0
+        for approach, body in frame.approaches.items():
+            # NOT `vehicle_count >= 0`. That assertion was here and is
+            # unfalsifiable: the count is a sum over non-negative per-type
+            # counts by construction, so it passes whether or not the counting
+            # logic is right. Assert the relations that CAN actually break.
+            assert body["queue_estimate"] <= body["vehicle_count"], (approach, body)
+            assert body["density"] == density_for(
+                body["vehicle_count"], cfg.roi_for(approach).capacity
+            ), (approach, body)
+            agg = frame.aggregates[approach]
+            assert sum(agg.type_composition.values()) == body["vehicle_count"], agg
     assert frames[0].frame_index == 0 and frames[-1].frame_index == 11
 
 
@@ -364,7 +430,8 @@ def g2_the_sample_clip_actually_produces_detections() -> None:
     """
     from perception.vision_detector import VisionConfig, VisionDetector, make_sample_video
 
-    video = make_sample_video(frames=10, size=(640, 360))
+    video = make_sample_video(frames=10, size=(640, 360),
+                              path=REPO / "sim" / "media" / "_selftest_g2.mp4")
     cfg = VisionConfig.default(junction_id="J2", frame_size=(640, 360))
     det = VisionDetector(source=str(video), config=cfg)
     frames = list(det.run(max_frames=10))
@@ -391,6 +458,8 @@ CHECKS = [
     ("B1 point-in-polygon correct on a known square", b1_point_in_polygon_is_correct_on_a_known_square),
     ("B2 foot point is the bottom centre of the box", b2_detection_foot_point_is_the_bottom_centre_of_the_box),
     ("B3 detections assign to the containing ROI only", b3_detections_assign_to_the_containing_roi_only),
+    ("B3b assign preserves the tuple shape it was given (track ids survive)",
+     b3b_assign_preserves_whatever_tuple_shape_it_was_given),
     ("B4 an unassigned detection is dropped, not misattributed", b4_an_unassigned_detection_is_dropped_not_misattributed),
     ("C1 density buckets boundary-correct and monotonic", c1_density_buckets_are_boundary_correct_and_monotonic),
     ("C2 density normalises by ROI capacity when given", c2_density_is_normalised_by_roi_capacity_when_given),
@@ -399,6 +468,7 @@ CHECKS = [
     ("D1 observation carries every vision_mock key", d1_observation_carries_every_vision_mock_key),
     ("D2 observation adds the four new fields", d2_observation_adds_the_four_new_fields),
     ("D3 unmeasurable fields are explicitly unknown", d3_fields_the_camera_cannot_measure_are_explicitly_unknown),
+    ("D3b a fallback queue estimate declares itself", d3b_a_fallback_queue_estimate_declares_itself),
     ("D4 observation is JSON-serialisable and feeds CameraPayload", d4_observation_is_json_serialisable_and_feeds_a_camera_payload),
     ("E1 ROI config is schema-validated", e1_roi_config_is_schema_validated),
     ("E2 config round-trips through JSON", e2_config_round_trips_through_json),

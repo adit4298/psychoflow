@@ -217,6 +217,54 @@ def b8_restated_enums_have_not_drifted_from_perception() -> None:
     assert schema.SEVERITIES == SEVERITIES, (schema.SEVERITIES, SEVERITIES)
 
 
+def b8b_approaches_and_density_levels_have_not_drifted_from_the_detector() -> None:
+    """Raised by code review. B8 guards the four enums `iot/schema.py`'s
+    docstring calls out, but `APPROACHES` and `DENSITY_LEVELS` are
+    duplicated in `perception/vision_detector.py` the same way and had NO
+    guard - despite feeding the same failure.
+
+    The path is concrete: `FrameObservation.to_camera_payload()` builds a
+    `CameraPayload` from detector-side values, and `CameraPayload` validates
+    them against the schema-side copies. Extend either tuple in one module
+    and a perfectly legitimate detector frame starts raising `PayloadError`
+    inside `to_camera_payload()`, with nothing catching the drift first.
+
+    (`env/obs_action_spec.APPROACH_ORDER` is a THIRD list - different order,
+    no "unknown" - but it serves a different purpose and is not asserted
+    against these; noted so the next reader does not try to unify them.)
+    """
+    from perception import vision_detector
+
+    from iot import schema
+
+    assert schema.APPROACHES == vision_detector.APPROACHES, (
+        schema.APPROACHES, vision_detector.APPROACHES
+    )
+    assert schema.DENSITY_LEVELS == vision_detector.DENSITY_LEVELS, (
+        schema.DENSITY_LEVELS, vision_detector.DENSITY_LEVELS
+    )
+
+
+def b8c_every_detector_frame_survives_the_camera_payload_validator() -> None:
+    """The end-to-end version of B8b: not just "the tuples match" but
+    "a frame the detector can actually emit is accepted"."""
+    from perception.vision_detector import ApproachAggregate, FrameObservation
+
+    from iot.schema import CameraPayload
+
+    for approach in ("north", "south", "east", "west", "unknown"):
+        for count in (0, 5, 12, 40):
+            agg = ApproachAggregate.from_labels(approach, ["car"] * count)
+            frame = FrameObservation(
+                junction_id="J2", frame_index=0, detected_at=0.0,
+                approaches={approach: agg.to_summary()},
+                emergency_vehicle_flag=False, confidence=0.9,
+            )
+            payload = frame.to_camera_payload()
+            assert isinstance(payload, CameraPayload)
+            assert payload.approaches[approach]["vehicle_count"] == count
+
+
 def b9_corridor_junctions_have_not_drifted_from_control_api() -> None:
     """Same duplication trade as B8. `backend/control_api` holds the same
     literal for the same reason (it must stay SUMO-free too), and both
@@ -384,6 +432,21 @@ def c3b_numeric_fields_have_ceilings_the_size_cap_does_not_give_them() -> None:
     # The ceilings must not reject legitimate traffic.
     LaneCountsPayload(**{**_counts_kwargs(), "vehicle_count": 200, "halted_count": 200})
     LaneCountsPayload(**{**_counts_kwargs(), "wait_time_current": 900.0})
+
+
+def c3c_a_nesting_bomb_raises_PayloadError_not_RecursionError() -> None:
+    """Raised by security review. 20,000 bytes of `[` is deeply nested but
+    well under the 64KiB cap, and `json.loads` raises `RecursionError` -
+    which is NOT a ValueError, so it escaped `_load_json`'s except clause.
+    `PayloadError`'s docstring promises a caller can catch bad input with
+    one exception type; that contract has to actually hold, because
+    NOTES-FOR-INTEGRATION invites consumers to call `decode()` directly."""
+    from iot.schema import MAX_PAYLOAD_BYTES, PayloadError, decode
+
+    bomb = b"[" * 20_000
+    assert len(bomb) < MAX_PAYLOAD_BYTES, "the point is that it is UNDER the cap"
+    expect_raises(PayloadError, decode, "psychoflow/weather", bomb)
+    expect_raises(PayloadError, decode, "psychoflow/sensor/J1/N1_J1_0/counts", b"{\"a\":" * 20_000)
 
 
 def c4_decode_rejects_an_unroutable_topic() -> None:
@@ -556,8 +619,18 @@ CHECKS = [
     ("C1 decode dispatches on topic", c1_decode_dispatches_on_topic),
     ("C2 decode rejects malformed/hostile bytes", c2_decode_rejects_malformed_and_hostile_bytes),
     ("C3 decode enforces a size cap", c3_decode_enforces_a_size_cap),
+    ("B8b APPROACHES/DENSITY_LEVELS have not drifted from the detector",
+     b8b_approaches_and_density_levels_have_not_drifted_from_the_detector),
+    ("B8c every detector frame survives the CameraPayload validator",
+     b8c_every_detector_frame_survives_the_camera_payload_validator),
+    ("B9 corridor junctions have not drifted from control_api", b9_corridor_junctions_have_not_drifted_from_control_api),
+    ("B10 a junction off the corridor is refused", b10_a_junction_off_the_corridor_is_refused),
+    ("B11 type_composition cannot exceed the lane occupancy", b11_type_composition_cannot_exceed_the_lane_occupancy),
+    ("B12 starvation_flag must match the wait it derives from", b12_starvation_flag_must_be_consistent_with_the_wait_it_derives_from),
     ("C3b numeric fields have ceilings the size cap does not give them",
      c3b_numeric_fields_have_ceilings_the_size_cap_does_not_give_them),
+    ("C3c a nesting bomb raises PayloadError, not RecursionError",
+     c3c_a_nesting_bomb_raises_PayloadError_not_RecursionError),
     ("C4 decode rejects an unroutable topic", c4_decode_rejects_an_unroutable_topic),
     ("C5 topic and body must agree", c5_topic_and_body_must_agree),
     ("D1 no SUMO import at module level", d1_no_sumo_import_at_module_level),

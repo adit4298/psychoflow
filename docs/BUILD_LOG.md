@@ -4169,18 +4169,179 @@ line up: §7.3's enum has no `breakdown`/`major_congestion` (both fold onto
 `lane_blocked`), and `distance_m`/`distance_confidence`/`lane_index` have **no
 home in `Incident` and are dropped**. See `NOTES-FOR-INTEGRATION.md` §2.
 
+### Security review of the MQTT surface — no HIGH findings; three fixed
+
+An independent reviewer read `iot/` against `backend/`'s established precedent
+(`backend/main.py`'s `_host_rejection`, `control_api`'s range checks and
+`dispatch()` allowlist) and verified by execution, not inspection.
+
+**Cleared by test rather than by reading** — worth recording so it is not
+re-litigated: topic injection (`SEGMENT_PATTERN` uses `\A`/`\Z`, so no
+trailing-newline bypass; `parse_topic` returns `None` on `psychoflow/#`,
+`psychoflow/+`, empty levels and a trailing `\n`); the host guard (a strict
+*allowlist*, so stricter than an `ipaddress.is_loopback` test — `::ffff:127.0.0.1`
+and `127.0.0.2` are refused too, and `LOOPBACK_HOSTS` is byte-identical to
+`backend/main.py:52`); `_on_message` across 47 hostile inputs, none of which
+escaped to paho's network thread; both `MAX_PAYLOAD_BYTES` enforcement points
+reachable with `str` capped as well as `bytes`; and `load_junction_coord`'s
+`net_file` having no attacker-reachable caller anywhere in the repo.
+
+**Three findings, all fixed, each now pinned by a check:**
+
+1. **MEDIUM — cross-field invariants were unenforced.** A **310-byte** payload
+   with `vehicle_count: 0` and 10,000 of each of the five types was ACCEPTED, and
+   `to_lane_reading_dict()` — which advertises §7.1 parity — passed it straight
+   on. `lane_sensor.py` builds count and composition by iterating **one** vehicle
+   list, so the shape is impossible from the real sensor, and any consumer taking
+   a type ratio divides by that zero. Separately `starvation_flag` was a free
+   boolean, where `lane_sensor.py:126` **derives** it (`max_single_wait >
+   threshold`) — so `True` with a 0.0s wait forged a §9.1/§9.4 fairness signal
+   with no wait behind it. Fixed: `_composition` now takes `total=vehicle_count`
+   as its per-type ceiling and rejects an over-total sum (under-counting stays
+   legal — an unclassified vehicle is honest); an inconsistent `starvation_flag`
+   is **refused, not recomputed**, because silently correcting it would hide a
+   broken producer. Checks **B11**, **B12**.
+2. **LOW — a nesting bomb escaped the decoder's stated contract.** 20,000 bytes
+   of `[` is well under the 64KiB cap and `json.loads` raises `RecursionError`,
+   which is **not** a `ValueError`, so it bypassed `_load_json`'s except clause.
+   Contained in the shipped path by `_on_message`'s broad `except`, but
+   `decode()` and `from_json()` are public API and `NOTES-FOR-INTEGRATION.md`
+   invites direct callers. Fixed and pinned by check **C3c**.
+3. **LOW — junction ids were not checked against §0.1's corridor.**
+   `control_api.inject_incident` rejects a junction outside `("J1","J2","J3")`;
+   the IoT path reaches the **same** `IncidentIntake.report()` and did not. An
+   incident filed against `J99` is indexed by junction by §8.1/§8.2, surfaced by
+   no snapshot and clearable by no operator. Fixed with `_corridor_junction`
+   applied to all three junction fields; checks **B10**, and **B9** pins
+   `CORRIDOR_JUNCTIONS` against `control_api._CORRIDOR_JUNCTIONS` so the
+   duplication cannot drift.
+
+**One flaky check the fixes exposed, fixed too.** E4 waited on `len(received) < 4`
+while one publisher step emits **10** messages before its single weather one, so
+it could exit while weather was still in flight. It now waits on the four *kinds*
+and additionally asserts `len(received) == sent`. It had been passing by timing,
+not by correctness — the same class of defect as the G2 case above.
+
+**Re-verified after the fixes:** all five hostile bodies rejected, the nesting
+bomb rejected, legitimate traffic unaffected; `tests.test_iot` **30/30**
+and the three-process done-bar still **18 published / 18 received / 0 dropped**.
+(The vision suite was 26/26 at this point and moved to 28/28 with the fixes
+in the next section — see the final Verified block for the current counts.)
+
+### Three defects found by probing AFTER the suite was green
+
+Recorded because of what they have in common: all three were **silent**. Nothing
+raised, no test failed, and each produced a number that was wrong in a way a
+reader would not notice — the failure mode `CLAUDE.md` already names for this
+repo. A green suite is evidence about what was asked, not about what is true.
+
+1. **A foot-point key collision silently dropped a track's speed.**
+   `VisionDetector.process_frame` rebuilt the detection->track association by
+   inverting `{track_id: foot_point}` and looking each box up by its foot-point.
+   Two boxes can share a foot-point **exactly**: `(100,40,200,140)` and
+   `(100,60,200,140)` both give `(150.0, 140.0)` — an occluded pair at the same
+   lane position. The inverted dict keeps one, so the other track's speed was
+   lost and it stopped contributing to the queue estimate. Fixed structurally
+   rather than by tolerance: `_detections` now returns `(label, box, track_id)`
+   triples and `assign_to_approaches` buckets each item WHOLE, so there is no
+   lookup left to lose anything. Pinned by check **B3b**.
+
+2. **`halted_count` could not be distinguished from a measurement.** With no
+   speed history — frame 1, before there is anything to difference —
+   `queue_estimate` falls back to the raw count, so `halted_count ==
+   vehicle_count`: every vehicle reported as queued. The fallback itself is
+   right (`0` would claim "no queue", a stronger claim than the truth), but it
+   read **identically** to a genuinely stopped lane, and `halted_count` is what
+   §9.1/§9.4 consume. Fixed by adding **`queue_measured`** to the observation
+   beside the existing `wait_times_measured`, from a single `any_speed_known()`
+   definition. Pinned by check **D3b**.
+
+3. **`_largest_cluster`'s docstring claimed something the code does not do.** It
+   said "mutually within `radius_px`"; the code returns everything within radius
+   **of one anchor**, so a 0 / 80 / 160 px chain is one cluster at radius 90
+   even though its ends are 160 apart. The *code* is right for accident
+   detection — a collision is vehicles piled around a point, and a mutual-distance
+   clique would miss a three-car shunt strung along a lane — so the docstring was
+   corrected to the code, with the consequence stated: the constant behaves like
+   a radius, not a diameter, when it is retuned against real footage.
+
+**Also fixed: two tests were quietly clobbering the demo clip.** G1 and G2 both
+called `make_sample_video()` on its default path, leaving
+`sim/media/_synthetic_selftest.mp4` at whichever frame count ran last — so a
+done-bar invoked after the suite silently ran 10 frames instead of 100. They now
+write `_selftest_g1.mp4` / `_selftest_g2.mp4`.
+
+### Code review — four more findings, all fixed
+
+An independent correctness review ran after the security one. It **independently
+reproduced all three of the self-found defects above** before seeing them fixed,
+which is the useful part: they were real, not misreadings of my own code.
+
+Four findings still open at that point, all now fixed:
+
+1. **`APPROACHES` and `DENSITY_LEVELS` were duplicated with no drift guard.**
+   `iot/schema.py`'s docstring calls its enum duplication deliberate and points at
+   check B8 as the guard — but B8 only covers the four enums the docstring names.
+   These two are duplicated in `perception/vision_detector.py` the same way and
+   feed a concrete failure: `FrameObservation.to_camera_payload()` builds a
+   `CameraPayload` from detector-side values, and `CameraPayload.__post_init__`
+   validates them against the schema-side copies. Extend either tuple in one
+   module and a legitimate detector frame starts raising `PayloadError` inside
+   `to_camera_payload()`, with nothing catching it first. Fixed with checks
+   **B8b** (tuples match) and **B8c** (every frame the detector can emit actually
+   survives the validator — the end-to-end version, since matching tuples is the
+   weaker claim). Worth knowing: `env/obs_action_spec.APPROACH_ORDER` is a
+   **third** approach list — different order, no `"unknown"` — serving a different
+   purpose, so it is deliberately NOT asserted against these two.
+2. **A failed `cv2.VideoCapture` was discarded without `release()`.** Low impact
+   (OpenCV's destructor usually handles it) but inconsistent with the rest of the
+   class, which releases explicitly. Fixed.
+3. **`--no-track`'s help text was stale.** It said "disables speed/queue
+   estimates". Since `queue_measured` landed that is wrong twice over: the
+   estimate still runs, it just falls back to the raw count and now says so.
+   Text corrected to describe the actual behaviour.
+4. **One vacuous assertion.** `assert body["vehicle_count"] >= 0` in G1 cannot
+   fail — the count is a sum over non-negative per-type counts by construction,
+   so it passed whether or not the counting logic was right. Replaced with three
+   assertions that can: `queue_estimate <= vehicle_count`, `density` equalling
+   `density_for(count, roi.capacity)`, and `sum(type_composition) ==
+   vehicle_count`. The reviewer checked the rest of the suite and found no second
+   instance.
+
+**Cleared on inspection, recorded so they are not re-investigated:**
+`_estimate_distance`'s `junction_xy or stop_line_xy` is inert when
+`stop_line_xy` is supplied (the stop-line branch returns first) and `(0.0, 0.0)`
+is a non-empty tuple so it is never mistaken for missing — all four paths were
+run and behave correctly. `VisionDetector._speeds` writes before it prunes, so a
+present track is never evicted and a returning track correctly gets no speed on
+its first frame back. Every `__exit__` in the four context managers returns
+`None`, so none can mask an exception from its `with` body.
+`classify_major_congestion` reading `flow.approach`/`flow.lane_index` where the
+other two read the origin track's is **forced, not inconsistent** — congestion
+has `origin_track_id=None` by definition, so the lane is the only source there is.
+
+### The done-bar command changed, because the old one could go stale
+
+`sim/media/` is gitignored, so the sample clip is a generated artifact. Running
+`python -m perception.vision_detector sim/media/_synthetic_selftest.mp4 --frames
+100` against a clip an earlier run had left at 10 frames reported **"processed 10
+frames without error"** — technically true, and a done-bar that silently measured
+a tenth of what it claimed. The recorded command is now the self-contained
+**`python -m perception.vision_detector --make-sample --frames 100`**, which
+regenerates the clip first and therefore cannot drift from what it reports.
+
 ### Verified — project venv, `sys.prefix` ends `...\GitHub\Test\venv`
 
 - `python -m sim.sumo_activity` -> **free** before and after; **nothing here
   launches SUMO**, so no harness needed a `require_free()` guard.
-- `python -m tests.test_iot` -> **25/25** (also via `python -m iot.broker --selftest`)
-- `python -m tests.test_vision_detector` -> **26/26** (also via `--selftest`)
+- `python -m tests.test_iot` -> **32/32** (also via `python -m iot.broker --selftest`)
+- `python -m tests.test_vision_detector` -> **28/28** (also via `--selftest`)
 - `python -m perception.incident_detector` -> **34/34**
 - Done-bar 1, three real OS processes: `python -m iot.broker --port 18902` bound,
   `iot.publisher` connected and published **18 messages across 4 topic kinds**,
   `iot.subscriber` **received 18, dropped 0**.
-- Done-bar 2: `python -m perception.vision_detector sim/media/_synthetic_selftest.mp4
-  --frames 100` -> **100 frames, non-zero per-approach counts**, no error.
+- Done-bar 2: `python -m perception.vision_detector --make-sample --frames 100`
+  -> **100 frames, non-zero per-approach counts**, no error.
 - Host-guard bypass probe: 14 host spellings, only `127.0.0.1` / `::1` /
   `localhost` allowed.
 - Adversarial decode probe: 11 hostile bodies, all rejected after the ceiling fix.

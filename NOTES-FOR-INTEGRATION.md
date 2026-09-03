@@ -15,8 +15,8 @@ Three things, all additive, none of them on any existing measured path:
 
 | what | where | done-bar |
 |---|---|---|
-| Local MQTT ingestion (amqtt broker + paho clients) | `iot/` | `python -m tests.test_iot` -> 24/24 |
-| Real YOLOv8n detector + `mock`/`detector` factory | `perception/vision_detector.py`, `perception/vision_source.py` | `python -m tests.test_vision_detector` -> 26/26 |
+| Local MQTT ingestion (amqtt broker + paho clients) | `iot/` | `python -m tests.test_iot` -> 32/32 |
+| Real YOLOv8n detector + `mock`/`detector` factory | `perception/vision_detector.py`, `perception/vision_source.py` | `python -m tests.test_vision_detector` -> 28/28 |
 | Incident classification from tracks + flow state | `perception/incident_detector.py` | `python -m perception.incident_detector` -> 34/34 |
 
 **No file under `env/`, `agents/`, `safety/`, `prediction/`, `coordinator/`,
@@ -86,6 +86,16 @@ consumer that reads those three without checking that flag will read "not
 observable from here" as "observed zero"** — and §9.1's starvation bonus and
 §9.4's starvation penalty both key off exactly these. That is why the detector
 must not drive `PsychoFlowEnv`: it would silently zero the fairness signal.
+
+A fourth field is conditionally unmeasured. `halted_count` comes from the queue
+estimate, which needs per-track speeds, which need a previous frame to difference
+against. On the **first frame of a clip** — and any frame where the tracker
+produced no ids — it falls back to the raw count, so `halted_count ==
+vehicle_count`: every vehicle reported as queued. That is the right fallback (a
+`0` would claim "no queue", a stronger claim than the truth), but it reads
+identically to a genuinely stopped lane, so **`queue_measured: False`** rides
+beside it. Check `queue_measured` before trusting `halted_count`, the same way
+you check `wait_times_measured`.
 
 ### 1c. `type_composition` will always report `auto: 0, ambulance: 0`
 
@@ -176,6 +186,32 @@ needs to leave the machine, that is a real auth design, not an `--allow-lan` fla
 
 ---
 
+## 4b. `.gitignore` needs three more entries — a stray commit already tripped this
+
+A commit on this branch, `8926dcc` ("iot"), swept **39 unrelated tooling files**
+into version control alongside this branch's work: `.agents/skills/**`,
+`.claude/skills/**` and `skills-lock.json`, ~13,000 lines of agent-skill markdown
+that has nothing to do with PsychoFlow. This branch's own commit untracks them
+(`git rm --cached`, files left on disk), but **nothing stops the next `git add -A`
+from doing it again**, and `8926dcc` is still in the history that reaches
+`hackathon/integration`.
+
+`.gitignore` is outside this branch's ownership, so the lines were not added.
+They should be, next to the existing `ECC/` entry, which exists for exactly this
+reason (a third-party clone that a `git add -A` would have swallowed):
+
+```gitignore
+# Agent-skill tooling — not part of PsychoFlow, same reason as ECC/ above.
+.agents/
+.claude/skills/
+skills-lock.json
+```
+
+Note `.claude/settings.local.json` is already ignored; `.claude/skills/` is not,
+so ignoring the whole of `.claude/` would be a wider change than needed.
+
+---
+
 ## 5. Dependency pins
 
 `ultralytics 8.4.138`, `opencv-python 5.0.0`, `paho-mqtt 2.1.0`, `amqtt 0.12.0`
@@ -200,9 +236,10 @@ Stated as a deliberate, temporary exception rather than left for a reviewer to
 find. The house rule (`coding-style.md`, `code-review.md`) puts a soft
 maintainability ceiling at 800 lines and rates an *unexplained* overrun MEDIUM.
 
-The measured split is **968 total = 577 executable + 199 docstring + 62 comment +
-130 blank**, so most of the overrun is the "why" documentation this repo runs on.
-That does not make it fine — 577 executable lines in one module is still large.
+The measured split is **997 total = ~590 executable + ~210 docstring + ~65 comment
++ ~132 blank**, so most of the overrun is the "why" documentation this repo runs
+on. That does not make it fine — ~590 executable lines in one module is still
+large.
 
 **The obvious fix was not taken, on purpose.** The file has three clean seams and
 the config layer (`VisionConfigError`, `ApproachROI`, `VisionConfig`, ~200 lines)
@@ -235,13 +272,13 @@ mock) and a §7.7 (MQTT transport) once the hackathon branches reconcile.
 The commands worth adding to `CLAUDE.md` §8:
 
 ```
-python -m tests.test_iot                      # 24 assertions, no SUMO, no camera
-python -m tests.test_vision_detector          # 26 assertions, generates its own clip
+python -m tests.test_iot                      # 32 assertions, no SUMO, no camera
+python -m tests.test_vision_detector          # 28 assertions, generates its own clip
 python -m perception.incident_detector        # 34 assertions, no SUMO
 python -m iot.broker                          # local broker, loopback:1883
 python -m iot.publisher --with-broker --steps 5
 python -m iot.subscriber --seconds 10
-python -m perception.vision_detector --make-sample --frames 100
+python -m perception.vision_detector --make-sample --frames 100   # self-contained
 ```
 
 ---

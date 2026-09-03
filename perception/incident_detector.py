@@ -403,11 +403,19 @@ def classify_accident(
 def _largest_cluster(
     stuck: Sequence[VehicleTrack], radius_px: float
 ) -> list[VehicleTrack]:
-    """Biggest set of stationary vehicles mutually within `radius_px`.
+    """Biggest set of stationary vehicles within `radius_px` OF ONE ANCHOR.
 
-    Single-link, seeded from each vehicle in turn. At the handful of
-    stationary tracks a single approach ever holds, the quadratic cost is
-    irrelevant and the simplicity is worth more than a spatial index.
+    Each vehicle is tried as the anchor and the largest group wins. Note
+    this is NOT a mutual-distance clique: members can be up to *twice*
+    `radius_px` from each other, so a 0 / 80 / 160 px chain is one group at
+    radius 90 even though its ends are 160 apart. That is deliberate - a
+    collision is vehicles piled around a point, and requiring every pair to
+    be mutually close would miss a three-car shunt strung along a lane.
+    It does mean `ACCIDENT_CLUSTER_RADIUS_PX` behaves like a radius, not a
+    diameter, when it is retuned against real footage.
+
+    Quadratic, which is irrelevant at the handful of stationary tracks one
+    approach ever holds, and worth more than a spatial index in clarity.
     """
     best: list[VehicleTrack] = []
     for seed in stuck:

@@ -347,6 +347,23 @@ def density_for(vehicle_count: int, capacity: int | None = None) -> str:
     return DENSITY_LEVELS[2]
 
 
+def any_speed_known(tracks: Sequence[dict[str, Any]]) -> bool:
+    """Whether ANY track carries a usable speed.
+
+    This is what separates a measured queue from `queue_estimate`'s
+    fallback, and it is reported on the observation as `queue_measured` -
+    the same courtesy `wait_times_measured` already extends. Without it,
+    frame 1 (no history to difference yet) reports halted_count ==
+    vehicle_count with nothing saying that is an assumption rather than an
+    observation, which is exactly the shape of dishonesty rule 3 exists to
+    prevent.
+    """
+    return any(
+        isinstance(t.get("speed_px_per_s"), (int, float)) and not isinstance(t.get("speed_px_per_s"), bool)
+        for t in tracks
+    )
+
+
 def queue_estimate(
     tracks: Sequence[dict[str, Any]],
     stationary_speed_px_per_s: float = DEFAULT_STATIONARY_SPEED_PX_PER_S,
@@ -409,6 +426,9 @@ class ApproachAggregate:
     queue_estimate: int
     emergency_vehicle_flag: bool = False
     dropped_unmappable: int = 0
+    #: False when no track had a usable speed, so `queue_estimate` fell
+    #: back to the raw count rather than measuring. See `any_speed_known`.
+    queue_measured: bool = False
 
     @classmethod
     def from_labels(
@@ -430,6 +450,7 @@ class ApproachAggregate:
             type_composition=composition,
             density=density_for(counted, capacity),
             queue_estimate=queue_estimate(tracks, stationary_speed_px_per_s),
+            queue_measured=any_speed_known(tracks),
             emergency_vehicle_flag=bool(emergency_vehicle_flag),
             dropped_unmappable=sum(1 for lbl in labels if project_type_for_coco_label(lbl) is None),
         )
@@ -480,6 +501,7 @@ class ApproachAggregate:
             # -- additive: what this feed CANNOT say, stated explicitly --
             "emergency_flag_is_experimental": True,
             "wait_times_measured": False,
+            "queue_measured": self.queue_measured,
             "undetectable_types": list(UNDETECTABLE_TYPES),
             "lane_fanout": bool(lane_fanout),
             "dropped_unmappable": self.dropped_unmappable,
@@ -539,14 +561,18 @@ def assign_to_approaches(
     `unassigned` rising is the signal that the polygons need redrawing.
     First match wins where ROIs overlap, so overlap is treated as a config
     error (see `VisionConfig.default`'s note) rather than double-counted.
+
+    Only `item[0]` (label) and `item[1]` (box) are read, and each item is
+    bucketed WHOLE, so a caller may pass longer tuples - `VisionDetector`
+    passes `(label, box, track_id)` - and get them back intact.
     """
-    buckets: dict[str, list[tuple[str, Sequence[float]]]] = {roi.approach: [] for roi in rois}
+    buckets: dict[str, list[tuple]] = {roi.approach: [] for roi in rois}
     unassigned = 0
-    for label, box in detections:
-        point = foot_point(box)
+    for item in detections:
+        point = foot_point(item[1])
         for roi in rois:
             if roi.contains(point):
-                buckets[roi.approach].append((label, box))
+                buckets[roi.approach].append(item)
                 break
         else:
             unassigned += 1
@@ -611,6 +637,10 @@ class VisionDetector:
 
             capture = cv2.VideoCapture(self.source)
             if not capture.isOpened():
+                # Release before discarding: the object exists even when the
+                # open failed, and every other path in this class releases
+                # explicitly rather than leaning on the GC.
+                capture.release()
                 raise RuntimeError(f"could not open video source {self.source!r}")
             self._capture = capture
         return self._capture
@@ -627,9 +657,18 @@ class VisionDetector:
         self.close()
 
     # -- inference ------------------------------------------------------
-    def _detections(self, frame) -> tuple[list[tuple[str, list[float]]], dict[int, tuple[float, float]]]:
-        """Run the model on one frame. Returns (label, box) pairs and, when
-        tracking is on, a {track_id: centre} map used for speeds."""
+    def _detections(self, frame) -> tuple[list[tuple[str, list[float], int | None]], dict[int, tuple[float, float]]]:
+        """Run the model on one frame.
+
+        Returns `(label, box, track_id)` triples plus a `{track_id: centre}`
+        map used for speeds. The track id is carried ON the detection
+        deliberately: an earlier version rebuilt the association afterwards
+        by inverting `{track_id: foot_point}` and looking each box up by its
+        foot-point. Two boxes can share a foot-point exactly - an occluded
+        pair at the same lane position, verified - and the inverted dict
+        then keeps only one, silently losing the other track's speed and so
+        its contribution to the queue estimate.
+        """
         model = self._ensure_model()
         if self.track:
             results = model.track(
@@ -644,7 +683,7 @@ class VisionDetector:
         result = results[0]
         names = result.names
 
-        detections: list[tuple[str, list[float]]] = []
+        detections: list[tuple[str, list[float], int | None]] = []
         centres: dict[int, tuple[float, float]] = {}
         boxes = result.boxes
         if boxes is None or len(boxes) == 0:
@@ -657,9 +696,10 @@ class VisionDetector:
             label = names.get(int(cls_idx), "") if isinstance(names, dict) else str(names[int(cls_idx)])
             if project_type_for_coco_label(label) is None:
                 continue  # honesty rule 1 - never guess a type
-            detections.append((label, [float(v) for v in box]))
-            if track_id is not None:
-                centres[int(track_id)] = foot_point(box)
+            tid = None if track_id is None else int(track_id)
+            detections.append((label, [float(v) for v in box], tid))
+            if tid is not None:
+                centres[tid] = foot_point(box)
         return detections, centres
 
     def _speeds(self, centres: dict[int, tuple[float, float]], timestamp_s: float) -> dict[int, float]:
@@ -686,11 +726,6 @@ class VisionDetector:
         detections, centres = self._detections(frame)
         speeds = self._speeds(centres, detected_at)
 
-        # `centres` is {track_id: foot_point}; invert it so a detection can
-        # be matched back to its track (and therefore its speed) by the one
-        # thing both sides agree on, the foot-point.
-        id_by_point = {point: track_id for track_id, point in centres.items()}
-
         buckets, unassigned = assign_to_approaches(detections, self.config.rois)
 
         approaches: dict[str, dict[str, Any]] = {}
@@ -698,11 +733,9 @@ class VisionDetector:
         emergency_any = False
         for roi in self.config.rois:
             items = buckets[roi.approach]
-            labels = [label for label, _box in items]
-            tracks = [
-                {"speed_px_per_s": speeds.get(id_by_point.get(foot_point(box)))}
-                for _label, box in items
-            ]
+            labels = [item[0] for item in items]
+            # The track id rides on the detection, so no lookup can lose it.
+            tracks = [{"speed_px_per_s": speeds.get(item[2])} for item in items]
             density = density_for(len(labels), roi.capacity)
             emergency = detect_emergency_heuristic(tracks, density)
             emergency_any = emergency_any or emergency
@@ -730,7 +763,7 @@ class VisionDetector:
         return observation
 
     @staticmethod
-    def _frame_confidence(detections: Sequence[tuple[str, Sequence[float]]]) -> float:
+    def _frame_confidence(detections: Sequence[tuple]) -> float:
         """Frame-level confidence. With no detections this is 0.0 - an
         empty frame is not a confident one, it is an uninformative one."""
         return 0.0 if not detections else 0.9
@@ -906,7 +939,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--junction", default="J2")
     parser.add_argument("--frames", type=int, default=100)
     parser.add_argument("--weights", default=str(DEFAULT_WEIGHTS))
-    parser.add_argument("--no-track", action="store_true", help="predict only; disables speed/queue estimates")
+    parser.add_argument(
+        "--no-track", action="store_true",
+        help="predict only, no tracker. The queue estimate still runs but has no "
+             "speeds to work from, so it falls back to the raw count and reports "
+             "queue_measured=False - it is not disabled, it is declared unmeasured.",
+    )
     parser.add_argument("--selftest", action="store_true", help="run tests.test_vision_detector and exit")
     parser.add_argument(
         "--make-sample", action="store_true",
