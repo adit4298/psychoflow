@@ -53,3 +53,12 @@ sim/routes/_demo_view_*.xml
 # Ignored so a `git add -A` during the hackathon parallel build cannot swallow it
 # as an embedded gitlink. Not part of PsychoFlow.
 ECC/
+
+# YOLO weights — auto-downloaded by ultralytics on first use, regenerable.
+models/*.pt
+*.pt
+
+# Real camera footage for the vision detector — large binaries, fetched by hand.
+# sim/media/README.md IS tracked and says what belongs there.
+sim/media/*
+!sim/media/README.md

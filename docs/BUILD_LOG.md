@@ -3867,3 +3867,160 @@ cited a weaker "2 of 3" from a non-paired run and was corrected.
 
 **Reminder, unchanged:** this loop mirrors §10's precedence; it is NOT §10.
 `safety/validator.py` inside `env.step()` remains authoritative.
+
+## 2026-09-03 — HACKATHON SETUP: branch layout, §2 reopened for a real vision detector, dependency install
+
+Environment setup only. **No feature work, no source file under `env/`, `agents/`,
+`safety/`, `prediction/`, `coordinator/`, `explainability/` or `backend/` was
+touched.** The only tracked changes are `.gitignore`, this entry, and a new
+`sim/media/README.md`.
+
+### 1. LOCKED DECISION §2 REOPENED — vision is no longer mock-only
+
+The user has **approved reopening §2's "Vision input = simulated mock (§7.2)"**.
+A real local YOLO detector is now in scope, for a jury that wants an agent acting
+on real camera footage.
+
+**`perception/vision_mock.py` STAYS and remains the fallback, behind a flag.** It
+is not deleted and not replaced. Everything §7.2 says about the core system being
+agnostic to input source still holds — the detector must emit the *same shape*
+(`lane_id` / `vehicle_count` / `type_composition` / `confidence` / `source`), which
+is what makes this a swap rather than a rewrite.
+
+**Scope boundary, stated now so it is not blurred later (§17 class):** a real
+detector reads a *video file*, not the SUMO corridor. It cannot drive
+`PsychoFlowEnv` — the twin's lane occupancy still comes from TraCI. So this is a
+second, parallel perception source for the jury beat, not a replacement for §7.1.
+Do not describe it as "the system runs on camera input".
+
+### 2. Branch layout for the parallel build
+
+Cut from `hackathon/baseline` (`477cb54`), itself cut from `main` (`68a2275`):
+
+| branch | owns |
+|---|---|
+| `hackathon/baseline`       | shared base — this commit |
+| `hackathon/vision-iot`     | YOLO detector + MQTT/IoT telemetry |
+| `hackathon/frontend`       | Phase 10 (§18.10) |
+| `hackathon/voice`          | Phase 11 (§18.11, §14) |
+| `hackathon/agents-backend` | role-segregated agents, priority incident handling |
+| `hackathon/integration`    | merge target |
+
+**All six exist locally; NONE are pushed.** `git push` to `origin`
+(`hackhorizon7-cloud/Test.git`) returns **403 — "Permission to
+hackhorizon7-cloud/Test.git denied to adit4298"**. The cached credential is for a
+different GitHub account than the one owning the remote, and `gh auth status`
+reports not logged in. Needs an interactive login; no code session can do this.
+
+### 3. The `chore: WIP snapshot...` commit does NOT contain what its message implies
+
+Recorded because the message is misleading read on its own. The mixed-traffic work
+it was meant to snapshot **was already committed** — `d8d8c56` ("phase 10"),
+`6b60de2` ("chages"), `68a2275` ("updates"). At branch-cut the tree held **0
+modified tracked files** and exactly one untracked path: `ECC/`, a ~108MB clone of
+`github.com/affaan-m/ECC` carrying its own `.git`, unrelated to this project. A
+`git add -A` would have embedded it as a gitlink, so it was **gitignored instead**.
+That gitignore line is the commit's entire content.
+
+**Consequence for `CLAUDE.md`:** its CURRENT STATUS bullet, §11.1 and §20's
+checklist all still say the mixed-traffic work is "UNCOMMITTED — 9 modified + 38
+untracked = 47 files". **That is now false**, and was already false before this
+session. The **`sumo-gui` human sign-off is still genuinely PENDING** and remains
+the driving model's real done-bar — only the "uncommitted" half is stale.
+
+### 4. Dependencies installed — two upgrades that needed regression-checking
+
+`pip install ultralytics opencv-python paho-mqtt amqtt` into the project venv
+(`sys.prefix` confirmed to end `\GitHub\Test\venv` first, per `CLAUDE.md` §8).
+
+Installed: `ultralytics 8.4.138`, `opencv-python 5.0.0`, `paho-mqtt 2.1.0`,
+`amqtt 0.12.0`.
+
+**Two transitive changes to the existing stack, neither requested:**
+- `torch` **2.13.0+cpu -> 2.14.0+cpu** (pulled by ultralytics)
+- `websockets` **17.0.1 -> 15.0.1** (*downgraded* by amqtt) — this one matters, the
+  §13 backend is FastAPI + WebSockets
+
+**Both regression-checked rather than assumed:**
+- Deployed checkpoint `psychoflow_stage4_153600_steps_final.zip` still loads under
+  torch 2.14 — `num_timesteps = 153600`, matching the record exactly.
+- `sim/run_backend_security_check.py` -> **62 passed, 0 failed**, matching the
+  recorded 62/62. The websockets downgrade did not break the backend.
+
+`numpy 2.4.6`, `gymnasium 1.3.0`, `stable_baselines3 2.9.0`, `sb3_contrib 2.9.0`
+all unchanged.
+
+**NOT re-run:** `sim/run_backend_smoke.py` (50/50) and
+`sim/run_shadow_advisor_check.py` (35/35) — both launch SUMO. They are the
+outstanding confirmation that the torch/websockets moves are clean under a live
+sim. Run them before relying on the backend.
+
+### 5. YOLO weights
+
+`yolov8n.pt` (6.2MB) downloaded and load-verified. Ultralytics drops it in the CWD;
+moved to **`models/`**, and `*.pt` gitignored (auto-refetched on demand).
+
+**COCO class gap, measured not assumed** — the 80 classes give
+`person / bicycle / car / motorcycle / bus / truck`. `bike`, `car` and `truck` map
+cleanly; **`auto` (auto-rickshaw) and `ambulance` have no COCO class at all** and
+need a custom model or an explicit heuristic. Full mapping table in
+`sim/media/README.md`. An auto-rickshaw silently counted as a `car` is a wrong
+number on the dashboard, not a rounding error — decide the mapping before wiring
+the detector to `type_composition`, and state it out loud per §17.
+
+### 6. Ollama / Gemma — the LOST BENCHMARK is now replaced with a measured one
+
+`CLAUDE.md` records that the model-selection and latency numbers behind the Gemma
+choice were lost and reproduced nowhere, and asks for one timed run on the actual
+demo machine. Done, on the project venv, `temperature=0`, §14's function-calling
+prompt verbatim, all four §14 demo commands.
+
+Ollama **0.30.10** (server was not running; `ollama list` started it). Present:
+`gemma3:4b` (3.3GB), `qwen3:4b`, `llama3.2:3b`. **No pull was needed.**
+
+| | latency |
+|---|---|
+| cold (first request, model load) | **18.18s** |
+| warm, 4 commands | 1.70 / 1.88 / 1.41 / 1.69s — **mean 1.67s** |
+
+**All four parsed to the correct function.** Three findings Phase 11 must handle,
+each of which would otherwise have cost debugging time at the event:
+
+1. **The bare tag `gemma3` 404s.** Only `gemma3:4b` is pulled locally. §14 and
+   `CLAUDE.md`'s APPROVED VOICE DESIGN both say `ollama pull gemma3`;
+   `backend/voice/intent_agent.py` must name **`gemma3:4b`** explicitly, or the
+   first call fails.
+2. **The model wraps output in markdown code fences.** 2 of 4 responses came back
+   fenced as json rather than as bare JSON. The parser must strip fences before
+   `json.loads`, and per §14 a parse failure is a **fail-closed no-op**, never a
+   guess.
+3. **`set_lane_bias` came back as `{"lane": 3, "duration": 5}`** — no `weight`, and
+   `duration` in **minutes** where §13.1 requires `duration_s` in **seconds**,
+   range-checked to `[10, 900]`. A literal `5` is **rejected** by
+   `control_api.py`'s bounds check. Same class as the already-flagged 0-based vs
+   1-based lane mismatch: the model's argument *units* need normalising before
+   dispatch, not just its function name.
+
+**Margin note:** §14's done-bar is "dashboard visibly reacts within ~2 seconds".
+1.67s is intent-parsing **alone** — before STT, the WebSocket round-trip and the
+sim's next decision step. The bar is met with very little headroom, and the **18s
+cold start must be pre-warmed** before the demo or the first spoken command misses
+it badly. §20's "demo machine load-tested as one system" item is the check that
+matters here, and it remains open.
+
+### 7. Camera footage
+
+None in the repo. `sim/media/` created with a tracked README stating the sources
+and the one hard requirement: a **fixed** camera. Lane assignment needs static
+image-space polygons and distance needs a fixed homography, so any pan/zoom/handheld
+shot makes both jury-facing outputs meaningless regardless of detector quality.
+Footage itself is gitignored.
+
+### Verified this session
+
+- `sys.prefix` -> `C:\Users\aditp\OneDrive\Documents\GitHub\Test\venv`
+- `python -m sim.sumo_activity` -> **free** (before and after; nothing launched SUMO)
+- `sim/run_backend_security_check.py` -> **62 passed, 0 failed**
+- Stage 4 checkpoint loads, `num_timesteps = 153600`
+- `yolov8n.pt` loads, 80 classes enumerated
+- `gemma3:4b` answers all four §14 commands correctly, timings above
