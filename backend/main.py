@@ -168,6 +168,7 @@ def create_app(
     seed: int = 7,
     demo_driving: bool = False,
     enable_orchestrator: bool = True,
+    vision_source: str = "mock",
 ) -> FastAPI:
     state = ControlState()
     hub = Hub()
@@ -184,6 +185,7 @@ def create_app(
         frame_sink=hub.publish_from_thread,
         demo_driving=demo_driving,
         enable_orchestrator=enable_orchestrator,
+        vision_source=vision_source,
     )
 
     @asynccontextmanager
@@ -323,6 +325,17 @@ def _main() -> None:
     # sim/run_orchestrator_check.py can run the same seed with and without it
     # and prove the control path is byte-identical; without the flag that
     # check is impossible. Mirrors --no-shadow exactly.
+    # §7.2 VISION SOURCE (Part 4c). "mock" is the default and performs NO
+    # swap at all, so the default frame stream is byte-identical to before
+    # this flag existed. "detector" needs Track A's
+    # perception.vision_source factory; if it is not importable the runner
+    # falls back to the mock loudly rather than taking the demo down.
+    parser.add_argument("--vision-source", choices=("mock", "detector"),
+                        default="mock",
+                        help="§7.2 perception feed. 'mock' (default) is the "
+                             "simulated CCTV envelope and detects nothing; "
+                             "'detector' uses Track A's real detector when "
+                             "available.")
     parser.add_argument("--no-orchestrator", action="store_true",
                         help="Disable the orchestrator blackboard (no "
                              "`agent_activity` key on the §13.2 stream).")
@@ -357,6 +370,7 @@ def _main() -> None:
         shadow_checkpoint=None if args.no_shadow else args.shadow_checkpoint,
         demo_driving=args.demo_driving,
         enable_orchestrator=not args.no_orchestrator,
+        vision_source=args.vision_source,
         lane_counts=lane_counts,
         realtime_factor=args.realtime_factor,
         fast=args.fast,

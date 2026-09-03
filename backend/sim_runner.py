@@ -75,6 +75,7 @@ import numpy as np
 
 from agents.rule_based import Tier0Controller
 from backend.control_api import EMERGENCY_HOLD_S, Command, ControlState
+from backend.frame_sources import build_incident_alerts, build_iot_sensors
 from coordinator.emergency_clearance import EmergencyClearanceCoordinator
 from coordinator.responder_messaging import (
     build_responder_message,
@@ -193,6 +194,16 @@ SHADOW_COORDINATION_MODE = "graph_attention"
 # constructed with demo_driving=True (backend/main.py's --demo-driving, default
 # OFF). Never used by training or evaluation — training/train.py asserts against
 # both of these before model.learn().
+# §7.2 VISION SOURCE (Part 4c). "mock" is the default and performs NO SWAP AT
+# ALL — `DigitalTwin.__init__` builds its own `VisionMock(seed=seed)` and the
+# runner leaves it alone, so the default path is byte-identical to before this
+# flag existed. Re-assigning even an identical VisionMock would reseed it and
+# perturb every recorded number. Only "detector" swaps, and only if Track A's
+# factory is importable — see NOTES-FOR-INTEGRATION §A2.
+VISION_SOURCE_MOCK = "mock"
+VISION_SOURCE_DETECTOR = "detector"
+VISION_SOURCES = (VISION_SOURCE_MOCK, VISION_SOURCE_DETECTOR)
+
 DEMO_VTYPE_FILE = REPO_ROOT / "sim" / "networks" / "vehicle_types_demo.add.xml"
 DEMO_LATERAL_RESOLUTION = 0.4
 
@@ -279,6 +290,7 @@ class SimRunner:
         frame_sink: Callable[[dict], None] | None = None,
         demo_driving: bool = False,
         enable_orchestrator: bool = True,
+        vision_source: str = VISION_SOURCE_MOCK,
     ):
         # STEP 1, demo-only. False => SUMO's default lane-disciplined LC2013
         # model and the default vTypes, i.e. exactly the configuration every
@@ -362,6 +374,19 @@ class SimRunner:
         # `_shadow_enabled` is; `_orch` is per-EPISODE and is replaced there.
         self._orch: Orchestrator | None = None
         self._orch_enabled = bool(enable_orchestrator)
+        # §7.2 vision source (Part 4c). Validated HERE rather than trusted:
+        # an unknown value falls back to the mock loudly instead of silently
+        # doing something else.
+        if vision_source not in VISION_SOURCES:
+            print(f"[sim] unknown --vision-source {vision_source!r}; "
+                  f"falling back to {VISION_SOURCE_MOCK!r} "
+                  f"(valid: {VISION_SOURCES})")
+            vision_source = VISION_SOURCE_MOCK
+        self.vision_source = vision_source
+        # IoT telemetry (§13.2 `iot_sensors`). Track A publishes into this;
+        # None means the key is never emitted, which is the honest default —
+        # the twin's lane data is TraCI ground truth, not an IoT feed.
+        self.iot_telemetry: dict | None = None
 
     # ------------------------------------------------------------------
     # lifecycle
@@ -451,9 +476,42 @@ class SimRunner:
                 if self.demo_driving else {}
             ),
         )
+        self._apply_vision_source()
         self._obs, _info = self._env.reset()
         self._served = self._env.phase_served_lanes()
         self._reset_counters()
+
+    def _apply_vision_source(self) -> None:
+        """Swap the twin's §7.2 feed — ONLY for `--vision-source detector`.
+
+        The seam is an attribute assignment onto the already-constructed twin
+        (`DigitalTwin.update()` calls `self.vision.observe_all(readings)`), so
+        `twin/digital_twin.py` — which this track does not own — is not
+        modified. Any object with `observe_all(readings) -> {lane_id: §7.2
+        dict}` works; see NOTES-FOR-INTEGRATION §A2.
+
+        ON THE DEFAULT ("mock") PATH THIS DOES NOTHING AT ALL, deliberately.
+        The twin already built its own `VisionMock(seed=seed)`; re-assigning
+        even an identical one would reseed it and perturb every recorded
+        number, so the byte-identical guarantee is "no statement runs", not
+        "an equivalent statement runs".
+        """
+        if self.vision_source == VISION_SOURCE_MOCK:
+            return
+        try:
+            from perception.vision_source import make_vision_source
+        except ImportError:
+            # Track A has not landed. NOT fatal: fall back to the mock loudly
+            # rather than take the demo down for a missing optional feed.
+            print(f"[sim] --vision-source {self.vision_source!r} requested but "
+                  f"perception.vision_source is not importable (Track A has "
+                  f"not landed). Falling back to the §7.2 mock; the frame "
+                  f"stream is unchanged.")
+            self.vision_source = VISION_SOURCE_MOCK
+            return
+        self._env.twin.vision = make_vision_source(self.vision_source,
+                                                   seed=self._seed)
+        print(f"[sim] §7.2 vision source -> {self.vision_source!r}")
 
     def _reset_counters(self) -> None:
         """Everything that is scoped to ONE episode. Called after every
@@ -1141,6 +1199,26 @@ class SimRunner:
         preds = self._predictions(snap)
         if preds:
             frame["predictions"] = preds
+        # §13.2 `incident_alerts` (Part 4c) — ADDITIVE, only when non-empty.
+        # An ADAPTER over facts other modules already established (§7.3
+        # reported incidents, §7.1 ambulance counts, §13.1 forced lanes),
+        # reshaped into Track A's detector contract so the frontend has one
+        # stable shape whether or not a real detector is attached. It detects
+        # nothing — see backend/frame_sources.py.
+        alerts = build_incident_alerts(
+            snap, snap["sim_time"],
+            forced_emergency_lanes=frozenset(self._forced),
+        )
+        if alerts:
+            frame["incident_alerts"] = alerts
+        # §13.2 `iot_sensors` (Part 4c) — ADDITIVE, only when non-empty.
+        # `iot_telemetry` is None until Track A publishes into it, so with no
+        # IoT feed attached the key is simply never emitted. Reporting the
+        # twin's TraCI ground truth as an IoT sensor would be fabricating a
+        # sensor network that does not exist.
+        sensors = build_iot_sensors(snap, snap["sim_time"], self.iot_telemetry)
+        if sensors:
+            frame["iot_sensors"] = sensors
         # §11.2 responder messaging — ADDITIVE and only when non-empty, so
         # the frozen §13.2 five-key shape is unchanged on the vast majority
         # of frames and no consumer has to handle an empty list.

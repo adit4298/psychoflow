@@ -354,6 +354,111 @@ unchanged.
   (`create_app` / `SimRunner`). Default ON. The OFF switch exists so O2 can
   run both arms; without it that check is impossible.
 
-## 3. §13.2 additive frame keys (Part 4c)
+## 3. §13.2 additive frame keys (Part 4c, DELIVERED)
 
-*(appended when Part 4c lands)*
+Three keys beyond the frozen five-key core, each **emitted ONLY when
+non-empty** so no consumer ever handles an empty container, and each strictly
+additive — the core five and `digital_twin` are untouched.
+
+Measured, not asserted: 200 frames captured at seed 7 on (4,3,2) against a
+`git worktree` at the pre-4c commit (`de3ed41`) — **the five-key core and the
+ENTIRE `digital_twin`, including the §7.2 `vision` block, are identical on all
+200 frames.** Keys added: `incident_alerts` only. Keys removed: none.
+
+### `incident_alerts` — list, Track A's detector shape
+
+```json
+{"type": "emergency_vehicle", "junction": "J2", "approach": "east",
+ "lane_index": 1, "distance_m": null, "distance_confidence": null,
+ "severity": "high", "detected_at": 1840.0, "source": "lane_sensor"}
+```
+
+Pinned as `backend.frame_sources.ALERT_KEYS`. `type` is `emergency_vehicle` or
+a §7.3 `INCIDENT_TYPES` value. `source` ∈ `incident_intake` (§7.3 reported,
+incl. every operator `inject_incident`) | `lane_sensor` (§7.1 ambulance count
+— the same channel §10 reads) | `operator` (§13.1 `trigger_emergency`) |
+whatever Track A tags its own. **Detection wins over an operator force on
+overlap**, the provenance rule §11.2's `trigger_source` already follows.
+`lane_index` is **0-BASED**, matching `explainability/narrator.py`'s existing
+`_lane_index` so it agrees with the narration on the same frame — the
+0-vs-1-based reconciliation CLAUDE.md flags for Phase 11 is a *presentation*
+choice the frontend owns. Bounded at `MAX_ALERTS` (32).
+
+**⚠️ `distance_m` and `distance_confidence` are ALWAYS `null` from this
+producer, and that is not a placeholder to fill in with a guess.** Distance
+needs a fixed camera and a homography (`sim/media/README.md`); the twin has
+neither, and the lane occupancy it does have is TraCI ground truth, not a
+ranged detection. **Render "distance unknown", never 0.** Track A's real
+detector is the only thing that can populate these.
+
+`backend/frame_sources.py` is an ADAPTER — it detects nothing. Every alert is
+a reshape of a fact another module already established, which is what lets the
+frontend build against one stable shape before Track A lands and keeps working
+unchanged after.
+
+### `iot_sensors` — object, per lane
+
+```json
+{"N1_J1_0": {"source": "mqtt", "fresh_s": 1.4}}
+```
+
+Pinned as `backend.frame_sources.IOT_KEYS`. Fed from
+`SimRunner.iot_telemetry`, which Track A sets to
+`{lane_id: {"source": str, "last_seen_s": float}}`; `fresh_s` is derived as
+`sim_time - last_seen_s`, floored at 0, so a producer only reports *when* it
+last heard from a lane. A lane not in the live network is dropped.
+
+**With no IoT source attached this is `{}` and the key is never emitted — and
+it is absent from the recorded fixture for that reason.** Reporting the twin's
+TraCI ground truth as `{"source": "mqtt", "fresh_s": 0.0}` would fabricate a
+sensor network that does not exist. The shape is unit-asserted by
+`sim/run_backend_smoke.py` check 8c against injected telemetry.
+
+### `agent_activity`
+
+See §2.
+
+### `--vision-source {mock,detector}`
+
+`backend/main.py --vision-source` -> `create_app(vision_source=)` ->
+`SimRunner(vision_source=)`. Default `mock`.
+
+**`mock` performs NO SWAP AT ALL** — `DigitalTwin.__init__` builds its own
+`VisionMock(seed=seed)` and `SimRunner._apply_vision_source()` returns
+immediately. The byte-identical guarantee is "no statement runs", not "an
+equivalent statement runs": re-assigning even an identical `VisionMock` would
+reseed it and perturb every recorded number. Asserted by smoke check 9 (the
+twin keeps the very same object) and by the 200-frame worktree diff above.
+
+`detector` swaps `env.twin.vision` for
+`perception.vision_source.make_vision_source(...)` (§A2). This does **not**
+modify `twin/digital_twin.py`, which this track does not own — the seam is an
+attribute assignment onto the already-constructed twin, and any object with
+`observe_all(readings)` works. **With Track A absent the import fails and the
+runner falls back to the mock LOUDLY** rather than taking the demo down.
+
+### `frontend/fixtures/recorded_session.json`
+
+200 consecutive frames, seed 7, topology 432, ~5.7 MB, recorded by
+`venv/Scripts/python.exe sim/record_fixture.py`. Regenerate with that command;
+it drives `inject_incident` at frame 40 and `trigger_emergency` at frame 90
+through the real §13.1 control path so the fixture exercises what a frontend
+has to render:
+
+| | |
+|---|---|
+| frames | 200, sim_time 15.0 -> 1010.0, monotonic (no episode boundary) |
+| `agent_activity` | 200 frames, 1200 entries, all six agents, 4 Supervisor vetoes |
+| `incident_alerts` | 121 frames, 125 alerts, both types, all three sources |
+| `predictions` | 180 frames |
+| `responder_messages` | 2 (one `operator`, one `detected`) |
+| `iot_sensors` | **absent** — no IoT source exists yet (see above) |
+
+⚠️ One fixture row shows the KNOWN OPEN `served_on_arrival` issue CLAUDE.md
+records: the operator-triggered clearance reports `clearance_time_s = 0.0` /
+`improvement_pct = 100.0` for a lane §10 had to clear inside the same decision
+step. That is pre-existing and unrelated to Part 4c, but it is now visible in
+a committed artifact, so **do not build a frontend claim on a 100% improvement
+figure.** The `detected` row (3.0s / 89.3%) is the sound one.
+
+

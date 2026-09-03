@@ -235,6 +235,109 @@ def check_predictions_field() -> None:
           f"incident_impact={ii}")
 
 
+def check_frame_sources() -> None:
+    """Part 4c — `incident_alerts` / `iot_sensors` shape, offline (no SUMO).
+
+    Both halves of the done-bar are asserted: the key carries the pinned
+    shape when its source is non-empty, and is EMPTY (so the caller omits it)
+    when the source is empty. The empty half is the one that keeps the frozen
+    five-key core honest.
+    """
+    from backend.frame_sources import (
+        ALERT_KEYS, IOT_KEYS, build_incident_alerts, build_iot_sensors,
+    )
+
+    snap = {
+        "sim_time": 100.0,
+        "junctions": {
+            "J1": {"lanes": {"N1_J1_0": {
+                "lane_id": "N1_J1_0", "approach": "north", "halted_count": 3,
+                "type_composition": {"ambulance": 0},
+                "wait_time_max_single_vehicle": 20.0}}},
+            "J2": {"lanes": {"E1_J2_1": {
+                "lane_id": "E1_J2_1", "approach": "east", "halted_count": 0,
+                "type_composition": {"ambulance": 1},
+                "wait_time_max_single_vehicle": 4.0}}},
+        },
+        "active_incidents": [{
+            "incident_id": "inc_0001", "type": "accident",
+            "location": {"junction_id": "J1", "lane_id": "N1_J1_0"},
+            "severity": "high", "affected_lanes": ["N1_J1_0"],
+            "reported_at_sim_time": 90.0, "estimated_duration_s": 600.0}],
+    }
+
+    alerts = build_incident_alerts(snap, 100.0)
+    check("8a incident_alerts carries one entry per §7.3 incident AND per "
+          "ambulance-bearing lane",
+          len(alerts) == 2
+          and {a["type"] for a in alerts} == {"accident", "emergency_vehicle"},
+          f"types={sorted(a['type'] for a in alerts)}")
+    check("8a every alert has EXACTLY the pinned ALERT_KEYS",
+          all(set(a) == ALERT_KEYS for a in alerts))
+    amb = next(a for a in alerts if a["type"] == "emergency_vehicle")
+    check("8a the ambulance alert resolves junction / approach / 0-based "
+          "lane_index from the snapshot",
+          amb["junction"] == "J2" and amb["approach"] == "east"
+          and amb["lane_index"] == 1 and amb["source"] == "lane_sensor",
+          f"{amb['junction']}/{amb['approach']}/{amb['lane_index']}")
+    check("8a distance_m and distance_confidence are None, not 0 — there is "
+          "no camera homography, so a number there would be invented",
+          all(a["distance_m"] is None and a["distance_confidence"] is None
+              for a in alerts))
+
+    empty = {"sim_time": 5.0, "junctions": {"J1": {"lanes": {}}},
+             "active_incidents": []}
+    check("8b incident_alerts is EMPTY with no incident and no ambulance "
+          "(so the frame key is omitted)",
+          build_incident_alerts(empty, 5.0) == [])
+
+    check("8c iot_sensors is EMPTY with no Track A telemetry attached",
+          build_iot_sensors(snap, 100.0, None) == {}
+          and build_iot_sensors(snap, 100.0, {}) == {})
+    sensors = build_iot_sensors(snap, 100.0, {
+        "N1_J1_0": {"source": "mqtt", "last_seen_s": 98.6},
+        "GHOST_0": {"source": "mqtt", "last_seen_s": 99.0},
+    })
+    check("8c iot_sensors reports {source, fresh_s} per lane and DROPS a lane "
+          "that is not in the live network",
+          set(sensors) == {"N1_J1_0"}
+          and set(sensors["N1_J1_0"]) == IOT_KEYS
+          and abs(sensors["N1_J1_0"]["fresh_s"] - 1.4) < 1e-6,
+          f"{sensors}")
+
+
+def check_vision_source_default() -> None:
+    """Part 4c — `--vision-source mock` must not touch the twin at all."""
+    from backend.sim_runner import VISION_SOURCE_MOCK, SimRunner
+
+    class _Vision:
+        pass
+
+    class _Twin:
+        vision = _Vision()
+
+    class _Env:
+        twin = _Twin()
+
+    r = SimRunner.__new__(SimRunner)
+    r._env, r._seed = _Env(), 7
+    original = r._env.twin.vision
+    r.vision_source = VISION_SOURCE_MOCK
+    r._apply_vision_source()
+    check("9  --vision-source mock performs NO SWAP — the twin keeps the very "
+          "same VisionMock object it constructed (re-assigning would reseed "
+          "it and perturb every recorded number)",
+          r._env.twin.vision is original)
+
+    r.vision_source = "detector"
+    r._apply_vision_source()
+    check("9  --vision-source detector falls back to the mock loudly when "
+          "Track A is absent, leaving the twin untouched",
+          r._env.twin.vision is original
+          and r.vision_source == VISION_SOURCE_MOCK,
+          f"vision_source={r.vision_source!r}")
+
+
 def check_reset_replaces_log() -> None:
     from backend.sim_runner import SimRunner
     from coordinator.emergency_clearance import EmergencyClearanceCoordinator
@@ -293,6 +396,8 @@ def main() -> None:
     check_tier0_bias_param()
     check_automode_decisionlog_contract()
     check_predictions_field()
+    check_frame_sources()
+    check_vision_source_default()
     check_reset_replaces_log()
 
     app = create_app(
@@ -325,7 +430,7 @@ def main() -> None:
             # own W1-W9 checks live in orchestrator/selftest.py; here it only
             # has to not break the frozen five-key core contract.
             additive = {"responder_messages", "predictions", "shadow_advisor",
-                        "agent_activity"}
+                        "agent_activity", "incident_alerts", "iot_sensors"}
             check("1  frame has the §13.2 five-key core (only additive keys "
                   "beyond it)",
                   core <= keys <= core | additive,
