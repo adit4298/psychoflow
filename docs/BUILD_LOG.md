@@ -4208,3 +4208,38 @@ module content). Every assumed shape is recorded in `NOTES-FOR-INTEGRATION.md`
 §A1/§A2/§A3. The incident-priority agent takes a list of dicts and **never
 imports Track A**, so it cannot even fail to import; `vision_events=None`
 behaves exactly as if Track A does not exist.
+
+### Addendum — §13.2 shadow advisor re-verified after the Track 4 edits
+
+The shadow advisor lives in `backend/sim_runner.py`, which parts 4b and 4c both
+modified, and `sim/run_shadow_advisor_check.py` was **not** in this session's
+original done-bar set. Run afterwards to close that gap:
+
+```
+venv/Scripts/python.exe sim/run_shadow_advisor_check.py
+  -> 35 passed, 0 failed   (ran: s1, s2, s3, s4, s5, s6)
+```
+
+Matching the recorded 35/35 from 2026-08-30. The two sub-checks most exposed to
+the Track 4 edits both hold, and both are non-vacuous:
+
+- **S4** — the advisor calls `env.action_masks()` a second time after
+  `_pick_action()` already did. Across 60 live decision steps the second call
+  still equals the first, so the advisor is still judged against the same
+  pre-shield mask the deployed policy used. The orchestrator's call site sits
+  after `env.step()` and reads no mask, so it cannot interpose here.
+- **S6** — advisor OFF vs ON, run sequentially: decision sequences, throughput
+  (845 both) and the live signal phases on the road are all IDENTICAL, while
+  **the advisor disagreed with the deployed policy on 60/120 frames and changed
+  nothing on any of them.** That 60/120 reproduces the historically recorded
+  figure exactly, which is itself evidence the Track 4 edits did not perturb the
+  advisor's pre-shield proposal path.
+
+Also confirms the two additive frame keys do not collide with `shadow_advisor`:
+S6 compares full frame sequences and both arms now carry `agent_activity` and
+`incident_alerts`, so the equality is over the extended frame, not the old one.
+
+This closes the second of the two items BUILD_LOG's 2026-09-03 §4 listed as not
+re-run since the torch 2.13 -> 2.14 / websockets 17.0.1 -> 15.0.1 moves. Both
+are now clean under a live sim: `run_backend_smoke.py` (baseline 50/50, now
+62/62) and `run_shadow_advisor_check.py` (35/35).
