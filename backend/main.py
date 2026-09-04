@@ -23,17 +23,22 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from backend.voice import stt, tts
+from backend.voice.bridge import VoiceBridge
 
 from backend.control_api import (
     ControlState,
     DEFAULT_INCIDENT_DURATION_S,
     clear_override,
+    dispatch,
     force_phase,
     get_stats,
     inject_incident,
@@ -156,6 +161,26 @@ class ClearOverrideBody(BaseModel):
     junction_id: str | None = None
 
 
+class VoiceTextBody(BaseModel):
+    """A typed command, or a transcript the BROWSER already recognised."""
+
+    text: str
+    language: str | None = None
+
+
+class VoiceUndoBody(BaseModel):
+    """The inverse call the bridge handed the panel with an applied command.
+
+    Re-checked rather than trusted: `dispatch()` refuses any name off
+    `CONTROL_FUNCTIONS` before binding an argument, so an Undo body is exactly
+    as bounded as the command that produced it. That matters because this body
+    arrives from the browser and nothing proves it is the one we sent.
+    """
+
+    function: str
+    args: dict = {}
+
+
 def create_app(
     *,
     checkpoint: Path | None = DEFAULT_CHECKPOINT,
@@ -173,9 +198,17 @@ def create_app(
     iot: bool = False,
     iot_host: str = "127.0.0.1",
     iot_port: int = 1883,
+    stt_provider: str = stt.DEFAULT_STT_PROVIDER,
+    tts_provider: str = tts.DEFAULT_TTS_PROVIDER,
 ) -> FastAPI:
     state = ControlState()
     hub = Hub()
+    # §14's assistant. Constructed here, not on the sim thread: it only ever
+    # READS `state` (`snapshot_stats()`, `mode`) and PUTS on `state.pending`,
+    # which is the same contract every §13.1 handler already has, so it does
+    # not touch the TraCI-single-thread boundary.
+    voice = VoiceBridge(state, stt_provider=stt_provider,
+                        tts=tts.get_tts(tts_provider))
     runner = SimRunner(
         state,
         checkpoint=checkpoint,
@@ -186,7 +219,12 @@ def create_app(
         realtime_factor=realtime_factor,
         fast=fast,
         seed=seed,
-        frame_sink=hub.publish_from_thread,
+        # The bridge observes every frame so "why did J2 just switch?" is
+        # answered from §12.2's OWN narration rather than from a second
+        # explanation invented in the voice layer that could disagree with the
+        # decision log on screen. It keeps one reference and copies nothing.
+        frame_sink=lambda frame: (voice.observe_frame(frame),
+                                  hub.publish_from_thread(frame))[1],
         demo_driving=demo_driving,
         enable_orchestrator=enable_orchestrator,
         vision_source=vision_source,
@@ -200,9 +238,17 @@ def create_app(
     async def lifespan(_app: FastAPI):
         hub.bind_loop(asyncio.get_running_loop())
         runner.start()
+        # PRE-WARM the local model. gemma3:4b costs ~18s on a cold start and
+        # ~1.7s warm, so without this the FIRST spoken command of the demo —
+        # the one an audience is watching — misses §14's ~2s bar by an order of
+        # magnitude. Backgrounded because it must not delay the corridor
+        # starting, and it is allowed to fail: Ollama being down makes voice
+        # unavailable, not the dashboard.
+        warm = asyncio.create_task(asyncio.to_thread(voice.warmup))
         try:
             yield
         finally:
+            warm.cancel()
             runner.stop()
 
     app = FastAPI(title="PsychoFlow Backend (§13)", lifespan=lifespan)
@@ -263,6 +309,39 @@ def create_app(
         return clear_override(state, body.junction_id)
 
     app.include_router(router)
+    app.state.voice = voice
+
+    # -- §14 assistant ---------------------------------------------------
+    # These four are the ONLY new surface. They add no authority: every
+    # mutation still goes through `control_api.dispatch()`, which allowlists
+    # the name before binding an argument and range-checks every number, and
+    # the sim thread still applies it between decision steps under §10.
+    voice_router = APIRouter(prefix="/voice")
+
+    @voice_router.post("/text")
+    def _voice_text(body: VoiceTextBody):
+        return voice.handle_text(body.text, language=body.language)
+
+    @voice_router.post("/audio")
+    async def _voice_audio(file: UploadFile = File(...)):
+        # Read bounded, not whole-file-then-check: `MAX_AUDIO_BYTES + 1` is
+        # enough to know it is over the cap without buffering a large upload on
+        # an unauthenticated endpoint.
+        audio = await file.read(stt.MAX_AUDIO_BYTES + 1)
+        return voice.handle_audio(audio)
+
+    @voice_router.post("/undo")
+    def _voice_undo(body: VoiceUndoBody):
+        return dispatch(state, body.function, body.args)
+
+    @voice_router.get("/status")
+    def _voice_status():
+        # Provider availability and the model tag. `SarvamSTT.status()` reports
+        # the NAME of the key's env var and whether it is set — never the key,
+        # a prefix of it, or its length.
+        return voice.status()
+
+    app.include_router(voice_router)
 
     @app.get("/health")
     def _health():
@@ -367,6 +446,22 @@ def _main() -> None:
     parser.add_argument("--no-shadow", action="store_true",
                         help="Disable the shadow advisor (no "
                              "`shadow_advisor` key on the §13.2 stream).")
+    # §14 ASSISTANT. `whisper` is the default because it is the only provider
+    # needing neither a network nor a key. `sarvam` is free-tier but metered,
+    # so it is reachable ONLY by asking for it here — nothing else in the repo
+    # selects it, and no test does.
+    parser.add_argument("--stt", choices=stt.STT_PROVIDERS,
+                        default=stt.DEFAULT_STT_PROVIDER,
+                        help="Speech-to-text provider. `webspeech` means the "
+                             "BROWSER transcribes (not on-device, §2); "
+                             "`whisper` is local faster-whisper; `sarvam` is "
+                             "Sarvam Saarika/Saaras and needs SARVAM_API_KEY. "
+                             "STT is transcription only — intent parsing is "
+                             "always the local model.")
+    parser.add_argument("--tts", choices=tts.TTS_PROVIDERS,
+                        default=tts.DEFAULT_TTS_PROVIDER,
+                        help="Speak the confirmation line. Default `none`; "
+                             "`sarvam` (Bulbul) spends a credit per command.")
     parser.add_argument("--topology", default="432", help="Initial lane counts, e.g. 432.")
     parser.add_argument("--realtime-factor", type=float, default=0.3,
                         help="Wall-clock seconds to sleep per decision step.")
@@ -421,6 +516,21 @@ def _main() -> None:
               f"--allow-lan was given.\n"
               f"{bang}\n")
 
+    # Said at startup rather than discovered mid-demo. A missing key is not an
+    # error — the provider is simply unavailable and every clip fails closed —
+    # but silently transcribing nothing while the operator speaks is the worst
+    # possible way to learn that.
+    if args.stt == stt.PROVIDER_SARVAM and not os.environ.get(
+            stt.SARVAM_API_KEY_ENV):
+        print(f"\n[voice] --stt sarvam was requested but "
+              f"{stt.SARVAM_API_KEY_ENV} is not set — speech-to-text will be "
+              f"UNAVAILABLE and every spoken command will fail closed. Set the "
+              f"variable, or use --stt whisper (local, no key).\n")
+    if args.tts == tts.PROVIDER_SARVAM and not os.environ.get(
+            stt.SARVAM_API_KEY_ENV):
+        print(f"[voice] --tts sarvam needs {stt.SARVAM_API_KEY_ENV}; "
+              f"confirmations will not be spoken.\n")
+
     import uvicorn
 
     lane_counts = tuple(int(d) for d in args.topology)
@@ -437,6 +547,8 @@ def _main() -> None:
         lane_counts=lane_counts,
         realtime_factor=args.realtime_factor,
         fast=args.fast,
+        stt_provider=args.stt,
+        tts_provider=args.tts,
     )
     uvicorn.run(app, host=args.host, port=args.port)
 
