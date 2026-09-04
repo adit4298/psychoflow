@@ -4363,3 +4363,28 @@ regenerates the clip first and therefore cannot drift from what it reports.
   deliberate exception with the split written out in `NOTES-FOR-INTEGRATION.md` §6.
 - **Dependencies are pinned nowhere** — no `requirements.txt` or `pyproject.toml`
   exists at repo root, so a fresh clone cannot reproduce this branch.
+
+## 2026-09-04 — [Track A / cross-track contract reconciliation]
+
+**Decision:** Recorded Track A's shipped shapes against `hackathon/agents-backend`'s
+assumed §A1/§A2/§A3 in `NOTES-FOR-INTEGRATION.md` §9, and **declined to map the
+detector's `emergency_vehicle_flag` onto §A1's `emergency` key**, leaving it as a
+user decision rather than silently adapting it.
+
+**Why:** §A2's assumed `make_vision_source` does not exist (`get_vision_source`
+shipped, per Track A's spec) and would break at import. The `emergency` mismatch is
+subtler: unmapped it fails closed, but a rename would route an experimental
+heuristic — which this branch's own §8 forbids from reaching §10's emergency
+override — into the priority agent's emergency class. That is a safety-shaped
+cross-track call, not an adapter detail.
+
+**Deviates from plan?** No. Parts 1a/1b/1c were already built and committed
+(`cba3b53`); this session verified them and closed the reconciliation gap the
+vision-iot branch had, having been cut before agents-backend wrote §A1–§A3.
+
+**Verified:** Re-ran all three done-bars in the project venv (confirmed
+`sys.prefix` ends `\GitHub\Test\venv` — the system interpreter fails 6 of them on
+missing `amqtt`/`paho`): `tests.test_iot` **32/32**, `tests.test_vision_detector`
+**28/28**, `tests.test_incident_detector` **34/34** = **94/94**. Topic strings
+checked character-for-character against §A3; `observe_all` confirmed present on
+both `VisionMock` and `VisionDetector`.
