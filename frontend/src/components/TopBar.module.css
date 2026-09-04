@@ -1,0 +1,73 @@
+.bar {
+  height: var(--topbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-6);
+  /* transparent over --ground: no panel background here */
+}
+
+.left { min-width: 0; }
+
+.title {
+  font-size: var(--fs-title);
+  line-height: var(--lh-title);
+  font-weight: var(--fw-title);
+  letter-spacing: -0.02em;
+}
+
+.context {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.dot { color: var(--ink-3); }
+.source { text-transform: lowercase; }
+
+.right { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 32px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Text on a coloured wash is always the matching ink, never grey (§9). */
+.chipGo   { background: var(--go-wash);   color: var(--go); }
+.chipStop { background: var(--stop-wash); color: var(--stop); }
+
+.bell {
+  position: relative;
+  width: 36px; height: 36px;
+  border-radius: var(--r-control);
+  display: grid; place-items: center;
+  color: var(--ink-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-panel);
+  transition: color 150ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) { .bell:hover { color: var(--ink); } }
+.bell:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
+
+.pip {
+  position: absolute;
+  top: 8px; right: 9px;
+  width: 6px; height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--stop);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.chipType { text-transform: capitalize; }

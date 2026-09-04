@@ -1,0 +1,91 @@
+.screen { display: flex; flex-direction: column; gap: var(--s-5); }
+
+.tabs {
+  position: relative;
+  display: inline-flex;
+  gap: var(--s-1);
+  padding: 4px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-panel);
+  align-self: flex-start;
+}
+
+.tab {
+  position: relative;
+  z-index: 1;
+  padding: 7px var(--s-5);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: color 150ms var(--ease);
+}
+.tab[data-selected],
+.tab[aria-selected='true'] { color: var(--primary-ink); }
+@media (hover: hover) and (pointer: fine) {
+  .tab:not([data-selected]):not([aria-selected='true']):hover { color: var(--ink); }
+}
+
+.indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  z-index: 0;
+  width: var(--active-tab-width);
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  transform: translateX(var(--active-tab-left));
+  /* transform only. Width is not transitioned: J1/J2/J3 are equal-width so
+     it never changes, and animating it would thrash layout for nothing. */
+  transition: transform 220ms var(--ease-io);
+}
+
+.panelWrap { outline: none; }
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-5);
+  align-items: start;
+  animation: panelIn 220ms var(--ease) both;
+}
+@keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .grid { animation: none; } }
+
+.wide { grid-column: 1 / -1; }
+
+.count { color: var(--ink-2); }
+.quiet { font-size: var(--fs-sm); color: var(--ink-3); }
+
+.incidents { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.incident {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: var(--s-2) var(--s-3);
+  align-items: center;
+  padding: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--stop-wash);
+  color: var(--stop);
+}
+
+.incType { font-weight: 600; text-transform: capitalize; }
+.incSev {
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-chip);
+  border: 1px solid currentColor;
+}
+.incLane { grid-column: 1 / -1; opacity: .85; }
+.incMeta { grid-column: 1 / -1; font-size: var(--fs-sm); opacity: .8; }
+
+@media (max-width: 1180px) { .grid { grid-template-columns: 1fr; } }

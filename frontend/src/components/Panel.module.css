@@ -1,0 +1,38 @@
+.panel {
+  background: var(--surface);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.flush { padding: var(--s-5) 0 0; gap: var(--s-3); }
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.headInset { padding: 0 var(--s-5); }
+
+.headText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+
+.title {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  font-weight: var(--fw-h2);
+  letter-spacing: -0.01em;
+}
+
+.note {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  color: var(--ink-2);
+}
+
+.aside { display: flex; align-items: center; gap: var(--s-2); flex-shrink: 0; }

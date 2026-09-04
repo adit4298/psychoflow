@@ -1,0 +1,50 @@
+.scroll { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.table th {
+  text-align: left;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 0 var(--s-3) var(--s-2);
+  white-space: nowrap;
+}
+.table th:first-child, .table td:first-child { padding-left: var(--s-5); }
+.table th:last-child,  .table td:last-child  { padding-right: var(--s-5); }
+
+.table td {
+  padding: 9px var(--s-3);
+  color: var(--ink-2);
+  white-space: nowrap;
+  border-top: 1px solid var(--line);
+}
+.table td:first-child { color: var(--ink); }
+
+.table tbody tr:nth-child(even) { background: var(--surface-2); }
+.table tbody tr[data-starved] td { color: var(--stop); }
+
+.num, .table th.num { text-align: right; }
+
+.starved { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--stop); font-weight: 500; }
+.pip { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--stop); }
+.ok { color: var(--ink-3); }
+
+.empty { font-size: var(--fs-sm); color: var(--ink-3); padding: var(--s-5); }
+
+/* Proportional columns. Left to itself the table either stretches the lane id
+   across half the panel or strands the numbers far from their headers, so the
+   split is stated once here. */
+.table th:nth-child(1) { width: 20%; }
+.table th:nth-child(2) { width: 8%; }
+.table th:nth-child(3), .table th:nth-child(4) { width: 10%; }
+.table th:nth-child(5) { width: 14%; }
+.table th:nth-child(6), .table th:nth-child(7) { width: 12%; }
+.table th:nth-child(8) { width: 14%; }
