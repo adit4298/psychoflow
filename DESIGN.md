@@ -332,16 +332,34 @@ Docked card, `background: var(--primary-wash)` over `--surface` (a 6 % tint,
 - A small orb mark, heading `How can I help, officer?`
 - **Quick-action pills:** `Hold a phase` · `Set a cycle timer` ·
   `Corridor status` · `Switch to Manual`.
-- **Input row:** text field + **mic button**. Mic uses the browser
-  `SpeechRecognition` (Web Speech API) for dictation only.
-- On submit (typed or spoken): the phrase appears as a chat turn, then an
-  **action card** — e.g. `Hold N–S green · J2 · 20 s` with `Undo` — and the
-  same control fires that the Manual button would. Unparseable input → a calm
-  `Didn't catch a command — try "hold N–S green at J2 for 20 seconds".`
-  Never guess a junction or a value.
-- Intent parsing is **local** (Ollama/Gemma) in the live build; in the
-  fixture build, a small rule-based parser over the known verbs is fine.
-  **No Claude API, no paid inference, anywhere.**
+- **Input row:** text field + **mic button**. Text and voice converge on one
+  path: `raw text → local intent parse → dispatch`. The mic only produces the
+  raw text.
+- **STT provider (voice → text):** Sarvam AI STT (free tier, Indian-language
+  coverage incl. code-switched Kannada/Hindi/English), with the browser
+  `SpeechRecognition` (Web Speech API) as fallback and local Whisper as the
+  offline fallback — `--stt {sarvam,webspeech,whisper}`. STT is transcription
+  only; it is not in the reasoning path, so a free cloud STT is allowed under
+  the same rule that already permits Web Speech API. **No paid/cloud model
+  ever does the intent parsing or the decision.**
+- **Intent parsing (text → action):** a real local model call — Gemma via
+  Ollama — given the `control_api.CONTROL_FUNCTIONS` allowlist + each
+  function's arg schema as its system prompt, told to emit
+  `{function, args}` JSON or `{"unparsed": true}`. It genuinely interprets
+  ("north–south is backing up, give it another 15 seconds" →
+  `set_lane_bias` / a cycle-plan intent on the N–S lanes). The ~0.5–3 s it
+  takes on CPU is **correct and visible** — a real parse has latency; an
+  instant reply means a lookup table, which is the thing being replaced.
+  Fixture build: a small rule-based parser over the known verbs stands in.
+- On a parsed intent: the phrase appears as a chat turn, then an **action
+  card** — e.g. `Hold N–S green · J2 · 20 s` with `Undo` — and the same
+  `control_api.dispatch()` call fires that the Manual button would. Fail
+  closed: `{"unparsed": true}`, or a name not on the allowlist, →
+  `Didn't catch a command — try "hold N–S green at J2 for 20 seconds".`,
+  logged, no action. Never guess a junction or a value. `dispatch()` already
+  rejects unknown names before arg binding.
+- Reconcile lane numbering explicitly: the narrator renders `{lane}` as the
+  raw 0-based SUMO index; a spoken "lane 3" must not silently mean slot 3.
 
 ### 7.6 Logs — route `/logs`
 
