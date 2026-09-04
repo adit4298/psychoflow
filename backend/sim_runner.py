@@ -76,6 +76,11 @@ import numpy as np
 from agents.rule_based import Tier0Controller
 from backend.control_api import EMERGENCY_HOLD_S, Command, ControlState
 from backend.frame_sources import build_incident_alerts, build_iot_sensors
+from backend.vision_alerts import (
+    IncidentGeometry,
+    advisory_vision_events,
+    detector_incidents,
+)
 # `backend.iot_bridge` imports only `iot/`, which imports neither SUMO nor
 # torch, so this stays cheap on the default (`--iot` off) path.
 from backend.iot_bridge import (
@@ -299,6 +304,7 @@ class SimRunner:
         demo_driving: bool = False,
         enable_orchestrator: bool = True,
         vision_source: str = VISION_SOURCE_MOCK,
+        vision_clip: str | int | None = None,
         iot: bool = False,
         iot_host: str = IOT_DEFAULT_HOST,
         iot_port: int = IOT_DEFAULT_PORT,
@@ -394,6 +400,10 @@ class SimRunner:
                   f"(valid: {VISION_SOURCES})")
             vision_source = VISION_SOURCE_MOCK
         self.vision_source = vision_source
+        # §7.2 detector footage (NOTES §9.1). Only meaningful for
+        # `--vision-source detector`; ignored on the mock path, which never
+        # calls the factory at all.
+        self.vision_clip = vision_clip
         # IoT telemetry (§13.2 `iot_sensors`). `backend.iot_bridge` publishes
         # into this under `--iot`; None means the key is never emitted, which
         # is the honest default — with no feed attached the twin's lane data is
@@ -407,6 +417,9 @@ class SimRunner:
         self._iot_port = int(iot_port)
         self._iot: "IoTBridge | None" = None
         self._iot_camera: dict[str, dict] = {}
+        # §8.2 geometry for a real `distance_m` on §13.2 alerts. Rebuilt
+        # per episode because a set_topology rebuild changes the net file.
+        self._geometry: IncidentGeometry | None = None
         self._iot_incidents_seen = 0
 
     # ------------------------------------------------------------------
@@ -522,6 +535,16 @@ class SimRunner:
         """
         self._apply_vision_source()
         self._apply_iot_source()
+        # The net file the twin is actually running — never derived from
+        # generate_corridor.py's authored params (netconvert shifted the
+        # corridor by [150, 150], and these are absolute positions).
+        try:
+            self._geometry = IncidentGeometry(
+                str(self._env._ensure_corridor(tuple(self._lane_counts))))
+        except Exception as exc:  # noqa: BLE001
+            print(f'[sim] incident geometry unavailable '
+                  f'({type(exc).__name__}: {exc}); distance_m stays null')
+            self._geometry = None
 
     def _apply_vision_source(self) -> None:
         """Swap the twin's §7.2 feed — ONLY for `--vision-source detector`.
@@ -541,19 +564,39 @@ class SimRunner:
         if self.vision_source == VISION_SOURCE_MOCK:
             return
         try:
-            from perception.vision_source import make_vision_source
+            # NOTES §9.1: the factory Track A shipped is `get_vision_source`,
+            # NOT the assumed `make_vision_source`, and its first argument is
+            # `mode`. This import is what §9.1 called out as "breaks at import"
+            # — until it was corrected, `--vision-source detector` hit the
+            # ImportError below and silently ran the mock.
+            from perception.vision_source import describe, get_vision_source
         except ImportError:
-            # Track A has not landed. NOT fatal: fall back to the mock loudly
-            # rather than take the demo down for a missing optional feed.
+            # NOT fatal: fall back to the mock loudly rather than take the demo
+            # down for a missing optional feed.
             print(f"[sim] --vision-source {self.vision_source!r} requested but "
-                  f"perception.vision_source is not importable (Track A has "
-                  f"not landed). Falling back to the §7.2 mock; the frame "
-                  f"stream is unchanged.")
+                  f"perception.vision_source is not importable. Falling back "
+                  f"to the §7.2 mock; the frame stream is unchanged.")
             self.vision_source = VISION_SOURCE_MOCK
             return
-        self._env.twin.vision = make_vision_source(self.vision_source,
-                                                   seed=self._seed)
-        print(f"[sim] §7.2 vision source -> {self.vision_source!r}")
+        try:
+            # `detector` REQUIRES source=<clip or camera index> and raises
+            # ValueError without it — there is no default camera (§9.1).
+            # backend/main.py refuses the flag combination up front, so a
+            # missing clip should be unreachable here; this catch is for a
+            # clip that exists at parse time and is unopenable at reset time.
+            self._env.twin.vision = get_vision_source(
+                self.vision_source, source=self.vision_clip
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(f"[sim] --vision-source {self.vision_source!r} could not be "
+                  f"built ({type(exc).__name__}: {exc}). Falling back to the "
+                  f"§7.2 mock.")
+            self.vision_source = VISION_SOURCE_MOCK
+            return
+        # The honest boundary travels with the feed rather than living in a
+        # docstring (§17) — this is the line to read out on demo day.
+        print(f"[sim] §7.2 vision source -> {self.vision_source!r}: "
+              f"{describe(self.vision_source)}")
 
     def _apply_iot_source(self) -> None:
         """Overlay the twin's §7.1 sensor with the MQTT feed — ONLY under `--iot`.
@@ -1143,6 +1186,9 @@ class SimRunner:
                 predictions=predictions,
                 forced_emergency_lanes=forced,
                 mode=self._mode,
+                # From the PRE-step snapshot, matching every other field here:
+                # the agents describe the state the decision was made from.
+                vision_events=advisory_vision_events(pre_snap),
             )
             return [_jsonable(entry.to_dict())
                     for entry in self._orch.observe(ctx)]
@@ -1350,9 +1396,25 @@ class SimRunner:
         # reshaped into Track A's detector contract so the frontend has one
         # stable shape whether or not a real detector is attached. It detects
         # nothing — see backend/frame_sources.py.
+        # §8.2's classifiers over the live corridor, and a MEASURED distance
+        # for every lane-identified alert. Both are no-ops without geometry, so
+        # a failed net read degrades to today's `distance_m: null` rather than
+        # to a wrong number in front of a responder.
+        detector_alerts = []
+        distance_for = None
+        if self._geometry is not None:
+            distance_for = self._geometry.distance_for
+            try:
+                detector_alerts = detector_incidents(
+                    snap, snap["sim_time"], self._geometry)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[sim] detector incident pass skipped "
+                      f"({type(exc).__name__}: {exc})")
         alerts = build_incident_alerts(
             snap, snap["sim_time"],
             forced_emergency_lanes=frozenset(self._forced),
+            detector_alerts=detector_alerts,
+            distance_for=distance_for,
         )
         if alerts:
             frame["incident_alerts"] = alerts

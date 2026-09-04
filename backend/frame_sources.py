@@ -85,15 +85,30 @@ def _lane_lookup(snapshot: Mapping) -> dict[str, tuple[str, Mapping]]:
 
 def _alert(alert_type: str, junction: str | None, lane_id: str | None,
            reading: Mapping | None, severity: str, detected_at: float,
-           source: str) -> dict:
+           source: str, distance_for=None) -> dict:
+    # `distance_for` is a MEASUREMENT hook, not a default. With it absent —
+    # every caller before Part 5c, the recorded fixture, and any consumer that
+    # has no corridor geometry — distance stays None, which the module
+    # docstring is emphatic about: unknown, deliberately, not zero.
+    #
+    # When supplied it returns (metres, confidence, method) computed by
+    # `backend/vision_alerts.py` from the net file's real stop line and a real
+    # TraCI vehicle position. That is a measurement, which is what the "not a
+    # placeholder to fill in with a guess" rule actually forbids replacing.
+    # It is TWIN-FRAME, not camera-ranged — carry that wherever it is shown.
+    distance_m = distance_confidence = None
+    if distance_for is not None and lane_id is not None:
+        try:
+            distance_m, distance_confidence, _method = distance_for(lane_id, junction)
+        except Exception:  # noqa: BLE001 — a frame field is never worth a crash
+            distance_m = distance_confidence = None
     return {
         "type": alert_type,
         "junction": junction,
         "approach": (reading or {}).get("approach"),
         "lane_index": _lane_index(lane_id) if lane_id is not None else None,
-        # See the module docstring: unknown, deliberately, not zero.
-        "distance_m": None,
-        "distance_confidence": None,
+        "distance_m": distance_m,
+        "distance_confidence": distance_confidence,
         "severity": severity,
         "detected_at": detected_at,
         "source": source,
@@ -102,7 +117,7 @@ def _alert(alert_type: str, junction: str | None, lane_id: str | None,
 
 def build_incident_alerts(snapshot: Mapping, sim_time: float, *,
                           forced_emergency_lanes: frozenset[str] = frozenset(),
-                          detector_alerts=None) -> list[dict]:
+                          detector_alerts=None, distance_for=None) -> list[dict]:
     """Everything worth alerting a human about on this frame.
 
     Three sources, all of them already-established facts:
@@ -130,7 +145,7 @@ def build_incident_alerts(snapshot: Mapping, sim_time: float, *,
             str(incident.get("type")), junction, lane_id, reading,
             severity if severity in SEVERITIES else EMERGENCY_SEVERITY,
             float(incident.get("reported_at_sim_time", sim_time)),
-            SOURCE_INTAKE,
+            SOURCE_INTAKE, distance_for,
         ))
 
     for lane_id, (junction, reading) in lanes.items():
@@ -144,7 +159,7 @@ def build_incident_alerts(snapshot: Mapping, sim_time: float, *,
         alerts.append(_alert(
             ALERT_EMERGENCY_VEHICLE, junction, lane_id, reading,
             EMERGENCY_SEVERITY, sim_time,
-            SOURCE_LANE_SENSOR if detected else SOURCE_OPERATOR,
+            SOURCE_LANE_SENSOR if detected else SOURCE_OPERATOR, distance_for,
         ))
 
     for raw in detector_alerts or []:

@@ -169,6 +169,7 @@ def create_app(
     demo_driving: bool = False,
     enable_orchestrator: bool = True,
     vision_source: str = "mock",
+    vision_clip: str | int | None = None,
     iot: bool = False,
     iot_host: str = "127.0.0.1",
     iot_port: int = 1883,
@@ -189,6 +190,7 @@ def create_app(
         demo_driving=demo_driving,
         enable_orchestrator=enable_orchestrator,
         vision_source=vision_source,
+        vision_clip=vision_clip,
         iot=iot,
         iot_host=iot_host,
         iot_port=iot_port,
@@ -342,6 +344,11 @@ def _main() -> None:
                              "simulated CCTV envelope and detects nothing; "
                              "'detector' uses Track A's real detector when "
                              "available.")
+    parser.add_argument("--vision-clip", default=None,
+                        help="Video file (or integer camera index) the "
+                             "detector reads. REQUIRED with "
+                             "--vision-source detector; there is no "
+                             "default camera.")
     parser.add_argument("--iot", action="store_true",
                         help="Ingest live MQTT telemetry (iot/): counts "
                              "overlay the §7.1 lane readings the observation is "
@@ -375,6 +382,25 @@ def _main() -> None:
     # pointing this at a reachable broker widens "any local process can drive
     # the corridor" to "anyone who can reach that broker can". The MQTT broker
     # is anonymous by design; nothing behind it authenticates.
+    # --vision-clip is required iff detector, and checked HERE rather than at
+    # reset time: VideoCapture opens lazily inside VisionDetector, so a typo'd
+    # path would otherwise surface minutes later as a fallback-to-mock line in
+    # a log nobody is watching, with a panel still labelled "camera" (§17).
+    # An all-digits value is a camera index, not a path, so it is not stat'd.
+    if args.vision_source == "detector":
+        if args.vision_clip is None:
+            parser.error(
+                "--vision-source detector requires --vision-clip <path|index>. "
+                "The detector reads a camera, not the SUMO corridor, and there "
+                "is no default source."
+            )
+        if not str(args.vision_clip).isdigit() and not Path(args.vision_clip).exists():
+            parser.error(f"--vision-clip {args.vision_clip!r} does not exist.")
+    elif args.vision_clip is not None:
+        parser.error(
+            f"--vision-clip is only meaningful with --vision-source detector "
+            f"(got --vision-source {args.vision_source!r})."
+        )
     if args.iot and args.iot_host not in LOOPBACK_HOSTS and not args.allow_lan:
         parser.error(
             f"--iot-host {args.iot_host!r} is not loopback and --allow-lan was "
@@ -404,6 +430,7 @@ def _main() -> None:
         demo_driving=args.demo_driving,
         enable_orchestrator=not args.no_orchestrator,
         vision_source=args.vision_source,
+        vision_clip=args.vision_clip,
         iot=args.iot,
         iot_host=args.iot_host,
         iot_port=args.iot_port,
