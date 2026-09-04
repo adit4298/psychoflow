@@ -1,0 +1,39 @@
+.wrap {
+  position: relative;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow-panel);
+}
+
+/* One thumb that slides, rather than two fills that cross-fade — the movement
+   is what says "the same control, moved". */
+.thumb {
+  position: absolute;
+  inset: 3px auto 3px 3px;
+  width: calc(50% - 3px);
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  transition: transform 220ms var(--ease-io);
+}
+.thumb[data-pos='manual'] { transform: translateX(100%); }
+
+.option {
+  position: relative;
+  padding: 7px var(--s-4);
+  border-radius: var(--r-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+  transition: color 150ms var(--ease);
+}
+.option[aria-checked='true'] { color: var(--primary-ink); }
+
+@media (hover: hover) and (pointer: fine) {
+  .option[aria-checked='false']:hover { color: var(--ink); }
+}
+.option:active { transform: scale(0.97); transition: transform 120ms var(--ease); }

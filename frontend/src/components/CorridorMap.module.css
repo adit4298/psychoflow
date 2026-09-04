@@ -1,0 +1,44 @@
+.wrap { display: flex; flex-direction: column; gap: var(--s-3); flex: 1; min-height: 0; }
+
+.svg {
+  width: 100%;
+  height: auto;
+  background: var(--surface-2);
+  border-radius: var(--r-control);
+  flex: 1;
+}
+
+.cross { stroke: var(--line-strong); stroke-width: 14; stroke-linecap: round; opacity: .5; }
+.link  { stroke: var(--line-strong); stroke-width: 18; stroke-linecap: round; opacity: .8; }
+
+.vehicle   { fill: var(--ink-3); }
+.ambulance { fill: var(--stop); }
+
+.node { fill: var(--surface); stroke-width: 2; }
+.node[data-phase='go']   { stroke: var(--go); }
+.node[data-phase='stop'] { stroke: var(--stop); }
+
+.nodeLabel {
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--ink-2);
+  text-anchor: middle;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+
+.key { display: inline-flex; align-items: center; gap: var(--s-2); }
+.keyMuted { color: var(--ink-3); margin-left: auto; }
+
+.dotVehicle, .dotAmb {
+  width: 7px; height: 7px; border-radius: var(--r-pill); display: inline-block;
+}
+.dotVehicle { background: var(--ink-3); }
+.dotAmb { background: var(--stop); width: 9px; height: 9px; }

@@ -1,0 +1,115 @@
+.wrap { display: flex; flex-direction: column; gap: var(--s-3); }
+
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--stop-wash);
+  color: var(--stop);
+  font-size: var(--fs-sm);
+  animation: bannerIn 220ms var(--ease) both;
+}
+@keyframes bannerIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .banner { animation: none; } }
+
+.bannerType { font-weight: 600; text-transform: capitalize; }
+.bannerSep { opacity: .5; }
+.calibrating { font-style: italic; opacity: .8; }
+
+.severity {
+  margin-left: auto;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  padding: 2px var(--s-2);
+  border-radius: var(--r-chip);
+  border: 1px solid currentColor;
+}
+
+.frame {
+  position: relative;
+  isolation: isolate;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-control);
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.frame[data-empty='true'] {
+  display: grid; place-items: center;
+  font-size: var(--fs-sm); color: var(--ink-3);
+}
+
+/* A deliberately flat placeholder still — no photo, no gradient hero. */
+.scene { position: absolute; inset: 0; }
+.road {
+  position: absolute; left: 0; right: 0; top: 22%; bottom: 0;
+  background: var(--line);
+  opacity: .55;
+}
+.stopLine {
+  position: absolute; left: 4%; right: 4%; bottom: 16%;
+  height: 3px;
+  background: var(--ink-3);
+  opacity: .45;
+}
+
+.box {
+  position: absolute;
+  border: 1.5px solid var(--primary);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.box[data-cls='ambulance'] { border-color: var(--stop); }
+.box[data-cls='truck']     { border-color: var(--wait); }
+
+.boxLabel {
+  position: absolute;
+  bottom: 100%;
+  left: -1.5px;
+  margin-bottom: 2px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  display: flex;
+  gap: 3px;
+}
+.box[data-cls='ambulance'] .boxLabel { background: var(--stop); }
+.box[data-cls='truck'] .boxLabel     { background: var(--wait); }
+.boxLabel i { font-style: normal; opacity: .75; font-size: 9px; }
+
+.sourceTag {
+  position: absolute;
+  right: var(--s-2);
+  top: var(--s-2);
+  padding: 2px var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-panel);
+}
+.sourceTag[data-live] { color: var(--go); }
+
+.counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-2); }
+
+.count {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: center;
+  padding: var(--s-2) 0;
+  border-radius: var(--r-chip);
+  background: var(--surface-2);
+}
+.count .mono { font-size: var(--fs-body); color: var(--ink); }

@@ -1,0 +1,50 @@
+.tile {
+  background: var(--surface);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.label { color: var(--ink-3); }
+
+.row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+
+.value {
+  font-family: var(--font-data);
+  font-size: var(--fs-data-lg);
+  font-weight: var(--fw-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.value[data-alarm] { color: var(--stop); }
+
+.unit { font-size: var(--fs-sm); color: var(--ink-3); font-weight: 400; }
+
+.delta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+}
+/* Colour is on the text only — no coloured background on a delta chip. */
+.delta[data-good='yes'] > .mono, .delta[data-good='yes'] > svg { color: var(--go); }
+.delta[data-good='no']  > .mono, .delta[data-good='no']  > svg { color: var(--stop); }
+.delta[data-good='flat'] > .mono, .delta[data-good='flat'] > svg { color: var(--ink-3); }
+
+.deltaNote { color: var(--ink-3); }
+.deltaPending { color: var(--ink-3); font-style: italic; }
