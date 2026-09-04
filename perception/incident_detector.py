@@ -11,8 +11,9 @@ from the caller (§7.1 shaped, whether that is TraCI-derived or measured);
 here would make every result irreproducible and would also be *wrong* -
 everything else in this repo timestamps against sim time.
 
-`sumolib` is imported INSIDE `load_junction_coord` / `load_stop_line_coord`
-and nowhere else, so importing this module needs no `SUMO_HOME`. Those two
+`sumolib` is imported INSIDE `_read_net` (which both `load_junction_coord`
+and `load_stop_line_coord` go through) and nowhere else, so importing this
+module needs no `SUMO_HOME`. Those two
 functions exist because of `CLAUDE.md`'s standing rule: **never hardcode
 junction coordinates from `generate_corridor.py`'s parameters.** netconvert
 normalises to non-negative coordinates and shifted this corridor by
@@ -50,6 +51,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -256,6 +258,23 @@ class DistanceEstimate:
     method: str
 
 
+@lru_cache(maxsize=8)
+def _read_net(net_file: str):
+    """Parse a .net.xml once per path, not once per lookup.
+
+    Both coordinate helpers below used to call `sumolib.net.readNet` on every
+    invocation, which is fine for a one-shot script and far too slow for a
+    per-step consumer: the live backend resolves a stop line for every alerting
+    lane on every frame, so an uncached read re-parses the whole corridor many
+    times a second. Cached, a corridor is parsed once and every later lookup is
+    a dict hit. Keyed by path string, so a `set_topology` rebuild onto a
+    different .net.xml gets its own entry rather than a stale one.
+    """
+    import sumolib  # deferred: keeps this module importable with no SUMO_HOME
+
+    return sumolib.net.readNet(net_file)
+
+
 def load_junction_coord(net_file: str | Path, junction_id: str) -> tuple[float, float]:
     """Junction centre in the twin frame, READ FROM THE NET FILE.
 
@@ -265,10 +284,7 @@ def load_junction_coord(net_file: str | Path, junction_id: str) -> tuple[float, 
     rigid translation, so distances are unaffected - but absolute
     positions, which is exactly what this function returns, are not.
     """
-    import sumolib  # deferred: keeps this module importable with no SUMO_HOME
-
-    net = sumolib.net.readNet(str(net_file))
-    x, y = net.getNode(junction_id).getCoord()
+    x, y = _read_net(str(net_file)).getNode(junction_id).getCoord()
     return (float(x), float(y))
 
 
@@ -280,10 +296,7 @@ def load_stop_line_coord(net_file: str | Path, lane_id: str) -> tuple[float, flo
     corridor). Using the centre instead overstates every distance by that
     much, which matters at the scale a responder cares about.
     """
-    import sumolib
-
-    net = sumolib.net.readNet(str(net_file))
-    x, y = net.getLane(lane_id).getShape()[-1]
+    x, y = _read_net(str(net_file)).getLane(lane_id).getShape()[-1]
     return (float(x), float(y))
 
 
