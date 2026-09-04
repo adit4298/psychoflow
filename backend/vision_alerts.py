@@ -61,6 +61,7 @@ from __future__ import annotations
 from typing import Mapping, Sequence
 
 from perception.incident_detector import (
+    ACCIDENT_CLUSTER_RADIUS_PX,
     LaneFlowState,
     PixelCalibration,
     VehicleTrack,
@@ -84,6 +85,45 @@ HALTED_SPEED_MPS = 0.5
 #: to express `halted_count` as a queue length for the §8.2 congestion
 #: classifier. An approximation, and only ever compared against thresholds.
 QUEUE_METRES_PER_VEHICLE = 7.5
+
+#: Two stationary vehicles within this many METRES are treated as clustered,
+#: i.e. close enough to have hit each other rather than merely queued.
+#:
+#: WHY A SCALE IS NEEDED AT ALL. `classify_accident` compares
+#: `VehicleTrack.distance_px_to` against `ACCIDENT_CLUSTER_RADIUS_PX` (90),
+#: and that threshold is calibrated for IMAGE SPACE. Feeding it twin-frame
+#: metres unscaled makes "within 90 metres" the cluster test — which is most of
+#: a queue, so every red light classifies as an accident. Measured before this
+#: scale existed: 62 alerts over 60 live frames, nearly all `accident`.
+#:
+#: The scale is chosen so the threshold falls BETWEEN collision proximity and
+#: normal stopped spacing. Queued vehicles sit ~7.5m apart
+#: (QUEUE_METRES_PER_VEHICLE); at 18 px/m that is 135px, comfortably outside
+#: the 90px radius, while two vehicles within 5m map to 90px and do cluster.
+#: So an ordinary queue no longer reads as a pile-up, and a genuine one still
+#: does.
+#:
+#: HONEST LIMIT: this is a unit reconciliation, not a validated accident
+#: detector. It restores the classifier's INTENT on twin-frame data; it has not
+#: been evaluated against real crashes, and this project has no labelled
+#: accident data to evaluate it against.
+#:
+#: KNOWN RESIDUAL FALSE POSITIVE, observed on a live run after this fix landed.
+#: The 5m/7.5m separation is derived from CAR stopped spacing. Two-wheelers
+#: queue far closer than that — under the demo driving model they filter to the
+#: queue front and sit two-abreast — so bunched bikes in a jammed lane can
+#: still satisfy all three accident conditions (2+ stationary, clustered,
+#: speed collapsed) and be reported as an accident. The rate is low (the census
+#: run saw 0 alerts in 60 frames) but it is not zero over a long session.
+#: Closing it properly means giving §8.2's classifier a notion of vehicle
+#: CLASS, which is Track A's module and a design change, not a constant — so it
+#: is recorded here rather than tuned away. Do not present an `accident` alert
+#: as confirmed without a human looking.
+ACCIDENT_CLUSTER_RADIUS_M = 5.0
+
+#: Track coordinates are multiplied by this so `distance_px_to` means metres.
+#: Derived, never typed twice — retune ACCIDENT_CLUSTER_RADIUS_M instead.
+PX_PER_M = ACCIDENT_CLUSTER_RADIUS_PX / ACCIDENT_CLUSTER_RADIUS_M
 
 
 def advisory_vision_events(snapshot: Mapping) -> tuple[dict, ...]:
@@ -210,16 +250,23 @@ class IncidentGeometry:
         `VehicleTrack`'s own docstring anticipates this: speed and
         `stationary_for_s` "come from whoever owns the track history — the
         detector for pixel speeds converted through a calibration, or the
-        caller for SUMO-derived ones". `x`/`y` are twin-frame METRES here
-        rather than image pixels, which matters for exactly one threshold —
-        `ACCIDENT_CLUSTER_RADIUS_PX` (90). Judged in metres that is a much
-        TIGHTER test than in pixels, so it cannot manufacture accidents; it can
-        miss a spread-out one. Fail-quiet, which is the right direction.
+        caller for SUMO-derived ones".
+
+        Positions are twin-frame metres SCALED BY `PX_PER_M`, because
+        `classify_accident` compares them against a threshold calibrated in
+        image pixels. See ACCIDENT_CLUSTER_RADIUS_M for the derivation. An
+        earlier revision of this docstring claimed metres made the test
+        TIGHTER; that was backwards — unscaled it is far looser, and it
+        manufactured an accident on every red light.
+
+        Distances reported to a human are NOT taken from these scaled values:
+        `_origin_xy` converts back, and `distance_for` never touches them.
         """
         return tuple(
             VehicleTrack(
                 track_id=vid, approach=approach, lane_index=lane_index,
-                x=xy[0], y=xy[1], speed_mps=speed, stationary_for_s=waiting,
+                x=xy[0] * PX_PER_M, y=xy[1] * PX_PER_M,
+                speed_mps=speed, stationary_for_s=waiting,
             )
             for vid, xy, speed, waiting in self._lane_vehicles(lane_id)
         )
@@ -273,9 +320,15 @@ def detector_incidents(snapshot: Mapping, sim_time: float,
 
 
 def _origin_xy(tracks: Sequence[VehicleTrack]) -> tuple[float, float] | None:
+    """The incident origin's position in REAL twin-frame metres.
+
+    Tracks carry PX_PER_M-scaled coordinates so the accident clustering test
+    works; this converts back, because the value feeds `distance_m` — a number
+    shown to a responder, which must be metres of road.
+    """
     stationary = [t for t in tracks if t.is_stationary]
     pick = stationary[0] if stationary else (tracks[0] if tracks else None)
-    return None if pick is None else (pick.x, pick.y)
+    return None if pick is None else (pick.x / PX_PER_M, pick.y / PX_PER_M)
 
 
 def _free_flow(lane_id: str) -> float:
@@ -349,7 +402,36 @@ def demo() -> int:
     assert abs(near.distance_m - 20.0) < 1e-6, near
     assert near.distance_m < far.distance_m
 
-    print("backend.vision_alerts: 19/19 assertions passed")
+    # -- the accident scale separates a queue from a pile-up -----------
+    # Without this, `classify_accident` compares twin-frame METRES against a
+    # 90-PIXEL threshold and every red light becomes an accident (measured:
+    # 62 alerts over 60 live frames before the scale existed).
+    from perception.incident_detector import (
+        ACCIDENT_CLUSTER_RADIUS_PX as _R,
+        classify_accident,
+    )
+    assert QUEUE_METRES_PER_VEHICLE * PX_PER_M > _R, (
+        "normal stopped spacing must NOT cluster — otherwise a queue reads as "
+        f"a crash: {QUEUE_METRES_PER_VEHICLE * PX_PER_M}px vs {_R}px")
+    assert 4.0 * PX_PER_M < _R, "a genuine collision must still cluster"
+
+    def _t(tid, x_m):
+        return VehicleTrack(track_id=tid, approach="north", lane_index=0,
+                            x=x_m * PX_PER_M, y=0.0, speed_mps=0.0,
+                            stationary_for_s=60.0)
+
+    collapsed = LaneFlowState(lane_id="L_0", approach="north", lane_index=0,
+                              mean_speed_mps=0.5, free_flow_speed_mps=13.89,
+                              queue_length_m=40.0, vehicle_count=4)
+    queue = [_t("a", 0.0), _t("b", 7.5), _t("c", 15.0), _t("d", 22.5)]
+    assert classify_accident(queue, collapsed) is None, (
+        "a stopped, evenly-spaced queue must not classify as an accident")
+    crash = [_t("a", 0.0), _t("b", 3.0)]
+    assert classify_accident(crash, collapsed) is not None, (
+        "two stationary vehicles 3m apart in a collapsed lane IS the accident "
+        "case — the scale must not suppress it")
+
+    print("backend.vision_alerts: 24/24 assertions passed")
     return 0
 
 
