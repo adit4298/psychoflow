@@ -355,8 +355,20 @@ closed, which is the safe direction, but it is silent.
 **Do not fix it with a rename.** The flag is a behavioural heuristic that rides
 with `emergency_flag_is_experimental: True`, and §8 forbids it reaching §10's
 emergency override. Mapping it onto §A1's `emergency` routes an experimental
-signal into the priority agent's emergency class. That is a cross-track call for
-the user, not an adapter detail — Track A's position is that it should not.
+signal into the priority agent's emergency class.
+
+**DECISION (2026-09-04, user's call): advisory-only.** The adapter in
+`backend/sim_runner.py` does NOT map `emergency_vehicle_flag` onto §A1's
+`emergency`. A detector-sourced reading keeps the fail-closed
+`type_composition["ambulance"] > 0` path (always false for `detector`, which is
+correct). `emergency_vehicle_flag` is instead forwarded as a low-confidence
+advisory field to the IncidentPriority agent and surfaced on the frame for the
+operator — it never enters `safety.validator`'s `forced_emergency_lanes`.
+Rationale: no COCO ambulance class (heuristic only), §10's override is stateless
+and recomputes every step (a flickering false positive thrashes a junction),
+and the project floor is structural not statistical. Actuation stays with a real
+detected-ambulance signal (V2X / incident intake) or the operator's
+`trigger_emergency`.
 
 Otherwise §A1 matches: `lane_id`, `vehicle_count`, `type_composition`,
 `confidence` and `source` are all emitted in the §7.2 envelope.
