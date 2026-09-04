@@ -153,6 +153,14 @@ def normalise_transcript(raw) -> str:
     """
     if not isinstance(raw, str):
         return ""
+    # Slice BEFORE the per-character scan (hardened after security review,
+    # 2026-09-04). The cap used to be applied at the end, so a caller could
+    # force a `unicodedata.category()` pass and a string rebuild proportional
+    # to whatever they sent rather than to the 400 characters actually kept —
+    # on an endpoint with no authentication. The 4x headroom leaves room for
+    # collapsing runs of whitespace and stripped control characters without
+    # truncating a genuinely long utterance any earlier than before.
+    raw = raw[:MAX_TRANSCRIPT_CHARS * 4]
     cleaned = "".join(
         " " if unicodedata.category(ch).startswith("C") else ch for ch in raw
     )
@@ -369,17 +377,34 @@ def _stt_result(text, language, provider: str, started: float) -> dict | None:
 
 
 def _audio_bytes(source) -> bytes | None:
-    """bytes / path / file-like -> bytes, capped. None if unreadable or empty."""
+    """bytes / `Path` / file-like -> bytes, capped. None if unusable.
+
+    **A BARE `str` IS REFUSED, DELIBERATELY** (hardened after security review,
+    2026-09-04). Reading a `str` as a filesystem path looks harmless while the
+    only caller passes a test fixture, but this function sits behind an
+    unauthenticated upload endpoint: the moment any handler forwards a JSON
+    string here instead of real bytes, `"C:/Users/.../.env"` becomes an
+    arbitrary local file read, and a large file becomes memory exhaustion. A
+    local fixture must therefore say so with an explicit `Path`, which no JSON
+    body can produce. `sim/run_voice_check.py` passes `WAV.read_bytes()`.
+
+    Reads are BOUNDED rather than checked afterwards — `MAX_AUDIO_BYTES + 1` is
+    all that is needed to know the input is over the cap, so an oversized
+    upload is never fully materialised just to be rejected.
+    """
     if isinstance(source, (bytes, bytearray, memoryview)):
         data = bytes(source)
-    elif isinstance(source, (str, Path)):
+    elif isinstance(source, Path):
         try:
-            data = Path(source).read_bytes()
+            with source.open("rb") as fh:
+                data = fh.read(MAX_AUDIO_BYTES + 1)
         except OSError:
             return None
     elif hasattr(source, "read"):
         try:
-            data = source.read()
+            data = source.read(MAX_AUDIO_BYTES + 1)
+        except TypeError:
+            return None     # a reader that will not take a size limit
         except Exception:
             return None
         if not isinstance(data, bytes):

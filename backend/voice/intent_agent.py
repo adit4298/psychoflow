@@ -72,6 +72,7 @@ from backend.voice.intents import (
     DEFAULT_APPROACH,
     DEFAULT_JUNCTION,
     RANGE_ERROR_MARKER,
+    confirmation,
     LaneResolver,
     extract_json_object,
     normalise_call,
@@ -298,14 +299,19 @@ class VoiceIntentAgent:
         client = self._ollama_client()
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            # Delimited so the transcript reads as one quoted field rather
-            # than as continuation of the instructions. This is HYGIENE, not a
-            # boundary — a transcript containing ">>>" can close it, and no
-            # amount of prompt structure makes a 4B model injection-proof. The
-            # actual guarantee is the allowlist gate below plus control_api's
-            # bounds: the worst a fully-suborned reply achieves is a valid call
-            # to one of nine functions an operator could have clicked.
-            {"role": "user", "content": f"Command: <<<{transcript}>>>"},
+            # JSON-quoted so the transcript is ONE string literal rather than
+            # a continuation of the instructions. This replaced a bespoke
+            # `<<<...>>>` delimiter, which a transcript could simply close by
+            # containing `>>>` (security review, 2026-09-04); `json.dumps`
+            # escapes the quote character it uses, so there is no sequence the
+            # operator can speak that ends the field early.
+            #
+            # It is still HYGIENE, not a boundary — no prompt structure makes a
+            # 4B model injection-proof. The actual guarantee is the allowlist
+            # gate below plus control_api's bounds: the worst a fully-suborned
+            # reply achieves is a valid call to one of nine bounded functions
+            # an operator standing at the console could have clicked.
+            {"role": "user", "content": f"Command: {json.dumps(transcript)}"},
         ]
         try:
             reply = client.chat(model=self.model, messages=messages,
@@ -459,7 +465,7 @@ class VoiceIntentAgent:
         res.latency_ms = int((time.perf_counter() - started) * 1000)
         if outcome.get("applied") is True or function == "get_stats":
             try:
-                res.message = _confirmation(function, args, outcome)
+                res.message = confirmation(function, args, outcome)
             except Exception:
                 # `handle()` must never raise — a formatting slip in an echo
                 # is not a reason to drop an action that was already applied.
@@ -472,38 +478,6 @@ class VoiceIntentAgent:
             res.message = str(outcome.get("reason") or "the dashboard declined "
                                                        "that command")
         return res
-
-
-def _confirmation(function: str, args: dict, outcome: dict) -> str:
-    """Short operator-facing echo. Names the RESOLVED lane, not the spoken one."""
-    if function == "get_stats":
-        if not outcome.get("ready"):
-            return str(outcome.get("reason", "no statistics yet"))
-        return (f"Mean max wait {outcome.get('mean_wait_max', '?')}s across "
-                f"{len(outcome.get('lanes', {}))} lanes; "
-                f"{outcome.get('starvation_events_total', 0)} starvation events; "
-                f"throughput {outcome.get('throughput_total', 0)}")
-    if function == "set_mode":
-        return f"Mode set to {args['mode']}"
-    if function == "set_baseline_mode":
-        return f"Controller set to {args['baseline']}"
-    if function == "set_lane_bias":
-        return (f"Lane {args['lane_id']} weighted {args['weight']:g} for "
-                f"{args['duration_s']:g}s")
-    if function == "trigger_emergency":
-        return f"Emergency corridor requested for lane {args['lane_id']}"
-    if function == "force_phase":
-        return (f"{args['junction_id']} pinned to phase index {args['phase']} "
-                f"(applies at the next decision step)")
-    if function == "clear_override":
-        target = args.get("junction_id") or "every junction"
-        return f"Override cleared on {target}"
-    if function == "set_topology":
-        return f"Corridor rebuilding as {outcome.get('topology_id')}"
-    if function == "inject_incident":
-        return (f"{args['incident_type']} reported at {args['junction_id']} on "
-                f"{', '.join(args['affected_lanes'])}")
-    return "Command applied"
 
 
 if __name__ == "__main__":

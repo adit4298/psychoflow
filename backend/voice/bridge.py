@@ -59,7 +59,7 @@ from backend.control_api import (
 )
 from backend.voice import stt
 from backend.voice.intent_agent import VoiceIntentAgent
-from backend.voice.intents import RANGE_ERROR_MARKER
+from backend.voice.intents import RANGE_ERROR_MARKER, confirmation
 
 #: Allowlisted functions that only READ. Answered from the snapshot, never
 #: dispatched. Intersected with the allowlist so that a rename in
@@ -98,9 +98,22 @@ class CommandLog:
     """Every utterance, understood or not (§14: log the miss for review).
 
     Deliberately NOT the `DecisionLog`: that one is per-episode and owned by
-    the sim thread, which replaces it at every reset (CLAUDE.md §8). The voice
-    layer must not hold one, so it keeps its own ring and hands the sim thread
-    a `record_voice` payload instead.
+    the sim thread, which replaces it at every reset (CLAUDE.md §8), so the
+    voice layer must not hold one.
+
+    **KNOWN GAP, stated rather than implied** (code review, 2026-09-04). The
+    intended hand-off is `VoiceResult.decision_log_payload()` ->
+    `explainability.DecisionLog.record_voice(...)`, and NOTHING CALLS IT YET.
+    `backend/sim_runner.py` has the slot waiting (`self._last_voice = None  #
+    reserved for Phase 11`) but wiring it is a sim-loop edit and outside this
+    part's scope. The practical consequence, which matters because
+    explainability is judged: a voice `force_phase` DOES reach the §12.1
+    decision log — `sim_runner` already tags a forced phase
+    `reason="voice_command"` on the normal action path — but a voice
+    `set_mode` / `set_lane_bias` / `trigger_emergency` / `inject_incident` /
+    `set_topology` / `set_baseline_mode` / `clear_override` applies correctly
+    to the corridor and appears ONLY in this ring, never in the on-screen
+    decision log.
     """
 
     path: Path | None = None
@@ -347,7 +360,7 @@ class VoiceBridge:
         out["result"] = outcome
         out["applied"] = outcome.get("applied") is True
         if out["applied"]:
-            out["message"] = _echo(function, args, outcome)
+            out["message"] = confirmation(function, args, outcome)
             out["undo"] = self._undo_for(function, args, previous_mode)
         else:
             # Understood, but the control API declined it (out of range, no
@@ -384,33 +397,3 @@ class VoiceBridge:
         return self.handle_text(event.transcript,
                                 language=(payload or {}).get("language"),
                                 stt_provider=stt.PROVIDER_WEBSPEECH)
-
-
-def _echo(function: str, args: dict, outcome: dict) -> str:
-    """Short operator-facing confirmation. Names the RESOLVED lane, not the
-    spoken number — the officer said "lane 3" and the corridor acted on
-    `N1_J2_2`, and only one of those is checkable against the decision log."""
-    try:
-        if function == "set_mode":
-            return f"Mode set to {args['mode']}."
-        if function == "set_baseline_mode":
-            return f"Controller set to {args['baseline']}."
-        if function == "set_lane_bias":
-            return (f"Lane {args['lane_id']} weighted ×{args['weight']:g} "
-                    f"for {args['duration_s']:g}s.")
-        if function == "trigger_emergency":
-            return f"Emergency corridor requested for {args['lane_id']}."
-        if function == "force_phase":
-            return (f"{args['junction_id']} pinned to phase {args['phase']}; "
-                    f"it applies at the next decision step and §10 still "
-                    f"validates it.")
-        if function == "clear_override":
-            return f"Override cleared on {args.get('junction_id') or 'every junction'}."
-        if function == "set_topology":
-            return f"Corridor rebuilding as {outcome.get('topology_id')}."
-        if function == "inject_incident":
-            return (f"{args['incident_type']} reported at {args['junction_id']} "
-                    f"on {', '.join(args['affected_lanes'])}.")
-    except Exception:
-        pass    # a formatting slip must not drop an action already applied
-    return f"{function} applied."

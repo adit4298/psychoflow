@@ -250,6 +250,29 @@ def _match_word_table(text: str, table: dict[str, str]) -> str | None:
 _FENCE_RE = re.compile(r"^\s*```[a-zA-Z0-9_-]*\s*|\s*```\s*$")
 
 
+def _reject_constant(name: str):
+    """Make `Infinity` / `-Infinity` / `NaN` in a model reply UNPARSEABLE.
+
+    Python's `json.loads` accepts these three bare tokens as a non-standard
+    extension, so a reply of `{"topology_id": [4, 3, Infinity]}` parses cleanly
+    into a real `float('inf')` — and a non-finite number then flows into
+    argument normalisation as though the model had named a value. Measured
+    consequence before this guard: `int(float('inf'))` raises `OverflowError`,
+    which is a sibling of `ValueError` rather than a subclass and so slipped
+    through `control_api._parse_topology`'s `except (TypeError, ValueError)`
+    AND `dispatch()`'s own `except TypeError`, crashing a pipeline whose entire
+    safety argument rests on it never raising. (Found by security review,
+    2026-09-04; nothing was queued — the crash landed inside `set_topology`'s
+    own validation — so it was availability, not an allowlist bypass.)
+
+    Rejecting at the JSON boundary fixes it for EVERY function at once, rather
+    than per-normaliser. There is no legitimate traffic command containing an
+    infinity, so refusing the whole reply is the right blast radius: it becomes
+    a fail-closed "didn't catch a command" like any other bad reply.
+    """
+    raise ValueError(f"non-finite JSON constant {name!r} in the model reply")
+
+
 def extract_json_object(raw) -> dict | None:
     """Pull the first balanced JSON object out of a model reply. None if absent.
 
@@ -286,7 +309,8 @@ def extract_json_object(raw) -> dict | None:
             depth -= 1
             if depth == 0:
                 try:
-                    obj = json.loads(text[start:i + 1])
+                    obj = json.loads(text[start:i + 1],
+                                     parse_constant=_reject_constant)
                 except (ValueError, TypeError):
                     return None
                 return obj if isinstance(obj, dict) else None
