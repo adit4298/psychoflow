@@ -1029,8 +1029,23 @@ Pause and ask the user rather than proceeding when:
 
 &#x20; Commit it once the GUI watch passes.
 
-&#x20; \*\*Phase 11 (VOICE): design APPROVED, pipeline UNBUILT — correctly reserved
-&#x20; for the event.\*\* Settled and recorded: browser Web Speech API for STT
+&#x20; \*\*Phase 11 (VOICE): BUILT AND VERIFIED 2026-09-04 on branch
+&#x20; `hackathon/voice` — this bullet's "pipeline UNBUILT" reading is SUPERSEDED
+&#x20; and the design below is now a record of what was implemented, not of what
+&#x20; is planned.\*\* `backend/voice/` carries `stt.py` (a `get_stt` factory over
+&#x20; webspeech/whisper/sarvam, default \*\*whisper\*\*, not the browser),
+&#x20; `intent_agent.py` (a pure `parse()` plus `handle()`), `intents.py`,
+&#x20; `bridge.py` (dispatch + read-only questions) and `tts.py`; the DESIGN.md
+&#x20; §7.5 panel is live in `frontend/src/components/Assistant.tsx` +
+&#x20; `assistant/useAssistant.ts`; `backend/main.py` exposes `/voice/{text,
+&#x20; audio,undo,status}` and `--stt`/`--tts`, forwarded by `sim/run_demo.py`.
+&#x20; Measured end to end: a spoken wav -> whisper -> gemma3:4b ->
+&#x20; `force_phase(J2, 1)` -> `reason="voice_command"` on the §13.2 wire, §10
+&#x20; overrides empty; \*\*3.5s warm\*\*. See the Phase 11 command bullet and the
+&#x20; standing rules in this section, plus BUILD_LOG's 2026-09-04 entry for the
+&#x20; two open items (`record_voice` unwired; Sarvam unverified against the live
+&#x20; service). The rest of this bullet stands as originally written: browser
+&#x20; Web Speech API for STT
 &#x20; (\*\*NOT local\*\* — §2; in Chrome it streams to Google's speech service),
 &#x20; local Gemma via Ollama for intent parsing, \*\*no Claude API and no paid
 &#x20; inference anywhere in the runtime path\*\*; scope is exactly the
@@ -1050,10 +1065,19 @@ Pause and ask the user rather than proceeding when:
 &#x20; decisions are sound and settled; only the supporting numbers are unbacked.
 
 &#x20; \*\*GENUINELY UNBUILT — this is the entire remaining list:\*\*
-&#x20; \*\*Phase 10 (frontend)\*\* — nothing exists under `frontend/`. Read the
-&#x20; "PHASE 10 BEHAVIOR SPEC" bullet below, and
-&#x20; `docs/MIXED_TRAFFIC_RESEARCH.md`, before writing a line of it.
-&#x20; \*\*Phase 11's actual pipeline\*\* — `backend/voice/` is empty.
+&#x20; \*\*Phase 10 (frontend)\*\* — \*\*CORRECTED 2026-09-04: this line said "nothing
+&#x20; exists under `frontend/`" and that is FALSE.\*\* The console exists and is
+&#x20; live-wired (`frontend/src/`, ~25 components, Vite + React Router + zustand,
+&#x20; `npm run build` clean); it landed with Prompt 5's `3758704` and the
+&#x20; `hackathon/frontend` work. Still read the "PHASE 10 BEHAVIOR SPEC" bullet
+&#x20; below and `docs/MIXED_TRAFFIC_RESEARCH.md` before extending it — the
+&#x20; heterogeneous-traffic rendering constraints are unchanged.
+&#x20; \*\*Phase 11's actual pipeline\*\* — \*\*CORRECTED 2026-09-04: BUILT. This line
+&#x20; said "`backend/voice/` is empty"; it now holds six modules and its
+&#x20; done-bars pass (44/44, 63/63, 32/32).\*\* See the Phase 11 bullet in this
+&#x20; section. Two open items remain, neither blocking: `record_voice` is not
+&#x20; wired, and the Sarvam path has never round-tripped against the live
+&#x20; service.
 &#x20; \*\*Phase 12 (evaluation suite)\*\* — including the \*\*Greedy baseline\*\*
 &#x20; (`set_baseline_mode("greedy")` is plumbed but STUBBED and returns
 &#x20; `applied: false`) and \*\*STEP 2's signal-violation detector\*\*. Both are
@@ -1995,6 +2019,102 @@ Pause and ask the user rather than proceeding when:
 &#x20; same import-order probe: identical 33/1 at HEAD. \*\*`python -m
 &#x20; orchestrator.selftest` standalone is the valid invocation and is 34/34.\*\*
 &#x20; The fix, if wanted, is one subprocess call in the harness.
+
+\- \*\*Phase 11 (VOICE, §14) commands — BUILT 2026-09-04, branch
+&#x20; `hackathon/voice`.\*\* Done-bar: `venv/Scripts/python.exe
+&#x20; sim/run_voice_check.py` (\*\*44/44\*\*, `--v1`..`--v8` selectable, NO SUMO —
+&#x20; it never calls `env.reset()`, so it deliberately carries no
+&#x20; `require_free()` beacon guard, same precedent as
+&#x20; `stage4_contamination.py`). Module self-tests, also no SUMO:
+&#x20; `python -m backend.voice.intent_agent` (\*\*63/63\*\*, calls live gemma3:4b)
+&#x20; and `python -m backend.voice.stt` (\*\*32/32\*\*). Run all three after ANY
+&#x20; change under `backend/voice/`. Live: `sim/run_demo.py --stt whisper`.
+
+\- \*\*STANDING RULE — SARVAM IS TRANSCRIPTION AND SPEECH ONLY. It must NEVER
+&#x20; enter the parse-or-decide path.\*\* Intent parsing is local `gemma3:4b` via
+&#x20; Ollama, always. Sarvam sits in the same category as the already-accepted
+&#x20; Web Speech API (§2): a free cloud service that turns audio into text and
+&#x20; text into audio. The hard rule is unchanged — \*\*no Claude API and no paid
+&#x20; inference anywhere in the runtime path\*\*.
+&#x20; \*\*The key\*\* comes from `SARVAM_API_KEY` (documented blank in
+&#x20; `.env.example`; `.env` is now gitignored, which it was NOT before). It is
+&#x20; never logged, never returned by `/voice/status`, never on the §13.2 frame,
+&#x20; never in the command log. Sarvam error paths keep the HTTP STATUS ONLY and
+&#x20; never the response body, so a key cannot escape through an error either —
+&#x20; \*\*do not "improve" those handlers by including `reply.text`\*\*.
+&#x20; \*\*NO TEST MAY SPEND A CREDIT, and this is enforced rather than promised:\*\*
+&#x20; `sim/run_voice_check.py` replaces `requests.Session.post`/`requests.post`
+&#x20; with a raising tripwire before the first check runs, and `stt.py`'s
+&#x20; self-test asserts a keyless `SarvamSTT` makes ZERO requests against an
+&#x20; injected session. `--stt` defaults to `whisper` (local faster-whisper, no
+&#x20; key, no network) precisely so nothing spends by accident.
+&#x20; \*\*UNVERIFIED (2026-09-04):\*\* no `SARVAM_API_KEY` existed in this
+&#x20; environment, so the Sarvam request/response shapes are written from
+&#x20; documentation and have NEVER round-tripped against the live service. The
+&#x20; one manual run is a HUMAN step — see BUILD_LOG's Phase 11 entry.
+
+\- \*\*Voice numbering: "lane N" and "phase N" spoken are 1-BASED\*\*
+&#x20; (`VOICE_LANE_BASE` / `VOICE_PHASE_BASE` in `backend/voice/intents.py`);
+&#x20; `explainability/narrator.py` still renders the RAW 0-based SUMO slot and
+&#x20; was deliberately NOT changed. The two therefore differ by one for the same
+&#x20; lane. \*\*That is reconciled, not ignored:\*\* every result carries the
+&#x20; RESOLVED `lane_id` (`N2_J2_2` — unambiguous and checkable against the log),
+&#x20; and the confirmation names BOTH numbers ("J2 pinned to phase 2 (index
+&#x20; 1)"). \*\*Do not "fix" the echo by dropping either number\*\* — it said only
+&#x20; "phase 1" until code review caught it.
+
+\- \*\*`AXIS_GREEN_SLOT = {"ew": 0, "ns": 1}` (`backend/voice/intents.py`) is an
+&#x20; ASSUMPTION, disclosed on every result that uses it — not a measured map.\*\*
+&#x20; The authority is `PsychoFlowEnv.phase_served_lanes()`, which is
+&#x20; per-episode, lives on the sim thread, and is NOT published on
+&#x20; `snapshot_stats()`, so the voice layer genuinely cannot read it. It matches
+&#x20; `frontend/src/assistant/intent.ts`'s `AXIS_PHASE`, so panel and voice agree
+&#x20; with each other. It is BOUNDED rather than trusted: `control_api.force_phase`
+&#x20; range-checks the index, the sim thread mask-checks it against the live
+&#x20; topology and drops an invalid pin, and §10 still validates. \*\*To remove the
+&#x20; assumption:\*\* publish `phase_served_lanes()` on `_stats_payload`, resolve
+&#x20; the axis from the lanes each slot actually serves, delete the table.
+
+\- \*\*The model's own argument is NOT trusted for `phase` or `weight` — both are
+&#x20; measured decisions, not preferences.\*\* On "hold north-south green at J2 for
+&#x20; 20 seconds" gemma3:4b returns `{"phase": 20}` — the DURATION copied into the
+&#x20; phase field, which parses cleanly and asks for phase index 19. Order is the
+&#x20; operator's own words first: an anchored "phase N", then the named axis, then
+&#x20; fail closed. `_resolve_weight` already did the same for the same reason.
+&#x20; Out-of-range values fail as UNPARSED, range-checked against `control_api`'s
+&#x20; OWN constants — imported, never retyped — and the operator is shown THE
+&#x20; BOUND rather than "didn't catch a command", because they were perfectly
+&#x20; clear (`RANGE_ERROR_MARKER`).
+
+\- \*\*A model reply may not carry a non-finite number.\*\* `json.loads` accepts
+&#x20; bare `Infinity`/`-Infinity`/`NaN` as a non-standard extension, and
+&#x20; `{"topology_id": [4, 3, Infinity]}` reached `int(inf)` and raised
+&#x20; `OverflowError` — a SIBLING of `ValueError`, not a subclass, so caught by
+&#x20; neither `control_api._parse_topology`'s `except (TypeError, ValueError)`
+&#x20; nor `dispatch()`'s `except TypeError` — out of a pipeline whose safety
+&#x20; argument is that it never raises. `_parsing._reject_constant` now refuses
+&#x20; them at the JSON boundary. \*\*Do not remove the `parse_constant` argument\*\*;
+&#x20; regression is `run_voice_check.py --v8`.
+
+\- \*\*OPEN (Phase 11): `record_voice` is NOT wired — a voice `force_phase`
+&#x20; reaches the §12.1 decision log, the other functions do not.\*\*
+&#x20; `sim_runner` already tags a forced phase `reason="voice_command"` (confirmed
+&#x20; live on the wire), but `set_mode` / `set_lane_bias` / `trigger_emergency` /
+&#x20; `inject_incident` / `set_topology` / `set_baseline_mode` / `clear_override`
+&#x20; apply correctly and appear ONLY in the voice layer's own ring.
+&#x20; `VoiceResult.decision_log_payload()` exists to bridge it and nothing calls
+&#x20; it; `sim_runner` has `self._last_voice = None  # reserved for Phase 11`
+&#x20; waiting. Wiring it is a sim-loop edit. \*\*Matters because explainability is
+&#x20; judged\*\* — do not claim voice actions are fully explainable until it lands.
+
+\- \*\*`frontend/src/assistant/useAssistant.ts` resolves the backend origin ONCE
+&#x20; at module load (`API_BASE`), never per render.\*\* Re-reading
+&#x20; `window.location.search` per render looked equivalent and was not: the
+&#x20; router drops the query string on client-side navigation, so opening
+&#x20; `/manual` silently downgraded the assistant to the offline rule parser while
+&#x20; the corridor above it stayed live. Same one-shot semantics as
+&#x20; `createSource()`. Caught by driving the real page, not by reading the code
+&#x20; back.
 
 \- (Add training/test/run commands here as each phase is built — this
 

@@ -69,6 +69,14 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from backend.control_api import (
+    CONTROL_FUNCTIONS,
+    INCIDENT_DURATION_RANGE_S,
+    LANE_BIAS_DURATION_RANGE_S,
+    LANE_BIAS_WEIGHT_RANGE,
+    VALID_BASELINES,
+    VALID_MODES,
+)
 from backend.control_api import CONTROL_FUNCTIONS, VALID_BASELINES, VALID_MODES
 from backend.voice._parsing import (  # noqa: F401  (re-exported)
     APPROACHES,
@@ -240,6 +248,29 @@ class NormalisedCall:
 
 def _fail(reason: str, assumptions: list[str] | None = None) -> NormalisedCall:
     return NormalisedCall(error=reason, assumptions=list(assumptions or []))
+
+
+#: Marks a failure that is a BOUNDS problem rather than a hearing problem, so
+#: the caller can show the operator the bound instead of "didn't catch a
+#: command". They were perfectly clear; they asked for something not allowed,
+#: and telling them otherwise sends them back to re-speaking a fine sentence.
+RANGE_ERROR_MARKER = "outside the allowed range"
+
+
+def _out_of_range(name: str, value, bounds: tuple[float, float],
+                  unit: str = "") -> str | None:
+    """`None` if `value` is inside `bounds`, else the operator-facing reason.
+
+    `bounds` is always a constant imported from `control_api` — never a literal
+    typed here — so the two layers cannot disagree about what is legal.
+    """
+    lo, hi = bounds
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return f"{name} must be a number, got {value!r}"
+    if not (lo <= float(value) <= hi):
+        return (f"{name} {value:g}{unit} is {RANGE_ERROR_MARKER} "
+                f"{lo:g}{unit}-{hi:g}{unit}")
+    return None
 
 
 def _resolve_duration_s(args: dict, transcript: str,
@@ -417,15 +448,100 @@ def _n_set_lane_bias(args, transcript, resolver, notes) -> NormalisedCall:
     if duration_s is None:
         return _fail("no duration in the command "
                      "(say 'for the next five minutes')", notes)
+    # RANGE-CHECKED HERE TOO, against control_api's OWN constants — imported,
+    # never retyped, so there is still one source of truth for each bound.
+    # `control_api` would reject these anyway; catching them here is what makes
+    # an impossible value a fail-closed "didn't catch that" rather than a
+    # confidently-parsed command the dashboard then declines, which reads to an
+    # operator as the system being broken rather than as them misspeaking.
+    err = _out_of_range("weight", weight, LANE_BIAS_WEIGHT_RANGE)
+    if err:
+        return _fail(err, notes)
+    err = _out_of_range("duration", duration_s, LANE_BIAS_DURATION_RANGE_S,
+                        unit="s")
+    if err:
+        return _fail(err, notes)
     return NormalisedCall("set_lane_bias", {
         "lane_id": lane_id, "weight": weight, "duration_s": duration_s,
     }, notes)
+
+
+#: Spoken axis -> green-slot index, for "hold north-south green at J2".
+#:
+#: **THIS IS AN ASSUMPTION AND IT IS DISCLOSED ON EVERY RESULT THAT USES IT.**
+#: The authoritative map is `PsychoFlowEnv.phase_served_lanes()`, which is
+#: per-episode, lives on the sim thread, and is NOT published on
+#: `snapshot_stats()` — so this module genuinely cannot read it. The values
+#: below follow netconvert's convention for this corridor (the through street
+#: W->E takes the first green, the cross street the next) and match
+#: `frontend/src/assistant/intent.ts`'s `AXIS_PHASE`, so the panel and the
+#: voice channel at least agree with each other.
+#:
+#: It is bounded rather than trusted: `control_api.force_phase` range-checks
+#: the index, the sim thread mask-checks it against the live topology and
+#: silently drops an invalid pin, and §10 still validates the result. The worst
+#: case of a wrong entry here is the other axis going green — visible on screen
+#: within one decision step, and undoable with "clear the override on J2".
+#:
+#: TO VERIFY IT PROPERLY (one line, but a `backend/sim_runner.py` edit and so
+#: out of this part's scope): publish `phase_served_lanes()` on
+#: `_stats_payload`, resolve the axis from the lanes each slot actually serves,
+#: and delete this table.
+AXIS_GREEN_SLOT = {"ew": 0, "ns": 1}
+
+_AXIS_RE = (
+    ("ns", re.compile(r"\bn\s*[-/–]?\s*s\b|\bnorth\s*[-/– ]?\s*south\b",
+                      re.IGNORECASE)),
+    ("ew", re.compile(r"\be\s*[-/–]?\s*w\b|\beast\s*[-/– ]?\s*west\b",
+                      re.IGNORECASE)),
+)
+
+
+def find_axis(text: str) -> str | None:
+    """'north-south' / 'N-S' -> 'ns'. None when no axis was named."""
+    for axis, pattern in _AXIS_RE:
+        if pattern.search(text or ""):
+            return axis
+    return None
 
 
 def _n_force_phase(args, transcript, resolver, notes) -> NormalisedCall:
     junction = _junction_from(args, transcript)
     if junction not in JUNCTIONS:
         return _fail(f"junction must be one of {JUNCTIONS}", notes)
+
+    # THE MODEL'S OWN `phase` ARGUMENT IS NOT TRUSTED — a measured decision of
+    # the same class as `_resolve_weight`'s. On "hold north-south green at J2
+    # for 20 seconds" gemma3:4b returns `{"phase": 20}`, having copied the
+    # DURATION into the phase field; that parses cleanly and asks for phase
+    # index 19. So the order is the operator's own words first:
+    #   1. a phase number they actually spoke, anchored to the word "phase";
+    #   2. the axis they named, via the disclosed AXIS_GREEN_SLOT table;
+    #   3. nothing — fail closed, and say what to add.
+    spoken = find_phase_number(transcript)
+    if spoken is not None:
+        phase = spoken - VOICE_PHASE_BASE
+        notes.append(f"spoken phase {spoken} ({VOICE_PHASE_BASE}-based) "
+                     f"-> phase index {phase}")
+    else:
+        axis = find_axis(transcript)
+        if axis is None:
+            return _fail("no phase in the command — say 'phase 2', or name an "
+                         "axis like 'north-south green'", notes)
+        phase = AXIS_GREEN_SLOT[axis]
+        notes.append(f"'{axis}' -> green slot {phase} (assumed from the "
+                     f"corridor's phase convention, not read from the live "
+                     f"phase map — see AXIS_GREEN_SLOT)")
+
+    if phase < 0:
+        return _fail(f"phase numbering starts at {VOICE_PHASE_BASE}", notes)
+    if find_duration_s(transcript) is not None:
+        # Said rather than silently dropped: `force_phase` has no duration
+        # argument, it pins until released, and an operator who said "for 20
+        # seconds" will otherwise assume it expired on its own.
+        notes.append("a pin holds until released — the spoken duration was "
+                     f"not applied; say 'clear the override on {junction}' "
+                     "to release it")
     _k, raw_phase = _first_key(args, _PHASE_KEYS)
     spoken = parse_number(raw_phase, allow_homophones=True)
     if spoken is None:
@@ -456,6 +572,25 @@ def _n_set_topology(args, transcript, resolver, notes) -> NormalisedCall:
             notes.append(f"topology taken from the command -> {raw_topology}")
     if raw_topology is None:
         return _fail("no topology in the command (say '4 3 2')", notes)
+    # DEFENCE IN DEPTH, added after security review (2026-09-04). This was the
+    # ONE normaliser that passed the model's raw argument through untouched,
+    # and `control_api._parse_topology` accepts a list — so a reply of
+    # `[4, 3, Infinity]` reached `int(inf)` and raised `OverflowError` out of a
+    # pipeline documented as never raising. `_reject_constant` in `_parsing.py`
+    # now stops a non-finite value entering at all; this is the second layer,
+    # and it also brings this normaliser in line with every other one, each of
+    # which builds a checked argument rather than forwarding a model value.
+    if isinstance(raw_topology, (list, tuple)):
+        digits = [d for d in raw_topology
+                  if isinstance(d, int) and not isinstance(d, bool)]
+        if len(digits) != len(raw_topology):
+            return _fail("topology must be three whole numbers, e.g. '4 3 2'",
+                         notes)
+        raw_topology = "".join(str(d) for d in digits)
+    if not isinstance(raw_topology, (str, int)) or isinstance(raw_topology, bool):
+        return _fail("topology must be three whole numbers, e.g. '4 3 2'", notes)
+    return NormalisedCall("set_topology", {"topology_id": str(raw_topology)},
+                          notes)
     return NormalisedCall("set_topology", {"topology_id": raw_topology}, notes)
 
 
@@ -504,6 +639,10 @@ def _n_inject_incident(args, transcript, resolver, notes) -> NormalisedCall:
     if error:
         return _fail(error, notes)
     if duration_s is not None:
+        err = _out_of_range("estimated duration", duration_s,
+                            INCIDENT_DURATION_RANGE_S, unit="s")
+        if err:
+            return _fail(err, notes)
         out["estimated_duration_s"] = duration_s
     return NormalisedCall("inject_incident", out, notes)
 
@@ -528,6 +667,77 @@ assert set(_NORMALISERS) == set(CONTROL_FUNCTIONS), (
     f"missing {sorted(set(CONTROL_FUNCTIONS) - set(_NORMALISERS))}, "
     f"extra {sorted(set(_NORMALISERS) - set(CONTROL_FUNCTIONS))}"
 )
+
+
+# ---------------------------------------------------------------------------
+# Operator-facing confirmation
+# ---------------------------------------------------------------------------
+# ONE builder, living here because `intents.py` is imported by both
+# `intent_agent.py` and `bridge.py` and imports neither — so there is no cycle
+# and, more to the point, no second copy. There were two (code review,
+# 2026-09-04) and they had ALREADY drifted: one said "phase index 1" and the
+# other "phase 1" for the same action, which is the exact 0-vs-1-based
+# ambiguity CLAUDE.md's APPROVED VOICE DESIGN item 3 requires be reconciled
+# explicitly rather than left to chance.
+def _c_get_stats(args, outcome) -> str:
+    if not outcome.get("ready"):
+        return str(outcome.get("reason", "No statistics yet."))
+    return (f"Mean max wait {outcome.get('mean_wait_max', '?')}s across "
+            f"{len(outcome.get('lanes', {}))} lanes; "
+            f"{outcome.get('starvation_events_total', 0)} starvation events; "
+            f"throughput {outcome.get('throughput_total', 0)}.")
+
+
+def _c_force_phase(args, outcome) -> str:
+    # BOTH numbers, always. The officer said "phase 2" and the corridor acted
+    # on index 1; showing only one of those makes the decision log look like it
+    # disagrees with what they just asked for.
+    index = args["phase"]
+    return (f"{args['junction_id']} pinned to phase {index + VOICE_PHASE_BASE} "
+            f"(index {index}); it applies at the next decision step, and §10 "
+            f"still validates it.")
+
+
+#: One confirmation per allowlisted function, asserted against the allowlist
+#: for the same reason `_NORMALISERS` is: a function added to `control_api`
+#: without a confirmation would otherwise fall through to a generic "applied"
+#: string in front of an audience, and nothing would raise.
+_CONFIRMATIONS = {
+    "get_stats": _c_get_stats,
+    "set_mode": lambda a, o: f"Mode set to {a['mode']}.",
+    "set_baseline_mode": lambda a, o: f"Controller set to {a['baseline']}.",
+    "set_lane_bias": lambda a, o: (
+        f"Lane {a['lane_id']} weighted ×{a['weight']:g} for "
+        f"{a['duration_s']:g}s."),
+    "trigger_emergency": lambda a, o: (
+        f"Emergency corridor requested for {a['lane_id']}."),
+    "force_phase": _c_force_phase,
+    "clear_override": lambda a, o: (
+        f"Override cleared on {a.get('junction_id') or 'every junction'}."),
+    "set_topology": lambda a, o: (
+        f"Corridor rebuilding as {o.get('topology_id') or a['topology_id']}."),
+    "inject_incident": lambda a, o: (
+        f"{a['incident_type']} reported at {a['junction_id']} on "
+        f"{', '.join(a['affected_lanes'])}."),
+}
+assert set(_CONFIRMATIONS) == set(CONTROL_FUNCTIONS), (
+    "voice: _CONFIRMATIONS and control_api.CONTROL_FUNCTIONS have drifted — "
+    f"missing {sorted(set(CONTROL_FUNCTIONS) - set(_CONFIRMATIONS))}, "
+    f"extra {sorted(set(_CONFIRMATIONS) - set(CONTROL_FUNCTIONS))}"
+)
+
+
+def confirmation(function: str, args: dict, outcome: dict) -> str:
+    """Short operator-facing echo. Names the RESOLVED lane, not the spoken
+    number — the officer said "lane 3" and the corridor acted on `N1_J2_2`, and
+    only one of those is checkable against the decision log on screen.
+
+    Never raises: a formatting slip must not drop an action already applied.
+    """
+    try:
+        return _CONFIRMATIONS[function](args, outcome)
+    except Exception:
+        return f"{function} applied."
 
 
 def normalise_call(function, raw_args, transcript: str,

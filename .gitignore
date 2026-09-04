@@ -62,3 +62,10 @@ models/*.pt
 # sim/media/README.md IS tracked and says what belongs there.
 sim/media/*
 !sim/media/README.md
+
+# Real environment, including SARVAM_API_KEY. `.env.example` IS committed and
+# carries only blank placeholders; this pattern is what keeps a filled-in key
+# out of the history, where it could only be dealt with by rotating it.
+.env
+.env.local
+.env.*.local

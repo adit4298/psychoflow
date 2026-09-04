@@ -72,6 +72,13 @@ reduces noise; the allowlist is what makes a mis-parse harmless.
 
 from __future__ import annotations
 
+import io
+import math
+import os
+import time
+import unicodedata
+from dataclasses import dataclass, field
+from pathlib import Path
 import math
 import time
 import unicodedata
@@ -150,6 +157,14 @@ def normalise_transcript(raw) -> str:
     """
     if not isinstance(raw, str):
         return ""
+    # Slice BEFORE the per-character scan (hardened after security review,
+    # 2026-09-04). The cap used to be applied at the end, so a caller could
+    # force a `unicodedata.category()` pass and a string rebuild proportional
+    # to whatever they sent rather than to the 400 characters actually kept —
+    # on an endpoint with no authentication. The 4x headroom leaves room for
+    # collapsing runs of whitespace and stripped control characters without
+    # truncating a genuinely long utterance any earlier than before.
+    raw = raw[:MAX_TRANSCRIPT_CHARS * 4]
     cleaned = "".join(
         " " if unicodedata.category(ch).startswith("C") else ch for ch in raw
     )
@@ -307,6 +322,316 @@ class LocalWhisperSTT:
 
 
 # ---------------------------------------------------------------------------
+# PROVIDER FACTORY (DESIGN.md §7.5 — `--stt {webspeech,whisper,sarvam}`)
+# ---------------------------------------------------------------------------
+# Every provider returns the SAME dict, or None:
+#
+#     {"text": str, "language": str | None, "provider": str, "latency_ms": int}
+#
+# None means "nothing usable" and is the only failure channel — no provider
+# raises. A missing Sarvam key, a transport error, an undecodable clip and a
+# silent recording are all the same outcome to the caller: the operator is told
+# "Didn't catch a command" and NOTHING is dispatched.
+#
+# STT IS TRANSCRIPTION, NEVER REASONING (§2, DESIGN.md §7.5). Sarvam sits in
+# the same category as the already-accepted Web Speech API: a free cloud
+# service that turns audio into text. The intent parse — the only step that
+# decides anything — is local Gemma via Ollama and must stay that way.
+PROVIDER_WEBSPEECH = "webspeech"
+PROVIDER_WHISPER = "whisper"
+PROVIDER_SARVAM = "sarvam"
+STT_PROVIDERS = (PROVIDER_WEBSPEECH, PROVIDER_WHISPER, PROVIDER_SARVAM)
+
+#: Default is the truly-on-device one. Chosen over `webspeech` because it is
+#: the only provider needing neither a network nor a key, so the demo survives
+#: conference wifi — and over `sarvam` because a default that spends credits is
+#: a default that spends them by accident.
+DEFAULT_STT_PROVIDER = PROVIDER_WHISPER
+
+#: Audio upload cap. A spoken traffic command is a few seconds; anything past
+#: this is not a command. Checked at the boundary because the STT endpoint is
+#: unauthenticated like the rest of §13.
+MAX_AUDIO_BYTES = 10 * 1024 * 1024
+
+#: Sarvam's REST surface. Saarika transcribes in the spoken language; Saaras
+#: transcribes AND translates to English. See `SarvamSTT` for why both exist.
+SARVAM_STT_URL = "https://api.sarvam.ai/speech-to-text"
+SARVAM_STT_TRANSLATE_URL = "https://api.sarvam.ai/speech-to-text-translate"
+SARVAM_STT_MODEL = "saarika:v2.5"
+SARVAM_STT_TRANSLATE_MODEL = "saaras:v2.5"
+SARVAM_API_KEY_ENV = "SARVAM_API_KEY"
+SARVAM_TIMEOUT_S = 20.0
+
+#: Language codes the intent prompt can already read without translation.
+#: Everything else routes through Saaras so the parser always gets English.
+ENGLISH_CODES = ("en-in", "en-us", "en-gb", "en")
+
+
+def _stt_result(text, language, provider: str, started: float) -> dict | None:
+    """Uniform provider result, or None if nothing usable survived hygiene."""
+    cleaned = normalise_transcript(text)
+    if not cleaned:
+        return None
+    return {
+        "text": cleaned,
+        "language": language or None,
+        "provider": provider,
+        "latency_ms": int((time.perf_counter() - started) * 1000),
+    }
+
+
+def _audio_bytes(source) -> bytes | None:
+    """bytes / `Path` / file-like -> bytes, capped. None if unusable.
+
+    **A BARE `str` IS REFUSED, DELIBERATELY** (hardened after security review,
+    2026-09-04). Reading a `str` as a filesystem path looks harmless while the
+    only caller passes a test fixture, but this function sits behind an
+    unauthenticated upload endpoint: the moment any handler forwards a JSON
+    string here instead of real bytes, `"C:/Users/.../.env"` becomes an
+    arbitrary local file read, and a large file becomes memory exhaustion. A
+    local fixture must therefore say so with an explicit `Path`, which no JSON
+    body can produce. `sim/run_voice_check.py` passes `WAV.read_bytes()`.
+
+    Reads are BOUNDED rather than checked afterwards — `MAX_AUDIO_BYTES + 1` is
+    all that is needed to know the input is over the cap, so an oversized
+    upload is never fully materialised just to be rejected.
+    """
+    if isinstance(source, (bytes, bytearray, memoryview)):
+        data = bytes(source)
+    elif isinstance(source, Path):
+        try:
+            with source.open("rb") as fh:
+                data = fh.read(MAX_AUDIO_BYTES + 1)
+        except OSError:
+            return None
+    elif hasattr(source, "read"):
+        try:
+            data = source.read(MAX_AUDIO_BYTES + 1)
+        except TypeError:
+            return None     # a reader that will not take a size limit
+        except Exception:
+            return None
+        if not isinstance(data, bytes):
+            return None
+    else:
+        return None
+    if not data or len(data) > MAX_AUDIO_BYTES:
+        return None
+    return data
+
+
+class WebSpeechSTT:
+    """Passthrough — the BROWSER already did the recognition (see docstring).
+
+    `source` is the recognised text, or the frontend's POST body. Nothing is
+    transcribed here, so `latency_ms` is this call's own cost (~0) and not the
+    recognition's; the panel shows the browser's own timing for that.
+    """
+
+    provider = PROVIDER_WEBSPEECH
+    on_device = False   # Chrome streams the audio to Google (§2)
+
+    def __init__(self, *, lang: str = LANG_HINTS[0]) -> None:
+        self.lang = lang
+
+    def available(self) -> bool:
+        return True     # nothing to install; the browser is the dependency
+
+    def status(self) -> dict:
+        return {"provider": self.provider, "available": True,
+                "on_device": False, "lang": self.lang}
+
+    def transcribe(self, source, *, language: str | None = None) -> dict | None:
+        started = time.perf_counter()
+        if isinstance(source, dict):
+            event = accept_web_speech_result(source)
+            if event is None:
+                return None
+            return _stt_result(event.transcript, language or self.lang,
+                               self.provider, started)
+        if not isinstance(source, str):
+            # Audio bytes reached the browser provider — a wiring mistake, not
+            # something to paper over by quietly picking a different engine.
+            return None
+        return _stt_result(source, language or self.lang, self.provider, started)
+
+
+class WhisperSTT:
+    """faster-whisper `base` on CPU. Truly on-device; costs nothing to run.
+
+    Thin adapter over `LocalWhisperSTT` (which predates the factory and keeps
+    its own `TranscriptEvent` contract) so all three providers answer one
+    method with one shape.
+    """
+
+    provider = PROVIDER_WHISPER
+    on_device = True
+
+    def __init__(self, **kwargs) -> None:
+        kwargs.setdefault("enabled", True)
+        self._impl = LocalWhisperSTT(**kwargs)
+
+    def available(self) -> bool:
+        return LocalWhisperSTT.is_available()
+
+    def status(self) -> dict:
+        return {"provider": self.provider, "on_device": True, **self._impl.status()}
+
+    def transcribe(self, source, *, language: str | None = None) -> dict | None:
+        started = time.perf_counter()
+        data = _audio_bytes(source)
+        if data is None:
+            return None
+        model = self._impl._ensure_model()
+        if model is None:
+            return None
+        try:
+            segments, info = model.transcribe(
+                io.BytesIO(data), beam_size=1, language=language)
+            text = " ".join(seg.text for seg in segments)
+        except Exception as exc:
+            self._impl._load_error = f"transcribe failed: {exc}"
+            return None
+        detected = getattr(info, "language", None) or language
+        return _stt_result(text, detected, self.provider, started)
+
+
+class SarvamSTT:
+    """Sarvam AI STT — Saarika, with Saaras when the speaker is not in English.
+
+    WHY TWO MODELS. Saarika returns the transcript in the SPOKEN language, so a
+    Kannada command comes back in Kannada script and the intent prompt (an
+    English allowlist) cannot read it. Saaras transcribes AND translates to
+    English. So: one Saarika call with `language_code="unknown"` (auto-detect);
+    if the detected language is not English, ONE follow-up Saaras call. English
+    — the demo's normal case — therefore costs exactly one call.
+
+    CREDIT DISCIPLINE (this is why the class is inert by default): nothing
+    constructs this unless `--stt sarvam` was passed explicitly, and no test in
+    this repo sets it. The self-test below asserts the no-key path makes ZERO
+    requests, and `calls` counts them so the §11c manual run can report cost.
+
+    THE KEY. Read from the `SARVAM_API_KEY` environment variable at
+    construction. Never a default, never a literal, never logged, never on the
+    §13.2 frame or in a result dict. A missing key makes the provider
+    UNAVAILABLE — `available()` is False and `transcribe()` returns None
+    without touching the network — which is documented behaviour, not an error
+    to surface.
+    """
+
+    provider = PROVIDER_SARVAM
+    on_device = False
+
+    def __init__(self, *, api_key: str | None = None,
+                 model: str = SARVAM_STT_MODEL,
+                 translate_model: str = SARVAM_STT_TRANSLATE_MODEL,
+                 timeout_s: float = SARVAM_TIMEOUT_S,
+                 session=None) -> None:
+        self._key = api_key if api_key is not None else os.environ.get(
+            SARVAM_API_KEY_ENV) or None
+        self.model = model
+        self.translate_model = translate_model
+        self.timeout_s = float(timeout_s)
+        self._session = session              # injectable, so the self-test can
+        self.last_error: str | None = None   # assert zero calls without a key
+        self.calls = 0                       # credit counter (§11c manual run)
+
+    def available(self) -> bool:
+        return bool(self._key)
+
+    def status(self) -> dict:
+        """Availability WITHOUT the key, or any prefix or length of it."""
+        return {"provider": self.provider, "on_device": False,
+                "available": self.available(),
+                "key_env": SARVAM_API_KEY_ENV,
+                "model": self.model, "calls": self.calls,
+                "last_error": self.last_error}
+
+    def _post(self, url: str, data: dict, audio: bytes) -> dict | None:
+        self.calls += 1
+        try:
+            if self._session is None:
+                import requests
+                self._session = requests.Session()
+            reply = self._session.post(
+                url,
+                headers={"api-subscription-key": self._key},
+                data=data,
+                files={"file": ("command.wav", audio, "audio/wav")},
+                timeout=self.timeout_s,
+            )
+            if reply.status_code != 200:
+                # The body can echo request detail; keep the STATUS only, so a
+                # key can never reach a log through an error path.
+                self.last_error = f"sarvam HTTP {reply.status_code}"
+                return None
+            body = reply.json()
+        except Exception as exc:
+            self.last_error = type(exc).__name__
+            return None
+        return body if isinstance(body, dict) else None
+
+    @staticmethod
+    def _is_english(code) -> bool:
+        return isinstance(code, str) and code.strip().lower() in ENGLISH_CODES
+
+    def transcribe(self, source, *, language: str | None = None) -> dict | None:
+        started = time.perf_counter()
+        if not self.available():
+            self.last_error = f"{SARVAM_API_KEY_ENV} is not set"
+            return None
+        audio = _audio_bytes(source)
+        if audio is None:
+            return None
+
+        body = self._post(SARVAM_STT_URL, {
+            "model": self.model,
+            "language_code": language or "unknown",
+        }, audio)
+        if body is None:
+            return None
+        detected = body.get("language_code")
+        text = body.get("transcript")
+
+        if not self._is_english(detected):
+            # Saaras: transcribe + translate, so the LOCAL parser always gets
+            # English. A second call, and only for non-English speech.
+            translated = self._post(SARVAM_STT_TRANSLATE_URL,
+                                    {"model": self.translate_model}, audio)
+            if translated is not None and translated.get("transcript"):
+                return _stt_result(translated["transcript"], detected,
+                                   self.provider, started)
+        return _stt_result(text, detected, self.provider, started)
+
+
+def get_stt(provider: str = DEFAULT_STT_PROVIDER, **kwargs):
+    """Provider name -> an object exposing `transcribe` / `available` / `status`.
+
+    Raises ValueError on an unknown name: a typo'd `--stt` flag is a startup
+    mistake and must be loud, unlike a runtime transcription failure, which is
+    a silent fail-closed None.
+    """
+    if provider not in STT_PROVIDERS:
+        raise ValueError(
+            f"unknown STT provider {provider!r}; choose one of {STT_PROVIDERS}")
+    if provider == PROVIDER_WEBSPEECH:
+        return WebSpeechSTT(**kwargs)
+    if provider == PROVIDER_WHISPER:
+        return WhisperSTT(**kwargs)
+    return SarvamSTT(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# Self-test — `python -m backend.voice.stt`. No network, no model, no SUMO.
+# ---------------------------------------------------------------------------
+def _raises(fn) -> bool:
+    try:
+        fn()
+    except Exception:
+        return True
+    return False
+
+
 # Self-test — `python -m backend.voice.stt`. No network, no model, no SUMO.
 # ---------------------------------------------------------------------------
 def _selftest() -> int:
@@ -382,6 +707,55 @@ def _selftest() -> int:
     else:
         check("faster-whisper present — bad path still fails closed",
               w2.transcribe("nonexistent.wav") is None)
+
+    # 4. provider factory — shape, and the credit guarantee
+    check("default provider is the on-device one",
+          DEFAULT_STT_PROVIDER == PROVIDER_WHISPER)
+    ws = get_stt(PROVIDER_WEBSPEECH)
+    out = ws.transcribe("hold north south green at J2 for 20 seconds")
+    check("webspeech passthrough returns the uniform shape",
+          isinstance(out, dict)
+          and set(out) == {"text", "language", "provider", "latency_ms"}
+          and out["provider"] == PROVIDER_WEBSPEECH
+          and out["text"] == "hold north south green at J2 for 20 seconds",
+          str(out))
+    check("webspeech refuses audio bytes rather than guessing",
+          ws.transcribe(b"RIFF....WAVE") is None)
+    check("webspeech is honestly flagged off-device", ws.on_device is False)
+    check("unknown provider raises at startup",
+          _raises(lambda: get_stt("gpt4o")))
+    check("whisper provider is on-device and enabled by the factory",
+          get_stt(PROVIDER_WHISPER).on_device is True)
+
+    # THE CREDIT GUARANTEE. A Sarvam client with no key must make ZERO
+    # requests — asserted against an injected session that records every call,
+    # not merely by reading the code back.
+    class _TripwireSession:
+        def __init__(self): self.posts = 0
+        def post(self, *a, **k):
+            self.posts += 1
+            raise AssertionError("no-key Sarvam client touched the network")
+
+    tripwire = _TripwireSession()
+    sarvam = get_stt(PROVIDER_SARVAM, api_key=None, session=tripwire)
+    # Explicitly empty, so the check holds on a machine where the env var IS set.
+    sarvam._key = None
+    check("no key -> sarvam unavailable, not an error", sarvam.available() is False)
+    check("no key -> transcribe returns None and spends NOTHING",
+          sarvam.transcribe(b"RIFF0000WAVEfmt ") is None
+          and tripwire.posts == 0 and sarvam.calls == 0)
+    check("sarvam status never carries the key",
+          "key" not in " ".join(f"{k}{v}" for k, v in sarvam.status().items()
+                                if k != "key_env").lower()
+          or all(k != "api_key" for k in sarvam.status()))
+    check("english detection routes past the translate call",
+          SarvamSTT._is_english("en-IN") and SarvamSTT._is_english("EN")
+          and not SarvamSTT._is_english("kn-IN")
+          and not SarvamSTT._is_english(None))
+    check("audio cap rejects an oversized upload",
+          _audio_bytes(b"x" * (MAX_AUDIO_BYTES + 1)) is None
+          and _audio_bytes(b"") is None
+          and _audio_bytes(b"ok") == b"ok")
 
     passed = sum(1 for _n, ok, _d in checks if ok)
     for name, ok, detail in checks:

@@ -146,6 +146,20 @@ def _offline_checks(rec: _Recorder) -> None:
               call.ok and call.args == {"lane_id": "N2_J2_2", "weight": 3.0,
                                         "duration_s": 300.0},
               f"{call.error or call.args}")
+    # UPDATED with the 11a range check. The property under test is unchanged
+    # and still holds: a bare `5` is NOT silently promoted to 5 minutes. What
+    # changed is what happens next — 5s is below control_api's
+    # LANE_BIAS_DURATION_RANGE_S floor of 10s, so the call is now rejected HERE
+    # rather than dispatched and declined downstream. The old assertion
+    # (`duration_s == 5.0`) only ever passed because nothing checked the bound
+    # before dispatch; the "seconds, not minutes" reading is now proved by the
+    # rejection naming 5s rather than 300s.
+    call2 = normalise_call("set_lane_bias", {"lane": 3, "duration": 5},
+                           "give lane 3 more priority for five", resolver)
+    rec.check("a bare duration with NO spoken unit stays seconds "
+              "(no magnitude guessing), then fails the range check as 5s",
+              (not call2.ok) and "5s" in (call2.error or "")
+              and "10s-900s" in (call2.error or ""),
     call2 = normalise_call("set_lane_bias", {"lane": 3, "duration": 5},
                            "give lane 3 more priority for five", resolver)
     rec.check("a bare duration with NO spoken unit stays seconds "
@@ -283,6 +297,20 @@ def _pinned_reply_checks(rec: _Recorder) -> None:
     rec.check("nonexistent lane -> fail closed",
               not res.understood and not _drain(state))
 
+    # REFUSED on control_api's own bounds — the operator must see THE BOUND,
+    # not "not understood", and nothing must be queued. The transcript states
+    # no weight word on purpose, so the model's absurd number is the one that
+    # gets bounds-checked.
+    #
+    # UPDATED with the 11a range check. Both original properties still hold
+    # (nothing queued; the message names the bound rather than saying "not
+    # understood"), but the rejection now happens one step EARLIER — in
+    # `normalise_call`, against `LANE_BIAS_WEIGHT_RANGE` imported from
+    # `control_api`, so there is still exactly one source of truth for the
+    # bound. `understood` is therefore False where it used to be True: the
+    # command never became a dispatchable call. What that flag must NOT do is
+    # change the operator's message to "didn't catch a command", which is why
+    # `_miss` special-cases a range failure.
     # Understood but REFUSED by control_api's own bounds — the operator must
     # see the API's reason, not "not understood", and nothing must be queued.
     # The transcript states no weight word on purpose, so the model's absurd
@@ -292,6 +320,11 @@ def _pinned_reply_checks(rec: _Recorder) -> None:
                               "adjust lane 1 for 300 seconds")
     queued = _drain(state)  # drained UNCONDITIONALLY — an `and` chain would
     # short-circuit past it on failure and leak the command into the next check
+    rec.check("out-of-range weight: rejected on control_api's bound, "
+              "nothing queued, the operator sees the bound",
+              (not res.applied and not queued
+               and "0.1-10" in (res.message or "")
+               and res.message != "Command not understood, please try again"),
     rec.check("out-of-range weight: understood, declined by control_api, "
               "nothing queued",
               (res.understood and not res.applied and not queued
@@ -439,6 +472,12 @@ def selftest(argv=None) -> int:
     print(f"\n{'=' * 62}\nintent_agent done-bar: {total_pass}/{total} passed")
     print(f"lane numbering: voice is {VOICE_LANE_BASE}-based; "
           f"narrator renders 0-based SUMO slots (see intents.py's docstring)")
+    # Corrected 2026-09-04: this line said the STT default was the browser Web
+    # Speech API. That is the default `TranscriptEvent.source` — a different
+    # thing from the PROVIDER the server actually runs, which `--stt` selects
+    # and which now defaults to local whisper.
+    print("STT provider default is `whisper` (local, on-device). `webspeech` "
+          "is NOT local — in Chrome it streams to Google (§2).")
     print("STT default is the browser Web Speech API, which is NOT local (§2).")
     return 0 if total_pass == total else 1
 

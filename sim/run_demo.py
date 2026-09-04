@@ -55,6 +55,21 @@ REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+# Imported for the CHOICES ONLY — `backend.voice.{stt,tts}` deliberately pull
+# in no SUMO, no torch and no numpy (see `backend/voice/__init__.py`), so this
+# stays a launcher that starts processes rather than one that loads a
+# simulator into its own interpreter.
+from backend.voice.stt import (  # noqa: E402
+    DEFAULT_STT_PROVIDER,
+    STT_PROVIDERS,
+)
+from backend.voice.tts import (  # noqa: E402
+    DEFAULT_TTS_PROVIDER,
+    TTS_PROVIDERS,
+)
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
 PY = sys.executable
 FRONTEND = REPO / "frontend"
 DEFAULT_CLIP = REPO / "sim" / "media" / "_synthetic_selftest.mp4"
@@ -66,7 +81,14 @@ def _commands(args) -> list[tuple[str, list[str], Path, dict]]:
     """(label, argv, cwd, extra_env) for each child, in start order."""
     backend = [PY, "-m", "backend.main",
                "--topology", args.topology,
-               "--realtime-factor", str(args.realtime_factor)]
+               "--realtime-factor", str(args.realtime_factor),
+               # §14 assistant. Forwarded verbatim, so the backend stays the
+               # one place the choices and defaults are defined. `whisper`
+               # needs no key and no network; `sarvam` is the only value that
+               # spends anything, and it only ever gets here because someone
+               # typed it.
+               "--stt", args.stt,
+               "--tts", args.tts]
     if args.vision_source == "detector":
         backend += ["--vision-source", "detector", "--vision-clip", str(args.clip)]
     if args.iot:
@@ -103,6 +125,18 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-frontend", action="store_true",
                    help="Backend only (useful when Vite is already running).")
     p.add_argument("--no-shadow", action="store_true")
+    # Choices deliberately NOT re-listed here — imported from the modules that
+    # define them, so a provider added later cannot be silently unreachable
+    # through the demo entrypoint.
+    p.add_argument("--stt", choices=STT_PROVIDERS, default=DEFAULT_STT_PROVIDER,
+                   help="Speech-to-text for the §14 assistant. Default "
+                        "`whisper` (local, no key, no network). `sarvam` "
+                        "needs SARVAM_API_KEY and spends free-tier credit; "
+                        "`webspeech` means the BROWSER transcribes, which is "
+                        "NOT on-device. Intent parsing is the local model "
+                        "either way.")
+    p.add_argument("--tts", choices=TTS_PROVIDERS, default=DEFAULT_TTS_PROVIDER,
+                   help="Speak the confirmation line. Default `none`.")
     p.add_argument("--publish-steps", type=int, default=100000,
                    help="Sensor publishes to make; the default outlasts a demo.")
     p.add_argument("--publish-interval", type=float, default=1.0)
