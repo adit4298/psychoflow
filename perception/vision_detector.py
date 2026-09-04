@@ -814,7 +814,40 @@ class VisionDetector:
             "detector_ready": True,
         }
 
+    def advance(self) -> FrameObservation | None:
+        """Decode and process ONE frame, looping the clip at end of file.
+
+        `observe()` reads `self.last_frame`, which only `process_frame()`
+        sets — so without a pump the detector answers every lane from the
+        "no frame yet" branch forever (`detector_ready: False`, all counts
+        zero) while still reporting `source: vision_detector`. That is a
+        feed that looks attached and measures nothing, which is exactly the
+        quiet wrongness §17 forbids. `observe_all()` is the one entry point
+        every consumer routes through (`DigitalTwin.update()` calls it once
+        per step), so the pump belongs here rather than in each caller.
+
+        A file source LOOPS: a 60s clip cannot cover a longer demo, and a
+        detector that goes permanently blank part-way through is worse than
+        one that repeats. A camera source has no end to rewind to, so a
+        failed read there just leaves the previous frame standing.
+        """
+        capture = self._ensure_capture()
+        ok, frame = capture.read()
+        if not ok:
+            if not isinstance(self.source, str):
+                return self.last_frame  # camera hiccup — keep the last frame
+            import cv2
+
+            capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, frame = capture.read()
+            if not ok:
+                return self.last_frame
+        fps = capture.get(5) or 0.0  # cv2.CAP_PROP_FPS
+        step = 1.0 / fps if fps and fps > 0 else 1.0
+        return self.process_frame(frame, timestamp_s=(self.frame_index + 1) * step)
+
     def observe_all(self, readings: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        self.advance()
         return {lane_id: self.observe(reading) for lane_id, reading in readings.items()}
 
 

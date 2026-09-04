@@ -5216,3 +5216,42 @@ Now resolved once at module load, exactly as `createSource()` already did.
 intent parsing", never "local-only"** — `webspeech` streams audio to Google and
 `sarvam` is a cloud service. The hard rule that IS true: no Claude API and no
 paid inference anywhere in the runtime path.
+
+## 2026-09-04 — §7.2 detector (Phase 10 demo verification)
+
+**Decision:** Added `VisionDetector.advance()` and made `observe_all()` call it,
+so the detector decodes one video frame per twin step and loops the clip at EOF.
+
+**Why:** `observe()` answers from `self.last_frame`, which only `process_frame()`
+sets — and `process_frame()`/`run()` were called from nowhere outside
+`vision_detector.py`. `DigitalTwin.update()` calls `vision.observe_all(readings)`
+once per step, which fanned out `last_frame is None` forever. So
+`--vision-source detector` produced a feed that reported `source:
+vision_detector` on every lane while measuring nothing: `detector_ready: False`,
+every `vehicle_count` 0, `detected_at` pinned at 0.0. The dashboard's Live
+detection panel was badged VISION_DETECTOR with all four approach counts at 0 —
+a feed that looks attached and measures nothing, the §17 failure mode. Fixed in
+`observe_all()` because that is the single entry point every consumer routes
+through; no change to `twin/digital_twin.py` or `backend/sim_runner.py`.
+File sources LOOP (a 60s clip cannot cover a longer demo, and going blank
+part-way is worse than repeating); a camera read failure keeps the last frame,
+since there is no end to rewind to.
+
+**Deviates from plan?** No. Closes a wiring gap in Track A's detector seam;
+the §7.2 schema, the mock path and the byte-identical default argv are untouched.
+
+**Verified:** `tests/test_vision_detector.py` 28/28; `sim/run_detector_wire_check.py`
+14/14 (both unchanged by the fix). New assert-based check: 20 consecutive
+`observe_all()` calls all return `detector_ready: True`, `frame_index` reaches 19,
+summed `vehicle_count` 342 > 0, and `advance()` keeps returning frames past EOF.
+Live end-to-end on `traffic_03.mp4`: J2 per-approach north=18/21, south=6,
+`detected_at` advancing 3.05s -> 18.50s into the clip, boxes rendering in a real
+browser at http://localhost:5173.
+
+**Known limits, unchanged by this fix and worth saying out loud (§17):**
+east/west read 0 by construction — `VisionConfig.default()` defines north/south
+ROIs only, and is flagged `is_placeholder` (polygons were never drawn against
+this footage). `DetectionFeed.tsx` synthesises box POSITIONS from the real
+per-class counts; the geometry is not YOLO's, and the `0.90` on each label is
+`_frame_confidence()`'s hardcoded placeholder, not a measured confidence. The
+counts are real; the boxes are an illustration of them.
