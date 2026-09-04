@@ -79,6 +79,10 @@ import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
+import math
+import time
+import unicodedata
+from dataclasses import dataclass, field
 
 # ---------------------------------------------------------------------------
 # Contract constants
@@ -628,6 +632,8 @@ def _raises(fn) -> bool:
     return False
 
 
+# Self-test — `python -m backend.voice.stt`. No network, no model, no SUMO.
+# ---------------------------------------------------------------------------
 def _selftest() -> int:
     checks: list[tuple[str, bool, str]] = []
 

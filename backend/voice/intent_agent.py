@@ -312,6 +312,14 @@ class VoiceIntentAgent:
             # reply achieves is a valid call to one of nine bounded functions
             # an operator standing at the console could have clicked.
             {"role": "user", "content": f"Command: {json.dumps(transcript)}"},
+            # Delimited so the transcript reads as one quoted field rather
+            # than as continuation of the instructions. This is HYGIENE, not a
+            # boundary — a transcript containing ">>>" can close it, and no
+            # amount of prompt structure makes a 4B model injection-proof. The
+            # actual guarantee is the allowlist gate below plus control_api's
+            # bounds: the worst a fully-suborned reply achieves is a valid call
+            # to one of nine functions an operator could have clicked.
+            {"role": "user", "content": f"Command: <<<{transcript}>>>"},
         ]
         try:
             reply = client.chat(model=self.model, messages=messages,
@@ -359,6 +367,7 @@ class VoiceIntentAgent:
         # branch below already makes.
         result.message = (reason if RANGE_ERROR_MARKER in reason
                           else NOT_UNDERSTOOD_MESSAGE)
+        result.message = NOT_UNDERSTOOD_MESSAGE
         result.reason = reason
         result.function = None
         result.args = {}
@@ -411,6 +420,32 @@ class VoiceIntentAgent:
         obj = extract_json_object(raw)
         if obj is None:
             return done(reason="model reply contained no JSON object")
+    def handle(self, utterance) -> VoiceResult:
+        """Transcript (str or `TranscriptEvent`) -> `VoiceResult`. Never raises."""
+        started = time.perf_counter()
+        if isinstance(utterance, stt.TranscriptEvent):
+            event = utterance
+        else:
+            event = stt.from_text(utterance)
+        if event is None:
+            res = VoiceResult(transcript=stt.normalise_transcript(utterance),
+                              model=self.model)
+            return self._miss(res, "empty or unusable transcript")
+
+        res = VoiceResult(transcript=event.transcript, model=self.model,
+                          source=event.source)
+
+        try:
+            raw = self.call_model(event.transcript)
+        except Exception as exc:
+            res.latency_ms = int((time.perf_counter() - started) * 1000)
+            return self._miss(res, f"model call failed: {type(exc).__name__}: {exc}")
+        res.raw = (raw or "")[:_RAW_KEEP_CHARS]
+        res.latency_ms = int((time.perf_counter() - started) * 1000)
+
+        obj = extract_json_object(raw)
+        if obj is None:
+            return self._miss(res, "model reply contained no JSON object")
 
         function = next((obj[k] for k in _FUNCTION_KEYS
                          if k in obj and obj[k] is not None), None)
@@ -470,6 +505,27 @@ class VoiceIntentAgent:
                 # `handle()` must never raise — a formatting slip in an echo
                 # is not a reason to drop an action that was already applied.
                 res.message = f"{function} applied"
+            return self._miss(res, f"function {function!r} is not on the "
+                                   f"control allowlist")
+
+        call = normalise_call(function, args, event.transcript, self._resolver())
+        res.assumptions = list(call.assumptions)
+        if not call.ok:
+            return self._miss(res, call.error or "arguments could not be resolved")
+
+        outcome = dispatch(self.state, call.function, call.args)
+        res.understood = True
+        res.function = call.function
+        res.args = call.args
+        res.result = outcome
+        res.latency_ms = int((time.perf_counter() - started) * 1000)
+        if outcome.get("applied") is True or call.function == "get_stats":
+            try:
+                res.message = _confirmation(call.function, call.args, outcome)
+            except Exception:
+                # `handle()` must never raise — a formatting slip in an echo
+                # is not a reason to drop an action that was already applied.
+                res.message = f"{call.function} applied"
         else:
             # Understood, but the control API declined it (out of range, no
             # checkpoint, Greedy not built yet, ...). Surface ITS reason —
@@ -478,6 +534,38 @@ class VoiceIntentAgent:
             res.message = str(outcome.get("reason") or "the dashboard declined "
                                                        "that command")
         return res
+
+
+def _confirmation(function: str, args: dict, outcome: dict) -> str:
+    """Short operator-facing echo. Names the RESOLVED lane, not the spoken one."""
+    if function == "get_stats":
+        if not outcome.get("ready"):
+            return str(outcome.get("reason", "no statistics yet"))
+        return (f"Mean max wait {outcome.get('mean_wait_max', '?')}s across "
+                f"{len(outcome.get('lanes', {}))} lanes; "
+                f"{outcome.get('starvation_events_total', 0)} starvation events; "
+                f"throughput {outcome.get('throughput_total', 0)}")
+    if function == "set_mode":
+        return f"Mode set to {args['mode']}"
+    if function == "set_baseline_mode":
+        return f"Controller set to {args['baseline']}"
+    if function == "set_lane_bias":
+        return (f"Lane {args['lane_id']} weighted {args['weight']:g} for "
+                f"{args['duration_s']:g}s")
+    if function == "trigger_emergency":
+        return f"Emergency corridor requested for lane {args['lane_id']}"
+    if function == "force_phase":
+        return (f"{args['junction_id']} pinned to phase index {args['phase']} "
+                f"(applies at the next decision step)")
+    if function == "clear_override":
+        target = args.get("junction_id") or "every junction"
+        return f"Override cleared on {target}"
+    if function == "set_topology":
+        return f"Corridor rebuilding as {outcome.get('topology_id')}"
+    if function == "inject_incident":
+        return (f"{args['incident_type']} reported at {args['junction_id']} on "
+                f"{', '.join(args['affected_lanes'])}")
+    return "Command applied"
 
 
 if __name__ == "__main__":

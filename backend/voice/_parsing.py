@@ -311,6 +311,7 @@ def extract_json_object(raw) -> dict | None:
                 try:
                     obj = json.loads(text[start:i + 1],
                                      parse_constant=_reject_constant)
+                    obj = json.loads(text[start:i + 1])
                 except (ValueError, TypeError):
                     return None
                 return obj if isinstance(obj, dict) else None

@@ -160,6 +160,11 @@ def _offline_checks(rec: _Recorder) -> None:
               "(no magnitude guessing), then fails the range check as 5s",
               (not call2.ok) and "5s" in (call2.error or "")
               and "10s-900s" in (call2.error or ""),
+    call2 = normalise_call("set_lane_bias", {"lane": 3, "duration": 5},
+                           "give lane 3 more priority for five", resolver)
+    rec.check("a bare duration with NO spoken unit stays seconds "
+              "(no magnitude guessing)",
+              call2.ok and call2.args["duration_s"] == 5.0,
               f"{call2.error or call2.args}")
     call3 = normalise_call("set_lane_bias", {"lane": 1},
                            "give lane 1 more priority", resolver)
@@ -306,6 +311,10 @@ def _pinned_reply_checks(rec: _Recorder) -> None:
     # command never became a dispatchable call. What that flag must NOT do is
     # change the operator's message to "didn't catch a command", which is why
     # `_miss` special-cases a range failure.
+    # Understood but REFUSED by control_api's own bounds — the operator must
+    # see the API's reason, not "not understood", and nothing must be queued.
+    # The transcript states no weight word on purpose, so the model's absurd
+    # number is the one that reaches the API and gets bounds-checked.
     res = agent_returning('{"function": "set_lane_bias", "args": {"lane": 1, '
                           '"weight": 1000000, "duration_s": 300}}').handle(
                               "adjust lane 1 for 300 seconds")
@@ -316,6 +325,10 @@ def _pinned_reply_checks(rec: _Recorder) -> None:
               (not res.applied and not queued
                and "0.1-10" in (res.message or "")
                and res.message != "Command not understood, please try again"),
+    rec.check("out-of-range weight: understood, declined by control_api, "
+              "nothing queued",
+              (res.understood and not res.applied and not queued
+               and "weight must be in" in (res.message or "")),
               f"message={res.message!r} queued={[c.kind for c in queued]}")
 
     def boom(_t):
@@ -465,6 +478,7 @@ def selftest(argv=None) -> int:
     # and which now defaults to local whisper.
     print("STT provider default is `whisper` (local, on-device). `webspeech` "
           "is NOT local — in Chrome it streams to Google (§2).")
+    print("STT default is the browser Web Speech API, which is NOT local (§2).")
     return 0 if total_pass == total else 1
 
 

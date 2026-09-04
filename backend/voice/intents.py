@@ -77,6 +77,7 @@ from backend.control_api import (
     VALID_BASELINES,
     VALID_MODES,
 )
+from backend.control_api import CONTROL_FUNCTIONS, VALID_BASELINES, VALID_MODES
 from backend.voice._parsing import (  # noqa: F401  (re-exported)
     APPROACHES,
     _BASELINE_KEYS,
@@ -89,6 +90,7 @@ from backend.voice._parsing import (  # noqa: F401  (re-exported)
     _LANE_KEYS,
     _MODE_KEYS,
     _MODE_WORDS,
+    _PHASE_KEYS,
     _TOPOLOGY_KEYS,
     _WEIGHT_KEYS,
     _first_key,
@@ -540,6 +542,15 @@ def _n_force_phase(args, transcript, resolver, notes) -> NormalisedCall:
         notes.append("a pin holds until released — the spoken duration was "
                      f"not applied; say 'clear the override on {junction}' "
                      "to release it")
+    _k, raw_phase = _first_key(args, _PHASE_KEYS)
+    spoken = parse_number(raw_phase, allow_homophones=True)
+    if spoken is None:
+        spoken = find_phase_number(transcript)
+    if spoken is None:
+        return _fail("no phase number in the command", notes)
+    phase = spoken - VOICE_PHASE_BASE
+    notes.append(f"spoken phase {spoken} ({VOICE_PHASE_BASE}-based) "
+                 f"-> phase index {phase}")
     return NormalisedCall("force_phase",
                           {"junction_id": junction, "phase": phase}, notes)
 
@@ -580,6 +591,7 @@ def _n_set_topology(args, transcript, resolver, notes) -> NormalisedCall:
         return _fail("topology must be three whole numbers, e.g. '4 3 2'", notes)
     return NormalisedCall("set_topology", {"topology_id": str(raw_topology)},
                           notes)
+    return NormalisedCall("set_topology", {"topology_id": raw_topology}, notes)
 
 
 def _n_inject_incident(args, transcript, resolver, notes) -> NormalisedCall:
