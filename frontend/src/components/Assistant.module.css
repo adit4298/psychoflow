@@ -1,0 +1,158 @@
+/* A flat 6% primary tint over the surface — a wash, never a gradient. */
+.card {
+  background: var(--primary-wash);
+  border-radius: var(--r-panel);
+  box-shadow: var(--shadow-panel);
+  padding: var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.head { display: flex; align-items: center; gap: var(--s-2); }
+
+.orb {
+  width: 24px; height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--primary);
+  color: var(--primary-ink);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: var(--fs-h2);
+  line-height: var(--lh-h2);
+  font-weight: var(--fw-h2);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  min-height: 108px;
+  max-height: 210px;
+  overflow-y: auto;
+  padding-right: var(--s-1);
+}
+
+.hint {
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+  margin: auto 0;
+  max-width: 34ch;
+}
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  align-items: flex-start;
+  animation: turnIn 220ms var(--ease) both;
+}
+.turn[data-role='officer'] { align-items: flex-end; }
+@keyframes turnIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .turn { animation: none; } }
+
+.bubble {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-sm);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  max-width: 92%;
+  background: var(--surface);
+  color: var(--ink);
+}
+.turn[data-role='officer'] .bubble {
+  background: var(--primary);
+  color: var(--primary-ink);
+}
+
+.action {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: var(--fs-sm);
+}
+.action[data-undone] { opacity: .55; }
+
+.actionText { font-weight: 500; color: var(--ink); }
+
+.undo {
+  display: inline-flex; align-items: center; gap: var(--s-1);
+  color: var(--primary);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  flex-shrink: 0;
+  transition: opacity 150ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) { .undo:hover { opacity: .75; } }
+.undo:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
+
+.undone { color: var(--ink-3); font-size: var(--fs-sm); }
+
+.pills { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+
+.pill {
+  padding: 5px var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  font-size: var(--fs-sm);
+  transition: color 150ms var(--ease), border-color 150ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .pill:hover { color: var(--primary); border-color: var(--primary); }
+}
+.pill:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
+
+.inputRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  background: var(--surface);
+  border-radius: var(--r-control);
+  padding: var(--s-1);
+  border: 1px solid var(--line);
+}
+.inputRow:focus-within { border-color: var(--primary); }
+
+.input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+.input::placeholder { color: var(--ink-3); }
+
+.mic, .send {
+  width: 32px; height: 32px;
+  border-radius: var(--r-chip);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+  color: var(--ink-2);
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .mic:not(:disabled):hover, .send:not(:disabled):hover {
+    background: var(--surface-2); color: var(--ink);
+  }
+}
+.mic:active, .send:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
+.mic:disabled, .send:disabled { color: var(--ink-3); opacity: .5; }
+
+.mic[data-listening] { background: var(--stop-wash); color: var(--stop); }
+.send[data-ready] { background: var(--primary); color: var(--primary-ink); }

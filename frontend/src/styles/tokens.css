@@ -1,0 +1,112 @@
+/* PsychoFlow design tokens — DESIGN.md §4.
+   Every value here is deliberate. Do not inline a colour or a radius anywhere
+   else in the app; if something is missing, add it here. */
+
+:root {
+  /* ---- colour, light (default) ---- */
+  --ground:         #ECEEF3;
+  --surface:        #FFFFFF;
+  --surface-2:      #F5F6FA;
+  --surface-hover:  #E9EBF1;
+  --surface-active: #E1E4EE;
+  --line:           #E5E7EF;
+  --line-strong:    #D4D7E2;
+
+  --ink:            #1E202A;
+  --ink-2:          #666B7B;
+  --ink-3:          #9A9EAA;
+
+  --primary:        #4361EE;
+  --primary-ink:    #FFFFFF;
+  --primary-wash:   #EEF1FD;
+
+  --go:    #2FA84F;  --go-wash:   #E6F4EA;
+  --stop:  #E0554C;  --stop-wash: #FBEAE9;
+  --wait:  #E39B26;  --wait-wash: #FBF0DD;
+
+  --shadow-panel: 0 1px 2px rgba(24, 26, 42, .04), 0 10px 30px rgba(24, 26, 42, .06);
+  --shadow-pop:   0 6px 16px rgba(24, 26, 42, .10), 0 2px 6px rgba(24, 26, 42, .06);
+
+  /* Added deliberately (DESIGN.md §9 allows this, inline values are not).
+     A hairline drawn *over* a coloured fill, and the scrim behind a popover. */
+  --line-on-wash: rgba(24, 26, 42, .08);
+  --track:        #EDEFF4;   /* empty part of a meter / stacked bar */
+
+  /* ---- type ---- */
+  --font-ui:   Figtree, ui-sans-serif, "Segoe UI", Roboto, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-title:   22px;  --lh-title:   1.25;  --fw-title:   600;
+  --fs-h2:      16px;  --lh-h2:      1.30;  --fw-h2:      600;
+  --fs-body:    14px;  --lh-body:    1.45;  --fw-body:    400;
+  --fs-sm:      13px;  --lh-sm:      1.40;  --fw-sm:      400;
+  --fs-label:   11px;  --lh-label:   1.35;  --fw-label:   500;
+  --fs-data:    13px;  --fw-data:    500;
+  --fs-data-lg: 20px;
+
+  /* ---- spacing (4 8 12 16 20 24 32 40 48) ---- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px; --s-5: 20px;
+  --s-6: 24px; --s-7: 32px; --s-8: 40px; --s-9: 48px;
+
+  /* ---- radius ---- */
+  --r-panel: 18px;  --r-control: 12px;  --r-chip: 8px;  --r-pill: 999px;
+
+  /* ---- motion (§8) ---- */
+  --ease:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* ---- shell ---- */
+  --rail-w:    72px;
+  --topbar-h:  64px;
+  --content-max: 1240px;
+}
+
+/* Dark values live in exactly two guarded blocks so the OS setting and the
+   explicit toggle both win. Only tokens are redefined — never a rule. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:         #131419;
+    --surface:        #1C1D24;
+    --surface-2:      #23242D;
+    --surface-hover:  #262832;
+    --surface-active: #2F323E;
+    --line:           #2A2C36;
+    --line-strong:    #3A3D49;
+    --ink:            #ECEDF2;
+    --ink-2:          #A2A6B4;
+    --ink-3:          #6E7280;
+    --primary:        #6E86F7;
+    --primary-wash:   #20233A;
+    --go:    #43B966;  --go-wash:   #16281D;
+    --stop:  #E8695F;  --stop-wash: #2E1E1D;
+    --wait:  #E7A94A;  --wait-wash: #2C2417;
+
+    --shadow-panel: 0 1px 2px rgba(0, 0, 0, .30), 0 10px 30px rgba(0, 0, 0, .28);
+    --shadow-pop:   0 6px 16px rgba(0, 0, 0, .42), 0 2px 6px rgba(0, 0, 0, .30);
+    --line-on-wash: rgba(236, 237, 242, .10);
+    --track:        #262832;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:         #131419;
+  --surface:        #1C1D24;
+  --surface-2:      #23242D;
+  --surface-hover:  #262832;
+  --surface-active: #2F323E;
+  --line:           #2A2C36;
+  --line-strong:    #3A3D49;
+  --ink:            #ECEDF2;
+  --ink-2:          #A2A6B4;
+  --ink-3:          #6E7280;
+  --primary:        #6E86F7;
+  --primary-wash:   #20233A;
+  --go:    #43B966;  --go-wash:   #16281D;
+  --stop:  #E8695F;  --stop-wash: #2E1E1D;
+  --wait:  #E7A94A;  --wait-wash: #2C2417;
+
+  --shadow-panel: 0 1px 2px rgba(0, 0, 0, .30), 0 10px 30px rgba(0, 0, 0, .28);
+  --shadow-pop:   0 6px 16px rgba(0, 0, 0, .42), 0 2px 6px rgba(0, 0, 0, .30);
+  --line-on-wash: rgba(236, 237, 242, .10);
+  --track:        #262832;
+}
