@@ -309,3 +309,68 @@ python -m perception.vision_detector --make-sample --frames 100   # self-contain
   `docs/MIXED_TRAFFIC_RESEARCH.md` §2 uses. `ACCIDENT_CLUSTER_RADIUS_PX` in
   particular is in **pixels** and so is frame-scale dependent — it will need
   retuning against whatever real footage arrives.
+
+---
+
+## 9. Reconciliation against `hackathon/agents-backend`'s §A1/§A2/§A3
+
+Added 2026-09-04. That branch recorded three **assumed** Track A shapes while
+Track A did not yet exist in its tree, and asked to "either match them or tell
+us to change." This section is that answer. Nothing below changes any code on
+this branch — all three are the consuming side's to apply.
+
+**Both branches carry a file named `NOTES-FOR-INTEGRATION.md` and they are
+different documents.** They will conflict on merge; the resolution is to keep
+both, not to pick one.
+
+### 9.1 §A2 — the factory name does not match. This one breaks at import.
+
+| | assumed by agents-backend | **shipped here** |
+|---|---|---|
+| name | `make_vision_source` | **`get_vision_source`** |
+| signature | `(kind: str, *, seed: int \| None)` | **`(mode: str = "mock", **kwargs)`** |
+
+`get_vision_source` is the name Track A was specified to build, so the code is
+right and §A2's assumption is what needs correcting. `detector` additionally
+**requires** `source=<video path or camera index>` and raises `ValueError`
+without it — there is no default camera.
+
+Compatible as-is: §A2's duck-type is `observe_all(readings) -> dict[str, dict]`,
+and both `VisionMock` and `VisionDetector` expose `observe()` **and**
+`observe_all()` with that shape.
+
+§A2's "**on `mock` perform no swap at all**" rule still holds and should be kept
+— `get_vision_source("mock")` constructs a *fresh* `VisionMock`, so assigning it
+onto the twin would reseed it and perturb recorded numbers, which is precisely
+what that rule exists to prevent. Call the factory only for `detector`.
+
+### 9.2 §A1 — the detector's emergency key is named differently, and routing it is a decision, not a rename.
+
+The detector emits **`emergency_vehicle_flag`**, never `emergency`. Passed
+through unmapped, §A1 falls back to `type_composition["ambulance"] > 0`, and the
+detector can never set that (COCO has no ambulance class, see §8) — so a
+detector-sourced emergency silently reads as **always false**. That fails
+closed, which is the safe direction, but it is silent.
+
+**Do not fix it with a rename.** The flag is a behavioural heuristic that rides
+with `emergency_flag_is_experimental: True`, and §8 forbids it reaching §10's
+emergency override. Mapping it onto §A1's `emergency` routes an experimental
+signal into the priority agent's emergency class. That is a cross-track call for
+the user, not an adapter detail — Track A's position is that it should not.
+
+Otherwise §A1 matches: `lane_id`, `vehicle_count`, `type_composition`,
+`confidence` and `source` are all emitted in the §7.2 envelope.
+`perception/incident_detector.py` returns a **different** shape (§A1's own table
+of `{type, junction, approach, lane_index, distance_m, distance_confidence,
+severity, detected_at, source}`) — §A1 already states the adapter is
+`backend/sim_runner.py`'s job, which is the correct split.
+
+### 9.3 §A3 — topics match exactly; `fresh_s` is the consumer's to compute.
+
+All four topic strings match `iot/topics.py` character for character.
+
+`fresh_s` is **not a field this branch produces** and does not appear anywhere
+in `iot/`. It is derivable: `SensorCountsPayload` carries **`sim_time`**, so the
+frame's `{"source": ..., "fresh_s": ...}` is `now_sim_time - payload.sim_time`,
+computed at the point the frame is built. `source` is on the payload already
+(defaults to `"iot_sensor"`).
