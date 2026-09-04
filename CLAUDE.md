@@ -1920,6 +1920,82 @@ Pause and ask the user rather than proceeding when:
 &#x20; bike.aggressive \*\*2.500\*\* / bike.normal \*\*1.462\*\* / bike.cautious
 &#x20; \*\*0.889\*\*, and mean moving speed 31.3 / 29.3 / 27.5 km/h.
 
+\- \*\*Prompt 5 / INTEGRATION commands (branch `hackathon/integration`)\*\*:
+&#x20; `venv/Scripts/python.exe sim/run_demo.py` — the ONE demo entrypoint (broker
+&#x20; -> backend -> sensor publisher -> Vite; prints the URL; Ctrl-C stops all four).
+&#x20; `--dry-run` prints the plan and launches nothing, `--no-iot` for
+&#x20; benchmark-representative metrics, `--clip <path>` for real footage.
+&#x20; Dashboard `http://localhost:5173`, frames `ws://127.0.0.1:8000/ws`.
+&#x20; Done-bar harnesses: `sim/run_iot_feed_check.py` (10/10, starts its own
+&#x20; broker) and `sim/run_detector_wire_check.py` (14/14).
+&#x20; Offline self-checks, no SUMO: `python -m backend.iot_bridge` (24/24) and
+&#x20; `python -m backend.vision_alerts` (24/24). Run both after ANY change to the
+&#x20; MQTT overlay or the alert geometry.
+
+\- \*\*STANDING RULE — an MQTT message may NEVER set `type_composition["ambulance"]`.\*\*
+&#x20; `safety/validator.py` raises RULE_EMERGENCY on exactly
+&#x20; `reading["type_composition"].get("ambulance", 0) > 0`, and corridor lane ids
+&#x20; are public (they ride on the §13.2 frame), so a wire-settable ambulance count
+&#x20; hands an anonymous publisher the override whose whole contract is that
+&#x20; nothing can deprioritise it. `backend/iot_bridge.py::_LaneSensorOverlay`
+&#x20; takes that ONE key from TraCI ground truth and everything else from the
+&#x20; wire; both directions are asserted in its self-test (the wire cannot forge an
+&#x20; ambulance, and cannot suppress a real one). This is the same decision NOTES
+&#x20; §9.2 made for the detector's `emergency_vehicle_flag`. \*\*Do not "simplify"
+&#x20; the overlay into a straight `LaneReading(**payload.to_lane_reading_dict())`\*\*
+&#x20; — that is exactly the CRITICAL that was caught and fixed.
+
+\- \*\*STANDING RULE — every optional perception source must be RE-ATTACHED after
+&#x20; every `env.reset()`, not once at build time.\*\* `PsychoFlowEnv.reset()` calls
+&#x20; `close()` and then unconditionally rebuilds `self.twin = DigitalTwin(...)`
+&#x20; — there is no first-time guard — so a brand-new twin with a stock
+&#x20; `VisionMock` and `LaneSensor` exists after EVERY reset and any attribute swap
+&#x20; made before one is silently discarded. `SimRunner._apply_perception_sources()`
+&#x20; is the single helper called at BOTH reset sites. Before Prompt 5 the vision
+&#x20; swap sat before the initial reset and only appeared to work because the
+&#x20; default `mock` path returns without touching the twin; `--vision-source
+&#x20; detector` would have lost the detector at the first episode boundary and
+&#x20; served mock numbers behind a panel labelled "camera" (§17).
+
+\- \*\*The §13.2 `distance_m` is TWIN-FRAME, from SUMO ground truth — NOT ranged by
+&#x20; the camera. Carry that wherever it is shown.\*\* `backend/vision_alerts.py`
+&#x20; measures it from the net file's real stop line (`load_stop_line_coord`, which
+&#x20; handles the [150,150] netconvert shift) plus a real TraCI vehicle position.
+&#x20; It is a measurement, not the guess `frame_sources`' docstring forbids — but it
+&#x20; is not a camera range. The pixel path (`calibrate_pixels` +
+&#x20; `distance_to_stop_line_px`) is wired and takes over the moment a calibration
+&#x20; exists; per `sim/media/README.md` the footage it needs is still a human
+&#x20; download. With no vehicle on the lane the answer is None, never 0.0.
+
+\- \*\*`ACCIDENT_CLUSTER_RADIUS_PX` (90) is an IMAGE-SPACE threshold — twin-frame
+&#x20; tracks MUST be scaled by `PX_PER_M` before `classify_accident` sees them.\*\*
+&#x20; Fed metres unscaled the cluster test becomes "within 90 metres", i.e. most of
+&#x20; a queue, and every red light classifies as an accident: measured \*\*62 alerts
+&#x20; over 60 live frames\*\*, dropping to \*\*0\*\* once the scale was applied. Retune
+&#x20; `ACCIDENT_CLUSTER_RADIUS_M`, never `PX_PER_M`, which is derived.
+&#x20; \*\*KNOWN RESIDUAL:\*\* the 5m/7.5m separation derives from CAR stopped spacing;
+&#x20; two-wheelers queue much closer and can still cluster in a jam. Closing it
+&#x20; needs vehicle CLASS in §8.2's classifier — a design change, not a constant.
+&#x20; \*\*Never present an `accident` alert as confirmed without a human looking.\*\*
+
+\- \*\*The on-screen metrics are NOT Stage 4's recorded numbers while `--iot` is
+&#x20; on.\*\* The simulated publisher overlays synthetic counts onto §7.1, so the
+&#x20; policy acts on partly-fabricated lane readings and the mean-wait / starvation
+&#x20; tiles read far worse than benchmark. That is the IoT path being demonstrated,
+&#x20; not a regression — but do NOT quote those tiles as PsychoFlow's performance.
+&#x20; Run `--no-iot` for representative figures and cite
+&#x20; `training/scripts/checkpoint_bakeoff.py` for the real ones.
+
+\- \*\*`sim/run_orchestrator_check.py`'s O1 reports 33/1, and it is a HARNESS
+&#x20; defect, not a code failure — do not "fix" the code chasing it.\*\* O1 calls
+&#x20; `selftest_main()` IN-PROCESS after the harness has already imported
+&#x20; `backend.sim_runner`, so W7's "importing orchestrator pulls in no SUMO /
+&#x20; torch / numpy" check sees sumolib/traci/numpy already in `sys.modules` and
+&#x20; fails. Proven pre-existing by stashing Prompt 5's changes and re-running the
+&#x20; same import-order probe: identical 33/1 at HEAD. \*\*`python -m
+&#x20; orchestrator.selftest` standalone is the valid invocation and is 34/34.\*\*
+&#x20; The fix, if wanted, is one subprocess call in the harness.
+
 \- (Add training/test/run commands here as each phase is built — this
 
 &#x20; section should grow; keep it accurate, delete anything that stops

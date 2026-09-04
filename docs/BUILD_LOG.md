@@ -4606,3 +4606,237 @@ missing `amqtt`/`paho`): `tests.test_iot` **32/32**, `tests.test_vision_detector
 **28/28**, `tests.test_incident_detector` **34/34** = **94/94**. Topic strings
 checked character-for-character against §A3; `observe_all` confirmed present on
 both `VisionMock` and `VisionDetector`.
+
+---
+
+## 2026-09-04 — PROMPT 5 / INTEGRATION (§7, §8, §9.2, §11, §12, §13): the two hackathon tracks converged and wired into a running end-to-end demo
+
+Branch `hackathon/integration`, four commits: `c50d117` (5a), `74f24c5` (5b),
+`69961ce` (5c), `3758704` (5d). **Additive throughout — no file under `env/`,
+`safety/`, `twin/`, the reward, the Stage 4 checkpoint or `COORDINATION_MODE`
+was modified.** Every new capability is off by default.
+
+### 5a — the merge
+
+**Decision:** `hackathon/agents-backend` + `hackathon/vision-iot` onto a new
+`hackathon/integration`. Two conflicts, both documentation, both resolved by
+KEEPING BOTH SIDES. `NOTES-FOR-INTEGRATION.md` (an add/add conflict — the two
+branches wrote different documents under one name) became Part I
+(agents-backend) + Part II (vision-iot) with a reading-order preamble recording
+that Part II's §9.1/§9.2/§9.3 are the authoritative answers to Part I's assumed
+§A2/§A1/§A3 and win where they disagree. Part I's "ASSUMED, NOT DELIVERED"
+banner now points at its answer instead of dangling. `docs/BUILD_LOG.md`: two
+same-day entries, both retained.
+
+**`hackathon/frontend` was NOT merged.** It is an ANCESTOR of both feature
+branches and has no `frontend/` in its tree — it never received a Phase 10
+build, so merging it is a literal no-op. The real frontend lives on
+agents-backend (source) and vision-iot (built `dist/`), and those merged
+cleanly because they touch disjoint paths.
+
+**Deviates from plan?** No. **Verified:** on the merged tree —
+`run_backend_smoke.py` 62/62, `run_shadow_advisor_check.py` 35/35,
+`run_backend_security_check.py` 62/62, `perception.incident_detector` 34/34,
+`python -m iot.broker` binds `mqtt://127.0.0.1:1883`. Note the smoke baseline
+is **62/62, not the 50/50 the prompt quoted** — agents-backend had already
+raised it and CLAUDE.md's line was stale.
+
+### 5b — MQTT into the twin (`--iot`, default OFF)
+
+**Decision:** a new `backend/iot_bridge.py` joins `iot/` to the twin through
+three seams that touch no locked file: `twin.lane_sensor` is wrapped by a
+`_LaneSensorOverlay` (§7.1 counts), `twin.weather.set_state()` is called (§7.4),
+and `twin.incidents.report()` is called (§7.3, from which the IncidentPriority
+agent already reads `active_incidents` — no new call site needed).
+
+**Why the overlay rather than an edit:** `DigitalTwin.update()` feeds
+`lane_sensor.read_lanes()` straight into the snapshot the observation is built
+from. Editing that, or teaching `env/` a second source, touches locked files.
+Wrapping the ATTRIBUTE reaches the same readings and is the same category of
+change as the sanctioned §7.2 vision swap.
+
+**Blast radius, stated rather than glossed:** lane readings feed §9.1's scoring
+and §9.4's reward terms, so this is a bigger reach than the vision swap. Bounded
+by `--iot` being OFF by default and unreachable from any recorded-number path, by
+a lane with no fresh message being returned as the real sensor produced it, and
+by the overlay unwrapping the moment the feed goes quiet.
+
+**BUG FOUND, pre-existing, fixed:** both perception swaps ran BEFORE
+`env.reset()`, but `reset()` calls `close()` and then unconditionally rebuilds
+`self.twin` — so any swap was discarded immediately, and again at every episode
+boundary. It only ever LOOKED correct because the default `mock` path returns
+without touching the twin. `--vision-source detector` would have silently served
+mock numbers behind a panel labelled "camera" — a §17 problem, not just a bug.
+Both feeds now re-attach via `_apply_perception_sources()` after every reset.
+
+**DEVIATION FROM NOTES §9.3, deliberate.** §9.3 derives freshness as
+`now_sim_time - payload.sim_time`. That is right only for a sensor network
+sharing the corridor's clock. `SimulatedSensorPublisher` runs its own sim clock
+from 0, so differencing two independent clocks yields a number with no physical
+meaning and would either drop every message or accept every stale one. Staleness
+is therefore judged on ARRIVAL WALL-CLOCK, and `last_seen_s` is stamped in the
+twin's frame at ingest — so the `fresh_s` that `build_iot_sensors` derives is
+correct by construction and the pinned wire shape is unchanged. The payload's own
+clock is preserved as `payload_sim_time`.
+
+**FIVE SECURITY FINDINGS on the new MQTT surface, all fixed before commit:**
+
+| sev | finding | fix |
+|---|---|---|
+| **CRITICAL** | `LaneCountsPayload.type_composition` rode into the overlaid reading, and `safety/validator.py:222` raises RULE_EMERGENCY on exactly `reading["type_composition"]["ambulance"] > 0`. An anonymous publisher could forge an ambulance on any corridor lane — lane ids are public, they ride on the §13.2 frame — and seize the override whose contract is that nothing can deprioritise it. | the ambulance count comes from TraCI ground truth and NEVER from the wire — the same decision §9.2 made for the detector's flag, for the same reason. Both directions asserted: the wire cannot forge one, and cannot suppress a real one. |
+| HIGH | `_readings` grew unbounded on attacker-supplied lane ids, scanned O(n) per step inside `twin.update()` | prune-on-write + `MAX_TRACKED_LANES`, oldest evicted first |
+| HIGH | the IoT incident channel bypassed the `_MAX_ACTIVE_INCIDENTS` cap `inject_incident` enforces | same cap applied; the less-trusted route does not get the weaker check |
+| MEDIUM | `--iot-host` had none of `--host`'s loopback guard, despite being the address the corridor's ingestion TRUSTS | refused unless loopback or `--allow-lan`, with a message about the actual risk |
+| LOW | the weather branch caught `ValueError` only; `set_state` can also raise `RuntimeError` | widened |
+
+**Deviates from plan?** Yes, on §9.3's freshness formula (above). **Verified:**
+`sim/run_iot_feed_check.py` **10/10** — (a) MQTT count 19 reached the twin
+snapshot AND `obs[0] == 19/20 = 0.95`, (b) weather `clear -> heavy_rain`,
+(c) publisher stopped mid-run: the lane reverted to ground truth, frames kept
+flowing, sim thread clean. A sentinel far outside natural occupancy is used so
+the check cannot pass on traffic noise. Regressions: `iot_bridge` self-check
+24/24, smoke 62/62, security 62/62, shadow 35/35, `tests.test_iot` 32/32.
+
+### 5c — the §9.1 rename and §9.2 routing, as applied
+
+**§9.1 APPLIED.** `backend/sim_runner.py` imported `make_vision_source`, which
+does not exist — precisely the "breaks at import" §9.1 predicted. Every caller
+now uses `get_vision_source(mode, **kwargs)`, and detector mode passes
+`source=<clip>`. **Until this commit `--vision-source detector` hit the
+ImportError and silently ran the mock.** `--vision-clip <path|index>` added and
+validated EAGERLY at parse time (required iff detector, must exist, refused
+without detector) because `VideoCapture` opens lazily — a typo would otherwise
+surface minutes later as a fallback line in a log nobody is watching.
+
+**§9.2 APPLIED, as decided.** `backend/vision_alerts.py` reshapes the detector's
+observations into ADVISORY events carrying `emergency_vehicle_flag` +
+`emergency_flag_is_experimental` and **never an `emergency` key**. The flag
+reaches the IncidentPriority agent as a low-confidence advisory and never
+`safety.validator`'s `forced_emergency_lanes`; the fail-closed
+`type_composition["ambulance"] > 0` path is kept and is correctly always-false
+for a detector source. `AgentContext` gained a defaulted `vision_events` field,
+threaded through `readonly()` — without that the wrapper would silently have
+seen `()`. The wrapper's hardcoded `vision_events=None` is gone.
+
+**A real `distance_m`, measured not guessed.** `frame_sources._alert` hardcoded
+`None` and its docstring forbids filling that with a guess — so this measures:
+the lane's stop line READ FROM THE NET FILE (`load_stop_line_coord`, which
+handles netconvert's `[150,150]` shift) plus a real TraCI vehicle position,
+through `distance_to_stop_line`, which reports its own confidence and method.
+`build_incident_alerts` gained an optional `distance_for` hook; omitted, every
+alert keeps `distance_m: null` exactly as before, so the recorded fixture and
+both existing callers are unchanged. With no vehicle on the lane it returns
+None, never 0.0.
+
+**HONEST BOUNDARY that must travel with the number:** this distance is
+TWIN-FRAME, from SUMO ground truth — **NOT ranged by the camera.** The pixel
+path (`calibrate_pixels` + `distance_to_stop_line_px`) is wired and takes over
+the moment a calibration exists; per `sim/media/README.md` the footage and
+calibration it needs are a human download that has not happened.
+
+**Also:** `sumolib.net.readNet` is now cached behind `_read_net` in
+`perception/incident_detector.py` — both coordinate helpers re-parsed the whole
+net file per call, fine for a one-shot script and unusable for a per-step
+consumer.
+
+**TWO ASSUMPTIONS IN THE DONE-BAR THAT HAD TO CHANGE, both measured:**
+
+1. **(a) says the detector reading reaches "the observation". It cannot.** §7.2
+   `vision` rides ALONGSIDE §7.1, and `vision` appears nowhere in
+   `env/obs_action_spec.py` or `env/psychoflow_env.py`. The detector reaches the
+   twin snapshot and the §13.2 frame, which is §7.2's whole contract; the harness
+   asserts THAT and separately asserts the obs is §7.1-shaped `(3, 191)`. MQTT
+   counts DO reach the observation — a different channel, §7.1's lane sensor,
+   proven by 5b's harness.
+2. **counts are 0, not non-zero.** Measured directly: the synthetic clip decodes
+   20 frames and yields **0 COCO vehicle detections**, because it contains no
+   vehicles. The WIRING is proven end to end (a real YOLOv8n pass over a real
+   decoded video through the same consumer path as the mock); detection QUALITY
+   on real traffic is not, and cannot be until the footage is downloaded.
+
+**Verified:** `sim/run_detector_wire_check.py` **14/14** — a real
+`VisionDetector` on the twin tagged `source='vision_detector'` with
+`wait_times_measured=False` and ambulance 0; an injected incident produced an
+alert with `distance_m = 264.592m`, confidence 0.95 (method `stop_line`),
+approach `east`, lane_index 0; all six agents over 74 frames; and **2772 vision
+readings carried `emergency_vehicle_flag` while ZERO safety_overrides resulted**
+— a real negative, not a vacuous one. Regressions: `vision_alerts` 19/19 (later
+24/24), smoke 62/62, shadow 35/35, `orchestrator.selftest` 34/34,
+`test_vision_detector` 28/28, `test_incident_priority` 26/26.
+
+### 5d — the demo, and the bug its own verification caught
+
+**Decision:** `sim/run_demo.py` starts broker -> backend -> sensor publisher ->
+Vite in dependency order, prints the URL, and one Ctrl-C stops all four in
+reverse. `--dry-run` prints the plan and launches nothing. **The frontend needed
+NO code change** — `createSource()` already selects `WebSocketSource` when a URL
+is supplied. `VITE_WS_URL` is set in the CHILD env only, deliberately not in a
+committed `.env`, so a plain `npm run dev` still falls back to the recorded
+fixture and the offline fallback stays intact.
+
+**BUG FOUND AND FIXED DURING 5d's OWN VERIFICATION — the live run is what caught
+it, no test did.** `classify_accident` compares `distance_px_to` against
+`ACCIDENT_CLUSTER_RADIUS_PX` (90), a threshold calibrated for IMAGE SPACE. 5c fed
+it twin-frame METRES unscaled, making the cluster test "within 90 metres" — most
+of a queue — so **every red light classified as an accident: 62 alerts over 60
+frames.** The 5c docstring had the direction backwards, claiming metres made the
+test tighter. Fixed with `PX_PER_M`, derived so the threshold falls between
+collision proximity and stopped spacing (7.5m -> 135px, outside; 4m -> 72px,
+inside). **Re-measured: 62 -> 0 alerts on an identical run**, and 5c's done-bar
+still 14/14. Two self-test assertions now pin it: an evenly spaced stopped queue
+must NOT classify, a 3m pair MUST.
+
+**JURY CHECKLIST, measured on 60 live WebSocket frames plus a browser session:**
+
+| # | item | result |
+|---|---|---|
+| 1 | AI + IoT | `iot_sensors` on **60/60** frames, e.g. `N1_J1_0 {'source': 'mqtt', 'fresh_s': 5.766}` |
+| 2 | multi-agent | all **six** agents in `agent_activity` (Control, Detection, IncidentPriority, Prediction, Supervisor, Vision) |
+| 3 | acts on footage | **PARTIAL** — `vision_detector` on the wire with `wait_times_measured=False`, but 0 detections on the synthetic clip, so counts cannot drive a phase change |
+| 4 | priority on incidents | alerts carry a real `distance_m` + `approach` + 0-based `lane_index` and render in the officer panel |
+| 5 | plan as reference | n/a, already the working mode |
+
+**Verified live in a browser, not inferred:** all four screens report
+"live corridor live", not "recorded session" (Overview / Junctions / Logs /
+Manual control); sim time advanced on screen 00:33:55 -> 00:34:45 over four
+wall-seconds; Overview rendered real stat tiles, a 90s signal timeline across
+J1/J2/J3, the corridor map with live V2X positions, and a Live-detection panel
+badged VISION_DETECTOR; Logs rendered 94 decisions with real lane ids and
+spillover predictions (J1->J2 +48, J2->J3 -60, 85% confidence).
+
+**SAFETY GREP (§20):** `grep -rn enable_safety_validator backend/` returns four
+hits, **all standing-rule comments; none construct it.** The only `=False` in the
+repo is `sim/run_tier0_episode.py`, the harness CLAUDE.md §8 sanctions.
+`backend/voice/` holds only stale bytecode — no `.py`, nothing tracked — so
+Phase 11 remains unbuilt on this branch.
+
+### Open items this session did NOT close
+
+- **Residual accident false positive.** The 5m/7.5m separation derives from CAR
+  stopped spacing; two-wheelers queue much closer and can still cluster in a jam.
+  Closing it needs vehicle CLASS in §8.2's classifier — Track A's module, a
+  design change not a constant. **Do not present an `accident` alert as confirmed
+  without a human looking.**
+- **Jury item 3 needs real footage** (`sim/media/README.md`'s human download).
+- **On-screen metrics are NOT Stage 4's recorded numbers while `--iot` is on** —
+  the simulated publisher overlays synthetic counts on §7.1, so the policy acts
+  on partly-fabricated readings and the tiles read far worse than benchmark. Run
+  `--no-iot` for representative figures; cite `checkpoint_bakeoff.py` for the
+  real ones. Documented in `run_demo.py`'s header.
+- **PRE-EXISTING, not introduced here:** `sim/run_orchestrator_check.py`'s O1
+  reports 33/1 because it calls `selftest_main()` IN-PROCESS after the harness
+  has already imported `backend.sim_runner`, so W7's "no heavy imports" check
+  sees sumolib/traci/numpy and fails. **Proven pre-existing by stashing this
+  session's changes and re-running the same import-order probe: identical 33/1 at
+  HEAD.** Standalone `python -m orchestrator.selftest` is 34/34. The harness needs
+  a subprocess for that check to mean anything.
+- `DESIGN.md` carries uncommitted edits **made by another session**, not this one
+  (the tree was clean at 5a). Left untouched.
+
+### The demo command
+
+    venv/Scripts/python.exe sim/run_demo.py
+
+Dashboard `http://localhost:5173`, frames from `ws://127.0.0.1:8000/ws`.
+`--dry-run` to print the plan, `--no-iot` for benchmark-representative metrics,
+`--clip <path>` for real footage. **Say "single-agent PPO" out loud (§20).**
