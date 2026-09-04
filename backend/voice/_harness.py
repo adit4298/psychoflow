@@ -459,7 +459,12 @@ def selftest(argv=None) -> int:
     print(f"\n{'=' * 62}\nintent_agent done-bar: {total_pass}/{total} passed")
     print(f"lane numbering: voice is {VOICE_LANE_BASE}-based; "
           f"narrator renders 0-based SUMO slots (see intents.py's docstring)")
-    print("STT default is the browser Web Speech API, which is NOT local (§2).")
+    # Corrected 2026-09-04: this line said the STT default was the browser Web
+    # Speech API. That is the default `TranscriptEvent.source` — a different
+    # thing from the PROVIDER the server actually runs, which `--stt` selects
+    # and which now defaults to local whisper.
+    print("STT provider default is `whisper` (local, on-device). `webspeech` "
+          "is NOT local — in Chrome it streams to Google (§2).")
     return 0 if total_pass == total else 1
 
 

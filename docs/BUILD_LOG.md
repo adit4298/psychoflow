@@ -5017,3 +5017,202 @@ Phase 11 remains unbuilt on this branch.
 Dashboard `http://localhost:5173`, frames from `ws://127.0.0.1:8000/ws`.
 `--dry-run` to print the plan, `--no-iot` for benchmark-representative metrics,
 `--clip <path>` for real footage. **Say "single-agent PPO" out loud (§20).**
+
+---
+
+## 2026-09-04 — §14 / Phase 11 (Voice + Chatbot assistant)
+
+**Decision:** Built the §14 voice pipeline as three parts on `hackathon/voice`
+— an STT provider factory, a pure local-Gemma intent parse, and a dispatch
+bridge — plus the DESIGN.md §7.5 assistant panel and the demo wiring. The
+branch already carried a substantial §14 layer from an earlier session
+(`stt.py`'s browser contract, `intents.py`'s normalisation, `intent_agent.py`'s
+model call, `_harness.py`'s 63-check done-bar). **That work was extended, not
+replaced** — the prompt assumed a green field and it was not one.
+
+**Why:** Everything the earlier layer had was correct and measured; rebuilding
+it would have discarded a live-model done-bar for nothing. The genuine gaps
+were the provider factory, a parse that does not also dispatch, read-only
+question handling, and the frontend.
+
+**Deviates from plan?** In four places, each deliberate:
+
+1. **`intent_agent.parse()` was EXTRACTED, not written fresh.** `handle()` now
+   delegates to it and is otherwise untouched, so its 63/63 done-bar is the
+   regression check on the refactor.
+2. **`bridge.py` owns dispatch; `get_stats` is answered WITHOUT dispatching.**
+   `dispatch()` would handle it harmlessly, but answering from
+   `snapshot_stats()` makes "read-only means read-only" a property of the
+   bridge rather than of one function's implementation elsewhere. `"why did it
+   switch"` is intercepted BEFORE the model runs — it is not a control call, so
+   a function-calling prompt could only produce a wrong one — and is answered
+   from the last §13.2 frame's own §12.2 narration rather than from a second
+   explanation that could contradict the log on screen.
+3. **`--stt` defaults to `whisper`, not the browser.** It is the only provider
+   needing neither a network nor a key, so the demo survives conference wifi,
+   and a default that spends credit is a default that spends it by accident.
+4. **A frontend fallback was kept.** With no backend the panel reads "offline
+   parser" and uses `intent.ts`'s rule parser — DESIGN.md §7.5's designated
+   fixture build. It is LABELLED, because a panel that looks identical whether
+   or not a real model ran is the thing §7.5 exists to avoid.
+
+### The pipeline
+
+    audio bytes  --> stt.get_stt(provider) --+
+                                             +--> English transcript
+    browser text ----------------------------+
+                     |
+                     +- read-only question? --> snapshot / last frame. NO dispatch.
+                     +- otherwise -----------> VoiceIntentAgent.parse()  [gemma3:4b]
+                                                 --> control_api.dispatch()
+                                                     [allowlist -> bounds -> §10]
+
+Providers all return one shape or `None`: `{text, language, provider,
+latency_ms}`. Sarvam is Saarika with `language_code="unknown"`, falling through
+to Saaras ONLY when the detected language is not English — so the local parser
+always receives English, and English speech (the demo's normal case) costs
+exactly one call.
+
+### THE LANE- AND PHASE-NUMBERING DECISION, AS MADE
+
+Voice **"lane N" is 1-BASED** and resolves to SUMO slot N-1
+(`VOICE_LANE_BASE = 1`); phases follow the same rule (`VOICE_PHASE_BASE = 1`,
+so spoken "phase 2" is `force_phase(phase=1)`). Nobody says "lane zero", and
+§14's own required demo command ("give lane 3 more priority") only resolves on
+the (4,3,2) corridor under a 1-based reading.
+`explainability/narrator.py` still renders the RAW 0-based slot and was NOT
+changed — it is not this layer's to change, and moving it would move Phase 8's
+recorded figures.
+
+**The consequence is stated, not hidden:** the voice echo and the decision-log
+narration differ by one for the same lane. Two things make that reconcilable
+rather than confusing — every result carries the RESOLVED `lane_id`
+(`N2_J2_2`, unambiguous and checkable against the log), and the confirmation
+now names BOTH numbers: "J2 pinned to phase 2 (index 1)". It said only
+"phase 1" until code review caught it, which is exactly the ambiguity
+CLAUDE.md's APPROVED VOICE DESIGN item 3 required be reconciled explicitly.
+
+### THE SARVAM MANUAL RUN — NOT DONE. A HUMAN MUST DO IT.
+
+**There is no `SARVAM_API_KEY` in this environment, so the one manual
+`--stt sarvam` run could not be made and the credit cost is UNMEASURED.**
+Consequently **Sarvam's request and response shapes are written from
+documentation and are UNVERIFIED against the live service** — the field names
+(`api-subscription-key`, `transcript`, `language_code`, `audios`), the model
+tags (`saarika:v2.5`, `saaras:v2.5`, `bulbul:v2`) and the endpoint paths have
+never round-tripped. Treat the whole Sarvam path as untested until someone runs
+it. Everything else in this entry is measured.
+
+To do it: put the key in `.env`, then
+`venv/Scripts/python.exe sim/run_demo.py --stt sarvam`, speak ONE command,
+confirm it transcribes and dispatches, and read the count back from
+`GET /voice/status` — `SarvamSTT.calls` counts requests exactly, so the cost is
+a number rather than an estimate. Record the result here. Failure is
+fail-closed and harmless: a wrong field name yields `None`, "Didn't catch a
+command", and no action.
+
+### NO TEST SPENDS A CREDIT — ENFORCED, NOT PROMISED
+
+`sim/run_voice_check.py`'s `main()` replaces `requests.Session.post` and
+`requests.post` with a tripwire that RAISES, installed before the first check
+runs, so any cloud call from anywhere in the pipeline fails the suite loudly.
+Ollama is unaffected (it speaks httpx, and is local). Independently, `stt.py`'s
+self-test constructs a keyless `SarvamSTT` with an injected session that
+records every call and asserts **zero** requests. Nothing in the repo selects
+`sarvam`; it is reachable only by typing `--stt sarvam`.
+
+### Security review findings, all fixed
+
+- **HIGH, reproduced live:** `{"topology_id": [4, 3, Infinity]}` crashed the
+  pipeline. Python's `json` accepts bare `Infinity` as a non-standard
+  extension, so it parsed into a real `float('inf')`, reached `int(inf)` in
+  `control_api._parse_topology`, and raised `OverflowError` — a **sibling** of
+  `ValueError`, not a subclass, so caught by neither that function's
+  `except (TypeError, ValueError)` nor `dispatch()`'s `except TypeError` — out
+  of a pipeline whose entire safety argument is that it never raises. Nothing
+  was queued (the crash landed inside `set_topology`'s own validation), so it
+  was availability, not an allowlist bypass. Fixed at the JSON boundary
+  (`_parsing._reject_constant`), closing it for every function at once, plus a
+  second layer in `_n_set_topology` — the one normaliser that forwarded a model
+  value unvalidated.
+- **MEDIUM:** `_audio_bytes` no longer treats a bare `str` as a filesystem
+  path. Inert while the only caller passed a fixture, but it sits behind an
+  unauthenticated upload endpoint where a forwarded JSON string would have
+  become an arbitrary local file read. A local fixture must now pass an
+  explicit `Path`, which no JSON body can produce. Reads are bounded
+  (`MAX_AUDIO_BYTES + 1`), and `normalise_transcript` slices before its
+  per-character scan, so work is bounded by the cap rather than by what the
+  caller chose to send.
+- **LOW:** the prompt's transcript field is `json.dumps`-quoted instead of
+  wrapped in a `<<<...>>>` delimiter a transcript could close.
+- **Held on review:** the key never reaches a log, a result, an exception
+  message or the frame — Sarvam error paths keep the HTTP STATUS only, never
+  the body. The allowlist gates twice. `enable_safety_validator` stays
+  unreachable from `backend/`.
+
+### Code review: APPROVE, 0 critical / 0 high. Three MEDIUMs fixed
+
+The phase-numbering echo (above); **two confirmation builders that had already
+drifted**, unified into `intents.confirmation()` with the same anti-drift
+assert `_NORMALISERS` carries; and an overclaiming docstring (below).
+
+### Open items this session did NOT close
+
+- **`record_voice` is NOT wired — eight of nine voice functions never reach the
+  on-screen decision log.** A voice `force_phase` DOES appear (sim_runner
+  already tags it `reason="voice_command"`, confirmed live on the wire), but
+  `set_mode` / `set_lane_bias` / `trigger_emergency` / `inject_incident` /
+  `set_topology` / `set_baseline_mode` / `clear_override` / `get_stats` apply
+  (or answer) correctly and appear only in the voice layer's own ring.
+  `VoiceResult.decision_log_payload()` exists to bridge this and nothing calls
+  it; `sim_runner` has the slot waiting (`self._last_voice = None  # reserved
+  for Phase 11`). Wiring it is a sim-loop edit, which this part was scoped out
+  of. **Matters because explainability is judged.** The docstring now states
+  the gap rather than implying it works.
+- **`AXIS_GREEN_SLOT = {"ew": 0, "ns": 1}` is an ASSUMPTION, disclosed on every
+  result that uses it.** The authoritative map is
+  `PsychoFlowEnv.phase_served_lanes()`, which is per-episode, lives on the sim
+  thread, and is NOT published on `snapshot_stats()` — so the voice layer
+  genuinely cannot read it. It matches `intent.ts`'s `AXIS_PHASE`, so panel and
+  voice at least agree with each other. Bounded rather than trusted:
+  `control_api.force_phase` range-checks the index, the sim thread mask-checks
+  it against the live topology and drops an invalid pin, and §10 still
+  validates. Worst case of a wrong entry is the other axis going green —
+  visible within one decision step, and undoable. **To fix properly:** publish
+  `phase_served_lanes()` on `_stats_payload`, resolve the axis from the lanes
+  each slot actually serves, and delete the table.
+- **Sarvam is unverified against the live service** (above).
+
+### Done-bars, all RUN
+
+| check | result |
+|---|---|
+| `sim/run_voice_check.py` | **44/44** |
+| `python -m backend.voice.intent_agent` (live gemma3:4b) | **63/63** |
+| `python -m backend.voice.stt` | **32/32** (was 21/21) |
+| `npm run build` (tsc -b + vite) | clean |
+| `sim/run_demo.py --dry-run` | flags forwarded |
+
+End to end on `sim/run_demo.py --no-iot --stt whisper`, project venv: the
+recorded wav POSTed to the live `/voice/audio` -> `Hold North South Green at J2
+for 20 seconds.` (en, whisper) -> `force_phase{'junction_id':'J2','phase':1}`
+applied -> and, with the §13.2 stream opened FIRST so it could not be a stale
+earlier pin, `sim_time 1535.0 · reason voice_command · overrides []` — §10 ran
+and had no reason to intervene. Warm round trip **3.5 s**; the first call after
+boot took 26 s with both models cold, which is why `warmup()` runs at startup.
+
+**A real bug the browser caught that no test would have:** `apiBase()` re-read
+`window.location.search` on every render, and the router drops the query string
+on client-side navigation — so opening /manual silently downgraded the
+assistant to the offline rule parser while the corridor above it stayed live.
+Now resolved once at module load, exactly as `createSource()` already did.
+
+### The demo command (unchanged, two new flags)
+
+    venv/Scripts/python.exe sim/run_demo.py --stt whisper
+
+`--stt {webspeech,whisper,sarvam}` (default `whisper`), `--tts {none,sarvam}`
+(default `none`). **Say "browser or local speech-to-text with local-model
+intent parsing", never "local-only"** — `webspeech` streams audio to Google and
+`sarvam` is a cloud service. The hard rule that IS true: no Claude API and no
+paid inference anywhere in the runtime path.
