@@ -36,14 +36,9 @@ Everything else in both parts stands as written.
 # PART I — from `hackathon/agents-backend`
 
 
-Cross-track contracts for the parallel hackathon build. Anything recorded
-here is either **owned by this track and safe to depend on**, or an
-**assumption this track made about another track that has not landed yet**.
-
-Owned by this track: `agents/incident_priority.py`, `agents/incident_types.py`,
-`agents/incident_priority_scenarios.py`, `orchestrator/`,
-`backend/sim_runner.py`, `backend/main.py`, `backend/control_api.py`, their
-tests, and `frontend/fixtures/recorded_session.json` (write-only).
+Changes that belong to files **outside** the writing branch's ownership. Nothing
+here has been applied — each item names the file, why the voice branch could not
+make the change itself, and exactly what to do.
 
 ---
 
@@ -104,101 +99,55 @@ exactly as if Track A does not exist, and the emergency class stays fully
 functional from §7.1's `type_composition["ambulance"]` (the same channel
 `safety/validator.py` uses) plus `forced_emergency_lanes`.
 
-**The adapter is the CALLER's job** (`backend/sim_runner.py`), not the
-agent's: whatever Track A exposes — `detect(frame) -> list[dict]` or
-otherwise — `sim_runner` converts it to the list above.
+The voice branch owns `backend/voice/` only. It **imports** from
+`backend/control_api.py` and changes nothing there. Five items.
 
-### A2. `perception.vision_source` — assumed factory (Part 4c)
+### 1. `backend/main.py` — mount the voice endpoint (REQUIRED)
 
-Part 4c plumbs a `--vision-source {mock,detector}` flag. The seam chosen
-deliberately **does not modify `twin/digital_twin.py`** (not owned by this
-track): `DigitalTwin` builds its own `VisionMock` and calls
-`self.vision.observe_all(readings)`, so the swap is an attribute assignment
-from `backend/sim_runner.py` onto the already-constructed twin.
-
-Required duck-typed interface — anything with this one method works:
+There is no HTTP route into the voice layer yet. `VoiceIntentAgent` is a plain
+object; the frontend panel needs something to POST to. Add:
 
 ```python
-class VisionSource:
-    def observe_all(self, readings: dict[str, LaneReading]) -> dict[str, dict]:
-        """lane_id -> §7.2 shape (lane_id/vehicle_count/type_composition/
-        confidence/source). May carry the extra `emergency` key of A1."""
+from backend.voice.intent_agent import VoiceIntentAgent
+
+# one agent for the app's lifetime — it holds a lazily-created Ollama client
+voice_agent = VoiceIntentAgent(state)
+
+@app.post("/voice/utterance")
+def voice_utterance(payload: dict):
+    return voice_agent.handle_payload(payload).to_dict()
 ```
 
-Assumed factory, if Track A provides one:
+`handle_payload` takes the browser's POST body directly (shape and a reference
+`SpeechRecognition` snippet are in `backend/voice/stt.py`'s docstring). It never
+raises — every failure path returns `understood: false` with §14's
+`"Command not understood, please try again"` and dispatches nothing.
+
+**No new auth surface.** The endpoint reaches exactly
+`control_api.CONTROL_FUNCTIONS` through `dispatch()`, which is the same
+allowlist the existing REST routes go through, and it is subject to the same
+loopback-by-default host guard.
+
+**One thing this endpoint has that the button routes do not: real cost per
+request.** Each utterance is ~1.5-2.6s of local model inference. The other
+control routes are effectively free (a `queue.put`). If you add any rate
+limiting to the §13 API, this is the route that most wants it — an unauthenticated
+loopback endpoint that costs 2s of CPU per call is a different shape of exposure
+from one that costs nothing. Not a blocker for a local demo; flagged because it
+is the one place where §17's "local demo surface" reasoning is doing more work
+than elsewhere.
+
+### 2. `backend/main.py` — pre-warm the model at startup (REQUIRED for §14's done-bar)
+
+Measured on this machine: **~18s cold start** for the first `gemma3:4b` request
+(BUILD_LOG 2026-09-03 §6), against §14's "dashboard visibly reacts within ~2
+seconds" bar. The **first spoken command of the demo will miss that bar badly**
+unless the model is already resident.
 
 ```python
-perception.vision_source.make_vision_source(kind: str, *, seed: int | None) -> VisionSource
-```
-
-**`mock` must stay byte-identical to today**, so on `--vision-source mock`
-this track performs **no swap at all** — the twin keeps the `VisionMock` it
-built itself, with the seed it already had. Re-assigning even an identical
-`VisionMock` would reseed it and perturb recorded numbers. Only `detector`
-swaps.
-
-### A3. IoT / MQTT telemetry — assumed per-lane freshness shape (Part 4c)
-
-The §13.2 frame gains an `iot_sensors` key, per lane:
-
-```json
-{ "N1_J1_0": {"source": "mqtt", "fresh_s": 1.4} }
-```
-
-`source` is a free-form producer tag; `fresh_s` is seconds since that lane's
-last telemetry. Emitted **only when non-empty**, so with Track A absent the
-key never appears and no consumer has to handle an empty object.
-
----
-
-## 1. `agents.incident_priority` — public interface (Part 4a, DELIVERED)
-
-Commands:
-
-```
-python -m agents.incident_priority          # done-bar: 3 hand-scored scenarios
-python -m tests.test_incident_priority      # 26 unit checks + the done-bar
-```
-
-Neither starts SUMO, loads a checkpoint, or constructs a `ControlState`, so
-both are safe to run at any time — **no `sim.sumo_activity` beacon check is
-needed or wanted**, same category as `training/scripts/stage4_contamination.py`.
-
-### The priority policy
-
-```python
-EVENT_CLASSES = ("emergency", "accident", "major_congestion", "fairness")
-CLASS_RANK    = {"emergency": 0, "accident": 1, "major_congestion": 2, "fairness": 3}
-```
-
-`arbitrate(events) -> tuple[Event, ...]` sorts by
-`(CLASS_RANK, -severity_value, -urgency, corridor_index, lane_id)`.
-The trailing `lane_id` makes the order **total**, so the classifier's
-iteration order cannot leak into the result. `corridor_index` (J1<J2<J3) is
-the same tiebreak `sim_runner._emit_junction()` already uses for §10
-overrides.
-
-### Public surface
-
-```python
-from agents.incident_priority import IncidentPriorityAgent, apply
-
-agent = IncidentPriorityAgent(config=DEFAULT_CONFIG)
-
-result = agent.tick(
-    snapshot,                               # §7.6 twin snapshot
-    sim_time=None,                          # defaults to snapshot["sim_time"]
-    spillover=None,                         # §8.1 forecast() list
-    incident_impacts=None,                  # §8.2 predict_incident_impact() list
-    vision_events=None,                     # Track A, see A1 — optional
-    forced_emergency_lanes=frozenset(),     # the SAME set handed to the validator
-) -> TickResult
-
-results = apply(state, result.directives)   # dispatches via control_api.dispatch
-agent.confirm(result.directives, results, result.sim_time)
-
-agent.reset()
-agent.active_responses  # -> tuple[ActiveResponse, ...]
+@app.on_event("startup")
+def _warm_voice():
+    threading.Thread(target=voice_agent.warmup, daemon=True).start()
 ```
 
 `TickResult` fields: `sim_time`, `events`, `directives`, `preempted`,
