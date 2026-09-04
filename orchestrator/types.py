@@ -182,6 +182,11 @@ class AgentContext:
     predictions: Mapping
     forced_emergency_lanes: frozenset
     mode: str
+    #: §7.2 observations reshaped as ADVISORY events (NOTES §9.2). Defaulted so
+    #: every existing construction site keeps working; empty when the vision
+    #: source produced nothing. Carries `emergency_vehicle_flag`, never
+    #: `emergency` — see backend/vision_alerts.py.
+    vision_events: tuple = ()
 
     def readonly(self) -> "AgentContext":
         """A copy whose two big mappings reject a top-level write.
@@ -197,4 +202,5 @@ class AgentContext:
             info=MappingProxyType(dict(self.info)),
             decisions=self.decisions, predictions=self.predictions,
             forced_emergency_lanes=self.forced_emergency_lanes, mode=self.mode,
+            vision_events=self.vision_events,
         )

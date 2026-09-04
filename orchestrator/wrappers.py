@@ -215,11 +215,13 @@ class IncidentPriorityWrapper(_Wrapper):
             sim_time=ctx.sim_time,
             spillover=(ctx.predictions or {}).get("spillover"),
             incident_impacts=(ctx.predictions or {}).get("incident_impact"),
-            # Track A has not landed; NOTES-FOR-INTEGRATION §A1 makes the
-            # adapter the caller's job. Feeding it the vision_mock echo would
-            # push the SAME ambulance through two channels for no new
-            # information.
-            vision_events=None,
+            # Track A HAS landed (Part 5c). The adapter is still the
+            # caller's job per §A1 — backend/vision_alerts.py builds these and
+            # the sim thread puts them on the context. They carry
+            # `emergency_vehicle_flag` as a low-confidence ADVISORY and never
+            # `emergency` (§9.2), so the mock's echo of the SAME ambulance
+            # cannot be double-counted as an emergency through two channels.
+            vision_events=(ctx.vision_events or None),
             forced_emergency_lanes=ctx.forced_emergency_lanes,
         )
         if not result.events:
