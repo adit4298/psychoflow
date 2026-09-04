@@ -71,6 +71,7 @@ from backend.voice import stt
 from backend.voice.intents import (
     DEFAULT_APPROACH,
     DEFAULT_JUNCTION,
+    RANGE_ERROR_MARKER,
     LaneResolver,
     extract_json_object,
     normalise_call,
@@ -345,7 +346,13 @@ class VoiceIntentAgent:
 
     def _miss(self, result: VoiceResult, reason: str) -> VoiceResult:
         result.understood = False
-        result.message = NOT_UNDERSTOOD_MESSAGE
+        # A BOUNDS failure is not a hearing failure. The operator said a clear
+        # sentence and asked for a value outside `control_api`'s range; showing
+        # them "not understood" would send them back to re-speaking a command
+        # that was never the problem. Same distinction the declined-by-the-API
+        # branch below already makes.
+        result.message = (reason if RANGE_ERROR_MARKER in reason
+                          else NOT_UNDERSTOOD_MESSAGE)
         result.reason = reason
         result.function = None
         result.args = {}
@@ -361,8 +368,68 @@ class VoiceIntentAgent:
             return self._miss(res, "no usable final transcript in the payload")
         return self.handle(event)
 
+    def parse(self, transcript: str) -> dict:
+        """Transcript -> `{"function", "args", ...}` or `{"unparsed": True, ...}`.
+
+        THE PURE HALF. It calls the model, strips fences, allowlist-checks the
+        name and normalises the arguments — and it **dispatches nothing**. That
+        separation is what lets `bridge.py` answer a read-only question ("what's
+        the wait time", "why did it switch") from the published snapshot with no
+        control call made at all, and it lets a caller inspect a parse in a test
+        without a `ControlState`.
+
+        Never raises. Every failure — Ollama down, a timeout, no JSON in the
+        reply, a hallucinated function name, an argument that will not resolve —
+        comes back as `{"unparsed": True, "reason": ...}`, which is §14's
+        fail-closed no-op.
+        """
+        started = time.perf_counter()
+        out = {"model": self.model, "raw": "", "assumptions": [],
+               "unparsed": True, "reason": "", "function": None, "args": {}}
+
+        def done(**over) -> dict:
+            out.update(over)
+            out["latency_ms"] = int((time.perf_counter() - started) * 1000)
+            return out
+
+        text = stt.normalise_transcript(transcript)
+        if not text:
+            return done(reason="empty or unusable transcript")
+
+        try:
+            raw = self.call_model(text)
+        except Exception as exc:
+            return done(reason=f"model call failed: {type(exc).__name__}: {exc}")
+        out["raw"] = (raw or "")[:_RAW_KEEP_CHARS]
+
+        obj = extract_json_object(raw)
+        if obj is None:
+            return done(reason="model reply contained no JSON object")
+
+        function = next((obj[k] for k in _FUNCTION_KEYS
+                         if k in obj and obj[k] is not None), None)
+        args = next((obj[k] for k in _ARGS_KEYS if k in obj), None)
+
+        # THE ALLOWLIST GATE. Checked here and again inside dispatch(). A name
+        # off the list is refused before any argument is examined.
+        if not isinstance(function, str) or function not in CONTROL_FUNCTIONS:
+            return done(reason=f"function {function!r} is not on the "
+                               f"control allowlist")
+
+        call = normalise_call(function, args, text, self._resolver())
+        out["assumptions"] = list(call.assumptions)
+        if not call.ok:
+            return done(reason=call.error or "arguments could not be resolved")
+        return done(unparsed=False, reason="",
+                    function=call.function, args=call.args)
+
     def handle(self, utterance) -> VoiceResult:
-        """Transcript (str or `TranscriptEvent`) -> `VoiceResult`. Never raises."""
+        """Transcript (str or `TranscriptEvent`) -> `VoiceResult`. Never raises.
+
+        `parse()` + dispatch + an operator-facing echo. `bridge.py` drives the
+        two halves separately so it can intercept read-only questions; this is
+        the one-call path the harness and the panel's text field use.
+        """
         started = time.perf_counter()
         if isinstance(utterance, stt.TranscriptEvent):
             event = utterance
@@ -376,46 +443,27 @@ class VoiceIntentAgent:
         res = VoiceResult(transcript=event.transcript, model=self.model,
                           source=event.source)
 
-        try:
-            raw = self.call_model(event.transcript)
-        except Exception as exc:
-            res.latency_ms = int((time.perf_counter() - started) * 1000)
-            return self._miss(res, f"model call failed: {type(exc).__name__}: {exc}")
-        res.raw = (raw or "")[:_RAW_KEEP_CHARS]
+        parsed = self.parse(event.transcript)
+        res.raw = parsed["raw"]
+        res.assumptions = list(parsed["assumptions"])
         res.latency_ms = int((time.perf_counter() - started) * 1000)
+        if parsed["unparsed"]:
+            return self._miss(res, parsed["reason"])
 
-        obj = extract_json_object(raw)
-        if obj is None:
-            return self._miss(res, "model reply contained no JSON object")
-
-        function = next((obj[k] for k in _FUNCTION_KEYS
-                         if k in obj and obj[k] is not None), None)
-        args = next((obj[k] for k in _ARGS_KEYS if k in obj), None)
-
-        # THE ALLOWLIST GATE. Checked here and again inside dispatch(). A name
-        # off the list is refused before any argument is examined.
-        if not isinstance(function, str) or function not in CONTROL_FUNCTIONS:
-            return self._miss(res, f"function {function!r} is not on the "
-                                   f"control allowlist")
-
-        call = normalise_call(function, args, event.transcript, self._resolver())
-        res.assumptions = list(call.assumptions)
-        if not call.ok:
-            return self._miss(res, call.error or "arguments could not be resolved")
-
-        outcome = dispatch(self.state, call.function, call.args)
+        function, args = parsed["function"], parsed["args"]
+        outcome = dispatch(self.state, function, args)
         res.understood = True
-        res.function = call.function
-        res.args = call.args
+        res.function = function
+        res.args = args
         res.result = outcome
         res.latency_ms = int((time.perf_counter() - started) * 1000)
-        if outcome.get("applied") is True or call.function == "get_stats":
+        if outcome.get("applied") is True or function == "get_stats":
             try:
-                res.message = _confirmation(call.function, call.args, outcome)
+                res.message = _confirmation(function, args, outcome)
             except Exception:
                 # `handle()` must never raise — a formatting slip in an echo
                 # is not a reason to drop an action that was already applied.
-                res.message = f"{call.function} applied"
+                res.message = f"{function} applied"
         else:
             # Understood, but the control API declined it (out of range, no
             # checkpoint, Greedy not built yet, ...). Surface ITS reason —
