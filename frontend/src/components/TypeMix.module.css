@@ -1,0 +1,20 @@
+.bar {
+  display: flex;
+  width: 52px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--track);
+  gap: 1px;
+}
+
+.seg { min-width: 2px; }
+/* Vehicle class is a fourth palette, deliberately quiet — it must not compete
+   with the go/wait/stop signal colours in the same row. */
+.seg[data-type='bike']      { background: var(--ink-3); }
+.seg[data-type='auto']      { background: var(--wait); }
+.seg[data-type='car']       { background: var(--primary); }
+.seg[data-type='truck']     { background: var(--ink-2); }
+.seg[data-type='ambulance'] { background: var(--stop); }
+
+.none { color: var(--ink-3); }

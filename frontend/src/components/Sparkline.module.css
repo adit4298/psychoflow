@@ -1,0 +1,8 @@
+.svg { display: block; overflow: visible; }
+.svg[data-tone='quiet'] { color: var(--ink-3); }
+.svg[data-tone='stop']  { color: var(--stop); }
+
+.empty {
+  border-bottom: 1px dashed var(--line-strong);
+  opacity: .6;
+}

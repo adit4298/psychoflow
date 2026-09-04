@@ -1,0 +1,87 @@
+.rail {
+  width: var(--rail-w);
+  flex-shrink: 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--s-6) 0;
+  z-index: 20;
+}
+
+.brand { flex-shrink: 0; display: flex; line-height: 0; }
+
+/* The nav group is centred in the space left between brand and footer — the
+   rail's defining move, not a top-aligned list. */
+.group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--s-2);
+}
+
+.foot {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.item {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-control);
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  background: transparent;
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .item:hover { background: var(--surface-hover); color: var(--ink); }
+}
+
+.item[aria-current] {
+  background: var(--surface-active);
+  color: var(--primary);
+}
+
+.item:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  margin-top: var(--s-1);
+  border-radius: var(--r-pill);
+  background: var(--surface-active);
+  color: var(--ink-2);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  transition: color 150ms var(--ease);
+}
+@media (hover: hover) and (pointer: fine) {
+  .avatar:hover { color: var(--ink); }
+}
+
+.tip {
+  background: var(--ink);
+  color: var(--surface);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  padding: 7px var(--s-3);
+  border-radius: var(--r-chip);
+  box-shadow: var(--shadow-pop);
+  transform-origin: var(--transform-origin);
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
+}
+.tip[data-starting-style],
+.tip[data-ending-style] { opacity: 0; transform: scale(0.96); }

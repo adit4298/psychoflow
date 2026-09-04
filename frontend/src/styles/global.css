@@ -1,0 +1,84 @@
+@import './tokens.css';
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  font-weight: var(--fw-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, p, figure { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+
+button, input, select, textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button { cursor: pointer; border: 0; background: none; padding: 0; }
+button:disabled { cursor: not-allowed; }
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
+}
+:focus:not(:focus-visible) { outline: none; }
+
+/* Data numerals are mono everywhere, and tabular so they don't jitter as they
+   tween (§8: live number change, no bounce). */
+.mono {
+  font-family: var(--font-data);
+  font-size: var(--fs-data);
+  font-weight: var(--fw-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.label {
+  font-size: var(--fs-label);
+  line-height: var(--lh-label);
+  font-weight: var(--fw-label);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+::selection { background: var(--primary-wash); color: var(--ink); }
+
+/* Scrollbars: quiet, tinted — never the default grey. */
+* { scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track { background: transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  /* The "now" edge and the cycle playhead carry information, so they keep
+     moving — they just lose the easing flourish (§8). */
+  [data-motion="informational"] { transition-duration: revert !important; }
+}
