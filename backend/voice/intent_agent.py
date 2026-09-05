@@ -367,7 +367,6 @@ class VoiceIntentAgent:
         # branch below already makes.
         result.message = (reason if RANGE_ERROR_MARKER in reason
                           else NOT_UNDERSTOOD_MESSAGE)
-        result.message = NOT_UNDERSTOOD_MESSAGE
         result.reason = reason
         result.function = None
         result.args = {}
@@ -420,32 +419,6 @@ class VoiceIntentAgent:
         obj = extract_json_object(raw)
         if obj is None:
             return done(reason="model reply contained no JSON object")
-    def handle(self, utterance) -> VoiceResult:
-        """Transcript (str or `TranscriptEvent`) -> `VoiceResult`. Never raises."""
-        started = time.perf_counter()
-        if isinstance(utterance, stt.TranscriptEvent):
-            event = utterance
-        else:
-            event = stt.from_text(utterance)
-        if event is None:
-            res = VoiceResult(transcript=stt.normalise_transcript(utterance),
-                              model=self.model)
-            return self._miss(res, "empty or unusable transcript")
-
-        res = VoiceResult(transcript=event.transcript, model=self.model,
-                          source=event.source)
-
-        try:
-            raw = self.call_model(event.transcript)
-        except Exception as exc:
-            res.latency_ms = int((time.perf_counter() - started) * 1000)
-            return self._miss(res, f"model call failed: {type(exc).__name__}: {exc}")
-        res.raw = (raw or "")[:_RAW_KEEP_CHARS]
-        res.latency_ms = int((time.perf_counter() - started) * 1000)
-
-        obj = extract_json_object(raw)
-        if obj is None:
-            return self._miss(res, "model reply contained no JSON object")
 
         function = next((obj[k] for k in _FUNCTION_KEYS
                          if k in obj and obj[k] is not None), None)
@@ -500,32 +473,11 @@ class VoiceIntentAgent:
         res.latency_ms = int((time.perf_counter() - started) * 1000)
         if outcome.get("applied") is True or function == "get_stats":
             try:
-                res.message = confirmation(function, args, outcome)
+                res.message = _confirmation(function, args, outcome)
             except Exception:
                 # `handle()` must never raise — a formatting slip in an echo
                 # is not a reason to drop an action that was already applied.
                 res.message = f"{function} applied"
-            return self._miss(res, f"function {function!r} is not on the "
-                                   f"control allowlist")
-
-        call = normalise_call(function, args, event.transcript, self._resolver())
-        res.assumptions = list(call.assumptions)
-        if not call.ok:
-            return self._miss(res, call.error or "arguments could not be resolved")
-
-        outcome = dispatch(self.state, call.function, call.args)
-        res.understood = True
-        res.function = call.function
-        res.args = call.args
-        res.result = outcome
-        res.latency_ms = int((time.perf_counter() - started) * 1000)
-        if outcome.get("applied") is True or call.function == "get_stats":
-            try:
-                res.message = _confirmation(call.function, call.args, outcome)
-            except Exception:
-                # `handle()` must never raise — a formatting slip in an echo
-                # is not a reason to drop an action that was already applied.
-                res.message = f"{call.function} applied"
         else:
             # Understood, but the control API declined it (out of range, no
             # checkpoint, Greedy not built yet, ...). Surface ITS reason —

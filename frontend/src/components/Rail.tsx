@@ -74,8 +74,9 @@ export function Rail() {
               </span>
             </button>
           </RailTip>
-          <RailTip label="Settings">
-            <button type="button" className={s.item} aria-label="Settings">
+          <RailTip label="Settings — not available in this build">
+            <button type="button" className={s.item} aria-label="Settings"
+                    disabled>
               <Settings size={20} strokeWidth={1.9} aria-hidden="true" />
             </button>
           </RailTip>

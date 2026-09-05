@@ -71,3 +71,45 @@
 }
 
 .chipType { text-transform: capitalize; }
+
+.alerts {
+  width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--r-control);
+  box-shadow: var(--shadow-pop);
+  padding: var(--s-3);
+  transform-origin: var(--transform-origin);
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
+}
+.alerts[data-starting-style],
+.alerts[data-ending-style] { opacity: 0; transform: scale(0.96); }
+
+.alertsTitle {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: 0 var(--s-2) var(--s-2);
+}
+
+.alertsEmpty {
+  font-size: var(--fs-sm);
+  color: var(--ink-3);
+  padding: var(--s-2);
+}
+
+.alertsList { display: flex; flex-direction: column; gap: var(--s-1); }
+
+.alertRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2);
+  border-radius: var(--r-control);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .alertRow:hover { background: var(--surface-hover); }
+}

@@ -160,11 +160,6 @@ def _offline_checks(rec: _Recorder) -> None:
               "(no magnitude guessing), then fails the range check as 5s",
               (not call2.ok) and "5s" in (call2.error or "")
               and "10s-900s" in (call2.error or ""),
-    call2 = normalise_call("set_lane_bias", {"lane": 3, "duration": 5},
-                           "give lane 3 more priority for five", resolver)
-    rec.check("a bare duration with NO spoken unit stays seconds "
-              "(no magnitude guessing)",
-              call2.ok and call2.args["duration_s"] == 5.0,
               f"{call2.error or call2.args}")
     call3 = normalise_call("set_lane_bias", {"lane": 1},
                            "give lane 1 more priority", resolver)
@@ -325,10 +320,6 @@ def _pinned_reply_checks(rec: _Recorder) -> None:
               (not res.applied and not queued
                and "0.1-10" in (res.message or "")
                and res.message != "Command not understood, please try again"),
-    rec.check("out-of-range weight: understood, declined by control_api, "
-              "nothing queued",
-              (res.understood and not res.applied and not queued
-               and "weight must be in" in (res.message or "")),
               f"message={res.message!r} queued={[c.kind for c in queued]}")
 
     def boom(_t):

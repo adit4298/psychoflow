@@ -1,4 +1,5 @@
 import { Bell, CircleCheck, TriangleAlert } from 'lucide-react';
+import { Popover } from '@base-ui/react/popover';
 import { ModeSwitch } from './ModeSwitch';
 import { useLatestAlerts, useStore } from '../store/store';
 import { simClock } from '../data/format';
@@ -52,10 +53,34 @@ export function TopBar({ title, context }: { title: string; context: string }) {
 
         <ModeSwitch />
 
-        <button type="button" className={s.bell} aria-label="Notifications">
-          <Bell size={18} strokeWidth={1.9} aria-hidden="true" />
-          {alert && <span className={s.pip} aria-hidden="true" />}
-        </button>
+        <Popover.Root>
+          <Popover.Trigger className={s.bell} aria-label="Notifications">
+            <Bell size={18} strokeWidth={1.9} aria-hidden="true" />
+            {alert && <span className={s.pip} aria-hidden="true" />}
+          </Popover.Trigger>
+          <Popover.Portal>
+            <Popover.Positioner side="bottom" align="end" sideOffset={10}>
+              <Popover.Popup className={s.alerts}>
+                <p className={s.alertsTitle}>Alerts</p>
+                {alerts.length === 0 ? (
+                  <p className={s.alertsEmpty}>No active alerts.</p>
+                ) : (
+                  <ul className={s.alertsList}>
+                    {alerts.map((a, i) => (
+                      <li key={i} className={s.alertRow}>
+                        <TriangleAlert size={14} strokeWidth={2.1} aria-hidden="true" />
+                        <span>
+                          <span className={s.chipType}>{a.type}</span> at{' '}
+                          {a.junction} · {a.severity}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        </Popover.Root>
       </div>
     </header>
   );

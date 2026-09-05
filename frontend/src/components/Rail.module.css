@@ -54,6 +54,15 @@
 
 .item:active { transform: scale(0.97); transition: transform 120ms var(--ease); }
 
+.item:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (hover: hover) and (pointer: fine) {
+  .item:disabled:hover { background: transparent; color: var(--ink-2); }
+}
+.item:disabled:active { transform: none; }
+
 .avatar {
   width: 28px;
   height: 28px;
