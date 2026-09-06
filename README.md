@@ -330,18 +330,3 @@ All training runs locally on CPU — SUMO is CPU-bound, not GPU-bound. If your m
 - Verify the optional Sarvam cloud STT path against the live service (currently implemented from documentation only, unverified end to end).
 - Y-merge topology generalization — deliberately deprioritized; the problem statement never asked for it, and it's only worth building with real slack time left over.
 
-## Team
-
-Built by a team of 5 at Smart Horizon — 48-Hour Hackathon 2026.
-
-| Role | Name |
-|---|---|
-| Project Lead / Pre-Event Architecture | _add your name_ |
-| | _add teammate_ |
-| | _add teammate_ |
-| | _add teammate_ |
-| | _add teammate_ |
-
-## License
-
-No license has been added yet. If you'd like this repo to be reusable or forkable by others, consider adding one — [MIT](https://choosealicense.com/licenses/mit/) is a common, permissive default for hackathon projects.
