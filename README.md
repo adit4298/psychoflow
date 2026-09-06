@@ -54,6 +54,7 @@ Full build documentation lives in [`docs/PsychoFlow_Master_Plan.md`](docs/Psycho
 > This system only runs locally (SUMO + a local LLM + the backend + the frontend all on one machine), so these are the only way to see it work without running it yourself. All images live in [`docs/Screenshots/`](docs/Screenshots).
 
 | | |
+|---|---|
 | **Operator dashboard — Overview** | **SUMO GUI — live corridor simulation** |
 | ![Operator dashboard overview](docs/Screenshots/dashboard.png) | ![SUMO GUI live corridor](docs/Screenshots/sumo-gui.png) |
 | **Junctions — per-junction detail** | **Logs — every decision this session** |
